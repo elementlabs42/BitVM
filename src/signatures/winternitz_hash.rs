@@ -1,12 +1,9 @@
-use crate::treepp::*;
-use super::winternitz::*;
 use crate::hash::blake3::blake3_160_var_length;
+use crate::signatures::winternitz::{checksig_verify, sign, DigitSignature, PublicKey};
+use crate::treepp::*;
 use blake3::hash;
 
-const MESSAGE_HASH_LEN: u32 = 20;
-//These two are just added for compatibility, they can be changed and might not be the best choice of algorithms or parameters for your usage
-static O: Winternitz::<ListpickVerifier, StraightforwardConverter> = Winternitz::new();
-static PS: Parameters = Parameters::new(MESSAGE_HASH_LEN * 2, 4);
+const MESSAGE_HASH_LEN: u8 = 20;
 
 /// Verify a Winternitz signature for the hash of the top `input_len` many bytes on the stack
 /// The hash function is blake3 with a 20-byte digest size
@@ -14,7 +11,7 @@ static PS: Parameters = Parameters::new(MESSAGE_HASH_LEN * 2, 4);
 pub fn check_hash_sig(public_key: &PublicKey, input_len: usize) -> Script {
     script! {
         // 1. Verify the signature and compute the signed message
-        { O.checksig_verify(&PS, &public_key) }
+        { checksig_verify(&public_key) }
         for _ in 0..MESSAGE_HASH_LEN {
             OP_TOALTSTACK
         }
@@ -35,53 +32,51 @@ pub fn check_hash_sig(public_key: &PublicKey, input_len: usize) -> Script {
 }
 
 /// Create a Winternitz signature for the blake3 hash of a given message
-pub fn sign_hash(sec_key: &Vec<u8>, message: &[u8]) -> Script {
+pub fn sign_hash(sec_key: &str, message: &[u8]) -> Vec<DigitSignature> {
     let message_hash = hash(message);
     let message_hash_bytes = &message_hash.as_bytes()[0..20];
-    script! {
-        { O.sign(&PS, sec_key, &message_hash_bytes.to_vec()) }
-    }
+
+    sign(sec_key, message_hash_bytes)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    const MY_SEC_KEY: &str = "b138982ce17ac813d505b5b40b665d404e9528e7";
+    use crate::signatures::winternitz::generate_public_key;
 
     #[test]
     fn test_check_hash_sig() {
-        // My secret key 
-        let secret_key = match hex::decode(MY_SEC_KEY) {
-            Ok(bytes) => bytes,
-            Err(_) => panic!("Invalid hex string"),
-        };
-        
+        // My secret key
+        let my_sec_key = "b138982ce17ac813d505b5b40b665d404e9528e7";
+
         // My public key
-        let public_key = generate_public_key(&PS, &secret_key);
+        let public_key = generate_public_key(my_sec_key);
 
         // The message to sign
         let message = *b"This is an arbitrary length input intended for testing purposes....";
 
-
-        assert!(execute_script(script! {
+        let result = execute_script(script! {
             //
             // Unlocking Script
             //
 
-            // 1. Push the message 
+            // 1. Push the message
             for byte in message.iter().rev() {
                 { *byte }
             }
             // 2. Push the signature
-            { sign_hash(&secret_key, &message) }
-            
-            
+            for signature in sign_hash(my_sec_key, &message) {
+                { signature.hash_bytes }
+                { signature.message_digit }
+            }
+
             //
             // Locking Script
             //
             { check_hash_sig(&public_key, message.len()) }
             OP_TRUE
-        }).success == true);   
-    }
+        });
 
+        assert!(result.success);
+    }
 }

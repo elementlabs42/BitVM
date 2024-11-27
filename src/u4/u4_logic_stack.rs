@@ -6,7 +6,6 @@ use crate::u4::u4_logic::u4_sort;
 use super::{
     u4_add_stack::u4_arrange_nibbles_stack,
     u4_logic::{u4_push_half_and_table, u4_push_half_xor_table, u4_push_lookup, u4_push_xor_table},
-    u4_shift_stack::u4_rshift_stack,
 };
 
 pub fn u4_push_and_table_stack(stack: &mut StackTracker) -> StackVariable {
@@ -42,28 +41,6 @@ pub fn u4_push_half_lookup_0_based() -> Script {
     }
 }
 
-pub fn u4_push_from_depth_lookup(stack: &mut StackTracker, delta: i32) -> StackVariable {
-    for i in (0..16).rev() {
-        stack.numberi((i+1) * -16 + delta);
-    }
-    let lookup = stack.join_count(&mut stack.get_var_from_stack(15), 15);
-    stack.rename(lookup, "lookup");
-    lookup
-}
-
-pub fn u4_push_from_depth_half_lookup(stack: &mut StackTracker, delta: i32) -> StackVariable {
-    for i in (1..17).rev() {
-        let diff = ((16-i) * (16-i+1))/2;
-        let value =  -diff + delta;
-        stack.numberi(value);
-    }
-   
-    let lookup = stack.join_count(&mut stack.get_var_from_stack(15), 15);
-    stack.rename(lookup, "lookup");
-    lookup
-
-}
-
 pub fn u4_push_lookup_table_stack(stack: &mut StackTracker) -> StackVariable {
     stack.var(16, u4_push_half_lookup_0_based(), "lookup_table")
 }
@@ -76,8 +53,8 @@ pub fn u4_logic_with_table_stack(
     stack: &mut StackTracker,
     lookup_table: StackVariable,
     logic_table: StackVariable,
+    use_full_table: bool,
 ) -> StackVariable {
-    let use_full_table = logic_table.size() > 136;
     if !use_full_table {
         stack.custom(u4_sort(), 0, false, 0, "sort");
     }
@@ -93,24 +70,11 @@ pub fn u4_xor_with_and_stack(
     logic_table: StackVariable,
 ) -> StackVariable {
     stack.op_2dup();
-    u4_logic_with_table_stack(stack, lookup_table, logic_table);
+    u4_logic_with_table_stack(stack, lookup_table, logic_table, false);
     stack.op_dup();
     stack.op_add();
     stack.op_sub();
     stack.op_add()
-}
-
-pub fn u4_and_with_xor_stack(
-    stack: &mut StackTracker,
-    lookup_table: StackVariable,
-    logic_table: StackVariable,
-    shift_table: StackVariable,
-) -> StackVariable {
-    stack.op_2dup();
-    u4_logic_with_table_stack(stack, lookup_table, logic_table);
-    stack.op_sub();
-    stack.op_add();
-    u4_rshift_stack(stack, shift_table, 1)
 }
 
 pub fn u4_logic_stack_nib(
@@ -122,7 +86,7 @@ pub fn u4_logic_stack_nib(
     if do_xor_with_and {
         u4_xor_with_and_stack(stack, lookup_table, logic_table)
     } else {
-        u4_logic_with_table_stack(stack, lookup_table, logic_table)
+        u4_logic_with_table_stack(stack, lookup_table, logic_table, logic_table.size() > 136)
     }
 }
 
@@ -142,7 +106,7 @@ pub fn u4_logic_stack(
             if do_xor_with_and {
                 u4_xor_with_and_stack(stack, lookup_table, logic_table);
             } else {
-                u4_logic_with_table_stack(stack, lookup_table, logic_table);
+                u4_logic_with_table_stack(stack, lookup_table, logic_table, false);
             }
             stack.to_altstack();
         }
@@ -165,7 +129,7 @@ mod tests {
                 stack.number(x);
                 stack.number(y);
 
-                u4_logic_with_table_stack(&mut stack, lookup, xor);
+                u4_logic_with_table_stack(&mut stack, lookup, xor, true);
 
                 stack.number(x ^ y);
 
@@ -192,7 +156,7 @@ mod tests {
                 stack.number(x);
                 stack.number(y);
 
-                u4_logic_with_table_stack(&mut stack, lookup, xor);
+                u4_logic_with_table_stack(&mut stack, lookup, xor, false);
 
                 stack.number(x ^ y);
 
@@ -246,7 +210,7 @@ mod tests {
                 stack.number(x);
                 stack.number(y);
 
-                u4_logic_with_table_stack(&mut stack, lookup, and);
+                u4_logic_with_table_stack(&mut stack, lookup, and, false);
 
                 stack.number(x & y);
 

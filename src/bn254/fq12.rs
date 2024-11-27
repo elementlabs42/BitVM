@@ -105,12 +105,7 @@ impl Fq12 {
         }
     }
 
-    pub fn hinted_mul(
-        mut a_depth: u32,
-        mut a: ark_bn254::Fq12,
-        mut b_depth: u32,
-        mut b: ark_bn254::Fq12,
-    ) -> (Script, Vec<Hint>) {
+    pub fn hinted_mul(mut a_depth: u32, mut a: ark_bn254::Fq12, mut b_depth: u32, mut b: ark_bn254::Fq12) -> (Script, Vec<Hint>) {
         if a_depth < b_depth {
             (a_depth, b_depth) = (b_depth, a_depth);
             (a, b) = (b, a);
@@ -120,7 +115,7 @@ impl Fq12 {
 
         let (hinted_script1, hint1) = Fq6::hinted_mul(6, a.c0, 0, b.c0);
         let (hinted_script2, hint2) = Fq6::hinted_mul(6, a.c1, 0, b.c1);
-        let (hinted_script3, hint3) = Fq6::hinted_mul(6, a.c0 + a.c1, 0, b.c0 + b.c1);
+        let (hinted_script3, hint3) = Fq6::hinted_mul(6, a.c0+a.c1, 0, b.c0+b.c1);
 
         let mut script = script! {};
         let script_lines = [
@@ -356,16 +351,11 @@ impl Fq12 {
         }
     }
 
-    pub fn hinted_mul_by_34(
-        p: ark_bn254::Fq12,
-        c3: ark_bn254::Fq2,
-        c4: ark_bn254::Fq2,
-    ) -> (Script, Vec<Hint>) {
+    pub fn hinted_mul_by_34(p: ark_bn254::Fq12, c3: ark_bn254::Fq2, c4: ark_bn254::Fq2) -> (Script, Vec<Hint>) {
         let mut hints = Vec::new();
 
         let (hinted_script1, hint1) = Fq6::hinted_mul_by_01(p.c1, c3, c4);
-        let (hinted_script2, hint2) =
-            Fq6::hinted_mul_by_01(p.c0 + p.c1, c3 + ark_bn254::Fq2::ONE, c4);
+        let (hinted_script2, hint2) = Fq6::hinted_mul_by_01(p.c0+p.c1, c3+ark_bn254::Fq2::ONE, c4);
 
         let mut script = script! {};
 
@@ -592,21 +582,26 @@ impl Fq12 {
             Fq6::copy(6),
             Fq6::copy(6),
             Fq6::add(6, 0),
+
             // v3 = c0 + beta * c1
             Fq6::copy(6),
             Fq12::mul_fq6_by_nonresidue(),
             Fq6::copy(18),
             Fq6::add(0, 6),
+
             // v2 = c0 * c1
             hinted_script1,
+
             // v0 = v0 * v3
             hinted_script2,
+
             // final c0 = v0 - (beta + 1) * v2
             Fq6::copy(6),
             Fq12::mul_fq6_by_nonresidue(),
             Fq6::copy(12),
             Fq6::add(6, 0),
             Fq6::sub(6, 0),
+
             // final c1 = 2 * v2
             Fq6::double(6),
         ];
@@ -617,7 +612,7 @@ impl Fq12 {
 
         hints.extend(hints1);
         hints.extend(hints2);
-
+        
         (script, hints)
     }
 
@@ -673,11 +668,7 @@ impl Fq12 {
 
         let (hinted_script1, hint1) = Fq6::hinted_frobenius_map(i, a.c0);
         let (hinted_script2, hint2) = Fq6::hinted_frobenius_map(i, a.c1);
-        let (hinted_script3, hint3) = Fq6::hinted_mul_by_fp2_constant(
-            a.c1.frobenius_map(i),
-            &ark_bn254::Fq12Config::FROBENIUS_COEFF_FP12_C1
-                [i % ark_bn254::Fq12Config::FROBENIUS_COEFF_FP12_C1.len()],
-        );
+        let (hinted_script3, hint3) = Fq6::hinted_mul_by_fp2_constant(a.c1.frobenius_map(i), &ark_bn254::Fq12Config::FROBENIUS_COEFF_FP12_C1[i % ark_bn254::Fq12Config::FROBENIUS_COEFF_FP12_C1.len()]);
 
         let mut script = script! {};
         let script_lines = [
@@ -805,9 +796,7 @@ impl Fq12 {
 #[cfg(test)]
 mod test {
     use crate::bn254::fq12::Fq12;
-    use crate::bn254::utils::{
-        fq12_push, fq12_push_not_montgomery, fq2_push, fq2_push_not_montgomery,
-    };
+    use crate::bn254::utils::{fq12_push, fq12_push_not_montgomery, fq2_push, fq2_push_not_montgomery};
     use crate::{execute_script_without_stack_limit, treepp::*};
     use ark_ff::AdditiveGroup;
     use ark_ff::{CyclotomicMultSubgroup, Field};
@@ -889,7 +878,7 @@ mod test {
 
         let mut max_stack = 0;
 
-        for _ in 0..1 {
+        for _ in 0..100 {
             let a = ark_bn254::Fq12::rand(&mut prng);
             let b = ark_bn254::Fq12::rand(&mut prng);
             let c = a.mul(&b);
@@ -897,7 +886,7 @@ mod test {
             let (hinted_mul, hints) = Fq12::hinted_mul(12, a, 0, b);
 
             let script = script! {
-                for hint in hints {
+                for hint in hints { 
                     { hint.push() }
                 }
                 { fq12_push_not_montgomery(a) }
@@ -911,12 +900,9 @@ mod test {
             assert!(res.success);
 
             max_stack = max_stack.max(res.stats.max_nb_stack_items);
-            println!(
-                "Fq12::window_mul: {} @ {} stack",
-                hinted_mul.len(),
-                max_stack
-            );
+            println!("Fq12::window_mul: {} @ {} stack", hinted_mul.len(), max_stack);
         }
+
     }
 
     #[test]
@@ -925,7 +911,7 @@ mod test {
 
         let mut max_stack = 0;
 
-        for _ in 0..1 {
+        for _ in 0..100 {
             let a = ark_bn254::Fq12::rand(&mut prng);
             let c0 = ark_bn254::Fq2::ONE;
             let c3 = ark_bn254::Fq2::rand(&mut prng);
@@ -935,7 +921,7 @@ mod test {
             let (hinted_mul, hints) = Fq12::hinted_mul_by_34(a, c3, c4);
 
             let script = script! {
-                for hint in hints {
+                for hint in hints { 
                     { hint.push() }
                 }
                 { fq12_push_not_montgomery(a) }
@@ -950,12 +936,9 @@ mod test {
             assert!(res.success);
 
             max_stack = max_stack.max(res.stats.max_nb_stack_items);
-            println!(
-                "Fq6::window_mul: {} @ {} stack",
-                hinted_mul.len(),
-                max_stack
-            );
+            println!("Fq6::window_mul: {} @ {} stack", hinted_mul.len(), max_stack);
         }
+
     }
 
     #[test]
@@ -1036,7 +1019,7 @@ mod test {
             let (hinted_square, hints) = Fq12::hinted_square(a);
 
             let script = script! {
-                for hint in hints {
+                for hint in hints { 
                     { hint.push() }
                 }
                 { fq12_push_not_montgomery(a) }
@@ -1049,13 +1032,10 @@ mod test {
             assert!(exec_result.success);
 
             max_stack = max_stack.max(exec_result.stats.max_nb_stack_items);
-            println!(
-                "Fq12::hinted_square: {} @ {} stack",
-                hinted_square.len(),
-                max_stack
-            );
+            println!("Fq12::hinted_square: {} @ {} stack", hinted_square.len(), max_stack);
         }
     }
+
 
     #[test]
     fn test_bn254_fq12_mul_by_034() {
@@ -1150,7 +1130,7 @@ mod test {
                     { Fq12::equalverify() }
                     OP_TRUE
                 };
-                run(script);
+            run(script);
             }
         }
     }
@@ -1165,14 +1145,10 @@ mod test {
                 let b = a.frobenius_map(i);
 
                 let (hinted_frobenius_map, hints) = Fq12::hinted_frobenius_map(i, a);
-                println!(
-                    "Fq12.hinted_frobenius_map({}): {} bytes",
-                    i,
-                    hinted_frobenius_map.len()
-                );
+                println!("Fq12.hinted_frobenius_map({}): {} bytes", i, hinted_frobenius_map.len());
 
                 let script = script! {
-                    for hint in hints {
+                    for hint in hints { 
                         { hint.push() }
                     }
                     { fq12_push_not_montgomery(a) }
