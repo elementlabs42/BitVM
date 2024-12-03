@@ -15,11 +15,15 @@ use bitcoin::{
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 
 use crate::bridge::{
-    constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key, graphs::{
+    constants::DestinationNetwork,
+    contexts::base::generate_n_of_n_public_key,
+    graphs::{
         base::get_tx_statuses,
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::{CommitmentMessageId, PegOutOperatorStatus},
-    }, scripts::generate_pay_to_pubkey_script_address, transactions::signing_winternitz::WinternitzSecret
+    },
+    scripts::generate_pay_to_pubkey_script_address,
+    transactions::signing_winternitz::WinternitzSecret,
 };
 
 use super::{
@@ -47,7 +51,8 @@ use super::{
     },
 };
 
-const ESPLORA_URL: &str = "https://mutinynet.com/api";
+// const ESPLORA_URL: &str = "https://mutinynet.com/api";
+const ESPLORA_URL: &str = "http://localhost:8094/regtest/api/";
 const TEN_MINUTES: u64 = 10 * 60;
 
 const PRIVATE_DATA_FILE_NAME: &str = "secret_data.json";
@@ -252,7 +257,17 @@ impl BitVMClient {
             let mut events = peg_out_result.unwrap();
             for peg_out_graph in self.data.peg_out_graphs.iter_mut() {
                 if !peg_out_graph.is_peg_out_initiated() {
-                    let _ = peg_out_graph.match_and_set_peg_out_event(&mut events).await;
+                    match peg_out_graph.match_and_set_peg_out_event(&mut events).await {
+                        Ok(_) => match peg_out_graph.peg_out_chain_event {
+                            Some(_) => println!(
+                                "Peg Out Graph id: {} Event Matched, Event: {:?}",
+                                peg_out_graph.id(),
+                                peg_out_graph.peg_out_chain_event
+                            ),
+                            None => (),
+                        },
+                        Err(err) => println!("Error: {}", err),
+                    }
                 }
             }
         } else {
@@ -716,7 +731,9 @@ impl BitVMClient {
         }
 
         for peg_in_graph in self.data.peg_in_graphs.iter() {
-            let status = peg_in_graph.verifier_status(&self.esplora, self.verifier_context.as_ref()).await;
+            let status = peg_in_graph
+                .verifier_status(&self.esplora, self.verifier_context.as_ref())
+                .await;
             println!("Graph id: {} status: {}\n", peg_in_graph.id(), status);
         }
 
@@ -799,6 +816,7 @@ impl BitVMClient {
         }
         let operator_public_key = &self.operator_context.as_ref().unwrap().operator_public_key;
 
+        println!("Looking for peg-in graph...");
         let peg_in_graph = self
             .data
             .peg_in_graphs
@@ -808,6 +826,7 @@ impl BitVMClient {
             panic!("Invalid graph id");
         }
 
+        println!("Checking if peg-out graph already exists...");
         let peg_out_graph_id = peg_out_generate_id(peg_in_graph.unwrap(), operator_public_key);
         let peg_out_graph = self
             .data
@@ -818,16 +837,19 @@ impl BitVMClient {
             panic!("Peg out graph already exists");
         }
 
+        println!("Creating peg-out graph instance...");
         let (peg_out_graph, commitment_secrets) = PegOutGraph::new(
             self.operator_context.as_ref().unwrap(),
             peg_in_graph.unwrap(),
             kickoff_input,
         );
 
+        println!("Creating commitment secrets...");
         self.private_data.commitment_secrets = HashMap::from([(
             operator_public_key.clone(),
             HashMap::from([(peg_out_graph_id.to_string(), commitment_secrets)]),
         )]);
+        println!("Saving commitment secrets...");
         Self::save_local_private_file(&self.file_path, &serialize(&self.private_data));
 
         self.data.peg_out_graphs.push(peg_out_graph);
@@ -1153,7 +1175,7 @@ impl BitVMClient {
             None
         }
     }
-    
+
     pub fn get_depositor_address(&self) -> Address {
         if let Some(ref context) = self.depositor_context {
             generate_pay_to_pubkey_script_address(context.network, &context.depositor_public_key)
@@ -1161,7 +1183,7 @@ impl BitVMClient {
             panic!("No depositor key set");
         }
     }
-    
+
     pub async fn get_depositor_utxos(&self) -> Vec<Utxo> {
         self.esplora
             .get_address_utxo(self.get_depositor_address())
@@ -1455,25 +1477,33 @@ impl ClientCliQuery for BitVMClient {
     async fn get_unused_peg_in_graphs(&self) -> Vec<Value> {
         join_all(self.data.peg_in_graphs.iter().filter_map(|peg_in| {
             Some(async move {
-                match self.data.peg_out_graphs.iter().any(|peg_out| peg_out.peg_in_graph_id == *peg_in.id()) {
-                    true => None,
-                    false => match peg_in.depositor_status(&self.esplora).await {
-                        PegInDepositorStatus::PegInConfirmComplete => Some(json!({
-                            "graph_id": peg_in.id(),
-                            "amount": peg_in.peg_in_deposit_transaction.prev_outs()[0].value.to_sat(),
-                            "source_outpoint": {
-                                "txid": peg_in.peg_in_deposit_transaction.tx().compute_txid(),
-                                "vout": 0
-                            },
-                        })),
-                        _ => None,
+                match peg_in.depositor_status(&self.esplora).await {
+                    PegInDepositorStatus::PegInConfirmComplete => match self.data.peg_out_graphs.iter().find(|peg_out| peg_out.peg_in_graph_id == *peg_in.id()) {
+                        Some(peg_out) => match peg_out.operator_status(&self.esplora).await {
+                            PegOutOperatorStatus::PegOutWait => Some(json!({
+                                "graph_id": peg_in.id(),
+                                "amount": peg_in.peg_in_confirm_transaction.prev_outs()[0].value.to_sat(),
+                                "source_outpoint": {
+                                    "txid": peg_in.peg_in_confirm_transaction.tx().compute_txid(),
+                                    "vout": 0
+                                },
+                            })),
+                            _ => None,
+                        },
+                        None => None,
                     },
+                    _ => None,
                 }
             })
         }))
         .await
         .iter()
-        .map(|v| v.clone().unwrap())
+        .filter_map(|v| {
+            match v {
+                Some(v) => Some(v.clone()),
+                _ => None,
+            }
+        })
         .collect()
     }
 
@@ -1535,6 +1565,7 @@ impl ClientCliQuery for BitVMClient {
                         "graph_id": graph.id(),
                         "status": status.to_string(),
                         "amount": graph.peg_in_deposit_transaction.prev_outs()[0].value.to_sat(),
+                        "destination_address": graph.depositor_evm_address,
                         "txs" : tx_json_values,
                     })
                 }),
@@ -1559,36 +1590,38 @@ impl ClientCliQuery for BitVMClient {
                     false
                 })
                 .map(|graph| async {
-                    let (tx_json_value, tx_status_result, peg_out_amount) =
-                        match &graph.peg_out_transaction {
-                            Some(tx) => {
-                                let txid = tx.tx().compute_txid();
-                                let tx_status_result = self.esplora.get_tx_status(&txid).await;
-                                let tx_status = tx_status_result.as_ref().unwrap_or(&TxStatus {
-                                    confirmed: false,
-                                    block_height: None,
-                                    block_hash: None,
-                                    block_time: None,
-                                });
-                                let tx_json_value = json!({
-                                    "type": "peg_out",
-                                    "txid": txid,
-                                    "status": {
-                                        "confirmed": tx_status.confirmed,
-                                        "block_height": tx_status.block_height.unwrap_or(0),
-                                        "block_hash": tx_status.block_hash.or_else(|| None),
-                                        "block_time": tx_status.block_time.unwrap_or(0),
-                                    }
-                                });
+                    let (tx_json_value, tx_status_result) = match &graph.peg_out_transaction {
+                        Some(tx) => {
+                            let txid = tx.tx().compute_txid();
+                            let tx_status_result = self.esplora.get_tx_status(&txid).await;
+                            let tx_status = tx_status_result.as_ref().unwrap_or(&TxStatus {
+                                confirmed: false,
+                                block_height: None,
+                                block_hash: None,
+                                block_time: None,
+                            });
+                            let tx_json_value = json!({
+                                "type": "peg_out",
+                                "txid": txid,
+                                "status": {
+                                    "confirmed": tx_status.confirmed,
+                                    "block_height": tx_status.block_height.unwrap_or(0),
+                                    "block_hash": tx_status.block_hash.or_else(|| None),
+                                    "block_time": tx_status.block_time.unwrap_or(0),
+                                }
+                            });
 
-                                (
-                                    Some(tx_json_value),
-                                    Some(tx_status_result),
-                                    tx.tx().output[0].value.to_sat(),
-                                )
-                            }
-                            None => (Some(json!([])), None, 0),
-                        };
+                            (Some(tx_json_value), Some(tx_status_result))
+                        }
+                        None => (Some(json!([])), None),
+                    };
+                    let (peg_out_amount, destination_address) = match &graph.peg_out_chain_event {
+                        Some(peg_out_chain_event) => (
+                            peg_out_chain_event.amount.to_sat(),
+                            peg_out_chain_event.withdrawer_destination_address.clone(),
+                        ),
+                        None => (0, "".to_string()),
+                    };
 
                     let status = graph.interpret_operator_status(tx_status_result.as_ref());
                     json!({
@@ -1596,6 +1629,7 @@ impl ClientCliQuery for BitVMClient {
                         "graph_id": graph.id(),
                         "status": status.to_string(),
                         "amount": peg_out_amount,
+                        "destination_address": destination_address,
                         "txs": tx_json_value,
                     })
                 }),
