@@ -15,11 +15,19 @@ use bitcoin::{
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 
 use crate::bridge::{
-    constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key, graphs::{
+    connectors::{connector_0::Connector0, connector_z::ConnectorZ},
+    constants::DestinationNetwork,
+    contexts::base::generate_n_of_n_public_key,
+    graphs::{
         base::get_tx_statuses,
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::{CommitmentMessageId, PegOutOperatorStatus},
-    }, scripts::generate_pay_to_pubkey_script_address, transactions::signing_winternitz::WinternitzSecret
+    },
+    scripts::generate_pay_to_pubkey_script_address,
+    transactions::{
+        peg_in_confirm::PegInConfirmTransaction, peg_in_deposit::PegInDepositTransaction,
+        signing_winternitz::WinternitzSecret,
+    },
 };
 
 use super::{
@@ -181,13 +189,21 @@ impl BitVMClient {
         }
     }
 
-    pub fn get_data(&self) -> &BitVMClientPublicData { return &self.data; }
+    pub fn get_data(&self) -> &BitVMClientPublicData {
+        return &self.data;
+    }
 
-    pub async fn sync(&mut self) { self.read().await; }
+    pub async fn sync(&mut self) {
+        self.read().await;
+    }
 
-    pub async fn sync_l2(&mut self) { self.read_from_l2().await; }
+    pub async fn sync_l2(&mut self) {
+        self.read_from_l2().await;
+    }
 
-    pub async fn flush(&mut self) { self.save().await; }
+    pub async fn flush(&mut self) {
+        self.save().await;
+    }
 
     /*
      1. Fetch the lates file
@@ -716,7 +732,9 @@ impl BitVMClient {
         }
 
         for peg_in_graph in self.data.peg_in_graphs.iter() {
-            let status = peg_in_graph.verifier_status(&self.esplora, self.verifier_context.as_ref()).await;
+            let status = peg_in_graph
+                .verifier_status(&self.esplora, self.verifier_context.as_ref())
+                .await;
             println!("Graph id: {} status: {}\n", peg_in_graph.id(), status);
         }
 
@@ -1153,7 +1171,7 @@ impl BitVMClient {
             None
         }
     }
-    
+
     pub fn get_depositor_address(&self) -> Address {
         if let Some(ref context) = self.depositor_context {
             generate_pay_to_pubkey_script_address(context.network, &context.depositor_public_key)
@@ -1161,7 +1179,7 @@ impl BitVMClient {
             panic!("No depositor key set");
         }
     }
-    
+
     pub async fn get_depositor_utxos(&self) -> Vec<Utxo> {
         self.esplora
             .get_address_utxo(self.get_depositor_address())
@@ -1281,6 +1299,73 @@ impl BitVMClient {
             &self.private_data.secret_nonces
                 [&self.verifier_context.as_ref().unwrap().verifier_public_key][peg_in_graph_id],
         );
+    }
+
+    pub fn generate_presign_pegin_confirm_tx(
+        &self,
+        source_network: Network,
+        recipient_address: &str,
+        amount: Amount,
+        depositor_taproot_key: &XOnlyPublicKey,
+        outpoint: OutPoint,
+    ) -> String {
+        let connector_z = ConnectorZ::new(
+            source_network,
+            recipient_address,
+            depositor_taproot_key,
+            &self
+                .operator_context
+                .as_ref()
+                .unwrap()
+                .n_of_n_taproot_public_key,
+        );
+        let connector_0 = Connector0::new(
+            source_network,
+            &self
+                .operator_context
+                .as_ref()
+                .unwrap()
+                .n_of_n_taproot_public_key,
+        );
+        let mut peg_in_confirm_tx = PegInConfirmTransaction::new_for_validation(
+            &connector_0,
+            &connector_z,
+            Input { outpoint, amount },
+            self.operator_context
+                .as_ref()
+                .unwrap()
+                .n_of_n_public_keys
+                .clone(),
+        );
+        serialize_hex(&(peg_in_confirm_tx.tx_mut()))
+    }
+
+    pub fn generate_presign_pegin_deposit_tx(
+        &self,
+        source_network: Network,
+        amount: Amount,
+        recipient_address: &str,
+        depositor_public_key: &PublicKey,
+        depositor_taproot_key: &XOnlyPublicKey,
+        outpoint: OutPoint,
+    ) -> String {
+        let connector_z = ConnectorZ::new(
+            source_network,
+            recipient_address,
+            depositor_taproot_key,
+            &self
+                .operator_context
+                .as_ref()
+                .unwrap()
+                .n_of_n_taproot_public_key,
+        );
+        let mut peg_in_deposit_tx = PegInDepositTransaction::new_for_validation(
+            source_network,
+            depositor_public_key,
+            &connector_z,
+            Input { outpoint, amount },
+        );
+        serialize_hex(&(peg_in_deposit_tx.tx_mut()))
     }
 
     pub fn pre_sign_peg_out(&mut self, peg_out_graph_id: &str) {
