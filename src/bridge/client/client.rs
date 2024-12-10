@@ -15,11 +15,15 @@ use bitcoin::{
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 
 use crate::bridge::{
-    constants::DestinationNetwork, contexts::base::generate_n_of_n_public_key, graphs::{
+    constants::DestinationNetwork,
+    contexts::base::generate_n_of_n_public_key,
+    graphs::{
         base::get_tx_statuses,
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::{CommitmentMessageId, PegOutOperatorStatus},
-    }, scripts::generate_pay_to_pubkey_script_address, transactions::signing_winternitz::WinternitzSecret
+    },
+    scripts::generate_pay_to_pubkey_script_address,
+    transactions::signing_winternitz::WinternitzSecret,
 };
 
 use super::{
@@ -47,7 +51,7 @@ use super::{
     },
 };
 
-const ESPLORA_URL: &str = "https://mutinynet.com/api";
+const ESPLORA_URL: &str = "https://esploraapi53d3659b.devnet-annapurna.stratabtc.org";
 const TEN_MINUTES: u64 = 10 * 60;
 
 const PRIVATE_DATA_FILE_NAME: &str = "secret_data.json";
@@ -716,7 +720,9 @@ impl BitVMClient {
         }
 
         for peg_in_graph in self.data.peg_in_graphs.iter() {
-            let status = peg_in_graph.verifier_status(&self.esplora, self.verifier_context.as_ref()).await;
+            let status = peg_in_graph
+                .verifier_status(&self.esplora, self.verifier_context.as_ref())
+                .await;
             println!("Graph id: {} status: {}\n", peg_in_graph.id(), status);
         }
 
@@ -1125,7 +1131,12 @@ impl BitVMClient {
             panic!("Invalid graph id");
         }
 
-        peg_out_graph.unwrap().take_2(&self.esplora).await;
+        if self.operator_context.is_some() {
+            peg_out_graph
+                .unwrap()
+                .take_2(&self.esplora, self.operator_context.as_ref().unwrap())
+                .await;
+        }
     }
 
     pub async fn get_initial_utxo(&self, address: Address, amount: Amount) -> Option<Utxo> {
@@ -1153,7 +1164,7 @@ impl BitVMClient {
             None
         }
     }
-    
+
     pub fn get_depositor_address(&self) -> Address {
         if let Some(ref context) = self.depositor_context {
             generate_pay_to_pubkey_script_address(context.network, &context.depositor_public_key)
@@ -1161,7 +1172,7 @@ impl BitVMClient {
             panic!("No depositor key set");
         }
     }
-    
+
     pub async fn get_depositor_utxos(&self) -> Vec<Utxo> {
         self.esplora
             .get_address_utxo(self.get_depositor_address())
