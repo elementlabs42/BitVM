@@ -16,6 +16,7 @@ use bitvm::bridge::{
         kick_off_1::KickOff1Transaction,
         kick_off_2::KickOff2Transaction,
         peg_in_confirm::PegInConfirmTransaction,
+        pre_signed_musig2::PreSignedMusig2Transaction,
         signing_winternitz::{WinternitzPublicKey, WinternitzSecret},
     },
 };
