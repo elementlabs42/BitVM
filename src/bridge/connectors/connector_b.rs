@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bitcoin::{
+    block::Header,
     key::Secp256k1,
     opcodes::all::{OP_ADD, OP_FROMALTSTACK, OP_LESSTHAN, OP_TOALTSTACK},
     taproot::{TaprootBuilder, TaprootSpendInfo},
@@ -13,12 +14,16 @@ use crate::{
     bridge::{
         constants::START_TIME_MESSAGE_LENGTH,
         graphs::peg_out::CommitmentMessageId,
-        superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
+        superblock::{
+            extract_superblock_ts_from_header, SUPERBLOCK_HASH_MESSAGE_LENGTH,
+            SUPERBLOCK_MESSAGE_LENGTH,
+        },
         transactions::signing_winternitz::{
             winternitz_message_checksig, winternitz_message_checksig_verify, WinternitzPublicKey,
             LOG_D,
         },
     },
+    hash::sha256::{sha256, sha256_32bytes},
     signatures::utils::digits_to_number,
 };
 
@@ -60,21 +65,30 @@ impl ConnectorB {
 
         // Expected witness:
         // n-of-n Schnorr siganture
-        // SB'
+        // SB' (byte stream)
         // Committed start time (Winternitz sig)
         // Committed SB hash (Winternitz sig)
 
         script! {
+            // Verify superblock hash comitment sig
             { winternitz_message_checksig(&superblock_hash_public_key) }
-            // TODO: convert hash bytes (weight) to number and push it to altstack
+            // Convert committed SB hash to number and push it to altstack
+            { digits_to_number::<{ SUPERBLOCK_HASH_MESSAGE_LENGTH * 2 }, { LOG_D as usize }>() }
+            OP_TOALTSTACK
 
-            // Verify start time sig
+            // Verify start time comitment sig
             { winternitz_message_checksig(&start_time_public_key) }
+            // Convert committed start time to number and push it to altstack
             { digits_to_number::<{ START_TIME_MESSAGE_LENGTH * 2 }, { LOG_D as usize }>() }
             OP_TOALTSTACK
 
-            // TODO: calculate SB' hash and push it to altstack
-            // TODO: extract SB'.time
+            // Calculate SB' hash and push it to altstack
+            { sha256(SUPERBLOCK_MESSAGE_LENGTH) }
+            { sha256_32bytes() }
+            OP_TOALTSTACK
+
+            extract_superblock_ts_from_header
+
             // SB'.time > start_time
             OP_DUP
             OP_FROMALTSTACK // Stack: SB'.time | SB.time
