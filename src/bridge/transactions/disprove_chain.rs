@@ -1,9 +1,12 @@
 use bitcoin::{
-    absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    absolute, block::Header, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType,
+    Transaction, TxOut, Witness,
 };
 use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use crate::bridge::superblock::get_superblock_message;
 
 use super::{
     super::{
@@ -15,6 +18,8 @@ use super::{
     base::*,
     pre_signed::*,
     pre_signed_musig2::*,
+    signing::push_taproot_leaf_unlock_data_to_witness,
+    signing_winternitz::generate_winternitz_witness,
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -155,6 +160,30 @@ impl DisproveChainTransaction {
     ) {
         let input_index = 0;
         self.sign_input_0(context, connector_b, &secret_nonces[&input_index]);
+    }
+
+    pub fn sign(
+        &mut self,
+        disprove_sb: &Header,
+        start_time_witness: &Witness,
+        superblock_hash_witness: &Witness,
+    ) {
+        let input_index = 0;
+        let mut unlock_data: Vec<Vec<u8>> = Vec::new();
+
+        // Constructing the witness as follows:
+        // SB'
+        // Committed start time
+        // Committed SB hash
+
+        unlock_data.push(get_superblock_message(disprove_sb));
+        unlock_data.extend(start_time_witness.to_vec());
+        unlock_data.extend(superblock_hash_witness.to_vec());
+
+        push_taproot_leaf_unlock_data_to_witness(self.tx_mut(), input_index, unlock_data);
+        // TODO: We probably shouldn't finalize the witness when pre-signing (sign_input_0 calls finalize_input_0,
+        // which adds a control block to the witness). The control block shold be added after this function ends.
+        // Suggest to add a finalize() function that will do that.
     }
 
     pub fn add_output(&mut self, output_script_pubkey: ScriptBuf) {

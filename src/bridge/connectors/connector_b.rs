@@ -1,9 +1,26 @@
+use std::collections::HashMap;
+
 use bitcoin::{
     key::Secp256k1,
+    opcodes::all::{OP_ADD, OP_FROMALTSTACK, OP_LESSTHAN, OP_TOALTSTACK},
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
+use bitcoin_script::script;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    bridge::{
+        constants::START_TIME_MESSAGE_LENGTH,
+        graphs::peg_out::CommitmentMessageId,
+        superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
+        transactions::signing_winternitz::{
+            winternitz_message_checksig, winternitz_message_checksig_verify, WinternitzPublicKey,
+            LOG_D,
+        },
+    },
+    signatures::utils::digits_to_number,
+};
 
 use super::{
     super::{
@@ -17,20 +34,66 @@ use super::{
 pub struct ConnectorB {
     pub network: Network,
     pub n_of_n_taproot_public_key: XOnlyPublicKey,
+    pub commitment_public_keys: HashMap<CommitmentMessageId, WinternitzPublicKey>,
     pub num_blocks_timelock_1: u32,
 }
 
 impl ConnectorB {
-    pub fn new(network: Network, n_of_n_taproot_public_key: &XOnlyPublicKey) -> Self {
+    pub fn new(
+        network: Network,
+        n_of_n_taproot_public_key: &XOnlyPublicKey,
+        commitment_public_keys: &HashMap<CommitmentMessageId, WinternitzPublicKey>,
+    ) -> Self {
         ConnectorB {
             network,
             n_of_n_taproot_public_key: n_of_n_taproot_public_key.clone(),
+            commitment_public_keys: commitment_public_keys.clone(),
             num_blocks_timelock_1: num_blocks_per_network(network, NUM_BLOCKS_PER_3_DAYS),
         }
     }
 
     fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
-        generate_pay_to_pubkey_taproot_script(&self.n_of_n_taproot_public_key)
+        const TWO_WEEKS_IN_SECONDS: u32 = 60 * 60 * 24 * 14;
+        let superblock_hash_public_key =
+            &self.commitment_public_keys[&CommitmentMessageId::SuperblockHash];
+        let start_time_public_key = &self.commitment_public_keys[&CommitmentMessageId::StartTime];
+
+        // Expected witness:
+        // n-of-n Schnorr siganture
+        // SB'
+        // Committed start time (Winternitz sig)
+        // Committed SB hash (Winternitz sig)
+
+        script! {
+            { winternitz_message_checksig(&superblock_hash_public_key) }
+            // TODO: convert hash bytes (weight) to number and push it to altstack
+
+            // Verify start time sig
+            { winternitz_message_checksig(&start_time_public_key) }
+            { digits_to_number::<{ START_TIME_MESSAGE_LENGTH * 2 }, { LOG_D as usize }>() }
+            OP_TOALTSTACK
+
+            // TODO: calculate SB' hash and push it to altstack
+            // TODO: extract SB'.time
+            // SB'.time > start_time
+            OP_DUP
+            OP_FROMALTSTACK // Stack: SB'.time | SB.time
+            OP_GREATERTHAN OP_VERIFY
+
+            // SB'.time < start_time + 2 weeks
+            // get start_time here again
+            { TWO_WEEKS_IN_SECONDS} OP_ADD // Stack: SB'.time | start_time + 2 weeks
+            OP_LESSTHAN OP_VERIFY
+
+            // SB'.weight > SB.weight
+            OP_FROMALTSTACK
+            OP_FROMALTSTACK // Stack: SB'.weight | SB.weight
+            OP_LESSTHAN OP_VERIFY // We're comparing hashes as numbers; smaller number = bigger weight
+
+            { self.n_of_n_taproot_public_key }
+            OP_CHECKSIG
+        }
+        .compile()
     }
 
     fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn { generate_default_tx_in(input) }

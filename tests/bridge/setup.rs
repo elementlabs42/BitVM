@@ -110,7 +110,22 @@ pub async fn setup_test() -> SetupConfig {
         &operator_context.operator_taproot_public_key,
         &operator_context.n_of_n_taproot_public_key,
     );
-    let connector_b = ConnectorB::new(source_network, &operator_context.n_of_n_taproot_public_key);
+    let connector_b = ConnectorB::new(
+        source_network,
+        &operator_context.n_of_n_taproot_public_key,
+        &HashMap::from([
+            (
+                CommitmentMessageId::StartTime,
+                WinternitzPublicKey::from(&commitment_secrets[&CommitmentMessageId::StartTime]),
+            ),
+            (
+                CommitmentMessageId::SuperblockHash,
+                WinternitzPublicKey::from(
+                    &commitment_secrets[&CommitmentMessageId::SuperblockHash],
+                ),
+            ),
+        ]),
+    );
     let connector_c = ConnectorC::new(
         source_network,
         &operator_context.operator_taproot_public_key,

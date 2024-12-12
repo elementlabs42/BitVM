@@ -40,12 +40,18 @@ impl PreSignedTransaction for KickOff2Transaction {
 }
 
 impl KickOff2Transaction {
-    pub fn new(context: &OperatorContext, connector_1: &Connector1, input_0: Input) -> Self {
+    pub fn new(
+        context: &OperatorContext,
+        connector_1: &Connector1,
+        connector_b: &ConnectorB,
+        input_0: Input,
+    ) -> Self {
         Self::new_for_validation(
             context.network,
             &context.operator_public_key,
             &context.n_of_n_taproot_public_key,
             connector_1,
+            connector_b,
             input_0,
         )
     }
@@ -55,10 +61,10 @@ impl KickOff2Transaction {
         operator_public_key: &PublicKey,
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         connector_1: &Connector1,
+        connector_b: &ConnectorB,
         input_0: Input,
     ) -> Self {
         let connector_3 = Connector3::new(network, operator_public_key);
-        let connector_b = ConnectorB::new(network, n_of_n_taproot_public_key);
 
         let input_0_leaf = 0;
         let _input_0 = connector_1.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
