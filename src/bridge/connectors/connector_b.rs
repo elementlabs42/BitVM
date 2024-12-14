@@ -58,6 +58,23 @@ impl ConnectorB {
     }
 
     fn generate_taproot_leaf_0_script(&self) -> ScriptBuf {
+        generate_pay_to_pubkey_taproot_script(&self.n_of_n_taproot_public_key)
+    }
+
+    fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn { generate_default_tx_in(input) }
+
+    fn generate_taproot_leaf_1_script(&self) -> ScriptBuf {
+        generate_timelock_taproot_script(
+            &self.n_of_n_taproot_public_key,
+            self.num_blocks_timelock_1,
+        )
+    }
+
+    fn generate_taproot_leaf_1_tx_in(&self, input: &Input) -> TxIn {
+        generate_timelock_tx_in(input, self.num_blocks_timelock_1)
+    }
+
+    fn generate_taproot_leaf_2_script(&self) -> ScriptBuf {
         const TWO_WEEKS_IN_SECONDS: u32 = 60 * 60 * 24 * 14;
         let superblock_hash_public_key =
             &self.commitment_public_keys[&CommitmentMessageId::SuperblockHash];
@@ -108,24 +125,6 @@ impl ConnectorB {
             OP_CHECKSIG
         }
         .compile()
-    }
-
-    fn generate_taproot_leaf_0_tx_in(&self, input: &Input) -> TxIn { generate_default_tx_in(input) }
-
-    fn generate_taproot_leaf_1_script(&self) -> ScriptBuf {
-        generate_timelock_taproot_script(
-            &self.n_of_n_taproot_public_key,
-            self.num_blocks_timelock_1,
-        )
-    }
-
-    fn generate_taproot_leaf_1_tx_in(&self, input: &Input) -> TxIn {
-        generate_timelock_tx_in(input, self.num_blocks_timelock_1)
-    }
-
-    fn generate_taproot_leaf_2_script(&self) -> ScriptBuf {
-        // TODO commit to super block
-        generate_pay_to_pubkey_taproot_script(&self.n_of_n_taproot_public_key)
     }
 
     fn generate_taproot_leaf_2_tx_in(&self, input: &Input) -> TxIn { generate_default_tx_in(input) }
