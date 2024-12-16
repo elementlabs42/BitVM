@@ -7,13 +7,20 @@ mod tests {
 
     use bitvm::bridge::{
         connectors::base::TaprootConnector,
-        graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
+        graphs::{
+            base::{FEE_AMOUNT, INITIAL_AMOUNT},
+            peg_out::CommitmentMessageId,
+        },
         scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address},
+        superblock::{get_start_time_block_number, get_superblock_hash_message},
         transactions::{
             base::{BaseTransaction, Input},
             disprove_chain::DisproveChainTransaction,
+            signing_winternitz::{generate_winternitz_witness, WinternitzSigningInputs},
         },
     };
+
+    use crate::bridge::helper::get_superblock_header;
 
     use super::super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
@@ -55,13 +62,23 @@ mod tests {
         );
         disprove_chain_tx.add_output(reward_address.script_pubkey());
 
+        let start_time_witness = generate_winternitz_witness(&WinternitzSigningInputs {
+            message: &get_start_time_block_number().to_le_bytes(),
+            signing_key: &config.commitment_secrets[&CommitmentMessageId::StartTime],
+        });
+        let committed_sb = get_superblock_header();
+        let disprove_sb = get_superblock_header();
+        let superblock_hash_witness = generate_winternitz_witness(&WinternitzSigningInputs {
+            message: &get_superblock_hash_message(&committed_sb),
+            signing_key: &config.commitment_secrets[&CommitmentMessageId::SuperblockHash],
+        });
+        disprove_chain_tx.sign(&disprove_sb, &start_time_witness, &superblock_hash_witness);
         let tx = disprove_chain_tx.finalize();
-        println!("Script Path Spend Transaction: {:?}\n", tx);
 
         let result = config.client_0.esplora.broadcast(&tx).await;
         println!("Txid: {:?}", tx.compute_txid());
         println!("Broadcast result: {:?}\n", result);
-        println!("Transaction hex: \n{}", serialize_hex(&tx));
+        // println!("Transaction hex: \n{}", serialize_hex(&tx));
         assert!(result.is_ok());
     }
 
