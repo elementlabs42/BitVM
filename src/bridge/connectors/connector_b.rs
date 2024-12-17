@@ -22,6 +22,7 @@ use crate::{
             winternitz_message_checksig, winternitz_message_checksig_verify, WinternitzPublicKey,
             LOG_D,
         },
+        utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
     },
     hash::sha256::{sha256, sha256_32bytes},
     signatures::utils::digits_to_number,
@@ -90,36 +91,37 @@ impl ConnectorB {
             // Verify superblock hash commitment sig
             { winternitz_message_checksig(&superblock_hash_public_key) }
             // Convert committed SB hash to number and push it to altstack
-            { digits_to_number::<{ SUPERBLOCK_HASH_MESSAGE_LENGTH * 2 }, { LOG_D as usize }>() }
-            OP_TOALTSTACK
+            { sb_hash_from_nibbles() }
+            { H256::toaltstack() }          // Stack: SB' sig(start_time) | Altstack: SB.hash
 
             // Verify start time commitment sig
             { winternitz_message_checksig(&start_time_public_key) }
             // Convert committed start time to number and push it to altstack
             { digits_to_number::<{ START_TIME_MESSAGE_LENGTH * 2 }, { LOG_D as usize }>() }
-            OP_TOALTSTACK
-
-            // Calculate SB' hash and push it to altstack
-            { sha256(SUPERBLOCK_MESSAGE_LENGTH) }
-            { sha256_32bytes() }
-            OP_TOALTSTACK
+            OP_TOALTSTACK                   // Stack: SB' | Altstack: SB.hash start_time
 
             extract_superblock_ts_from_header
+                                            // Stack: SB' SB'.time | Altstack: SB.hash start_time
 
             // SB'.time > start_time
-            OP_DUP
-            OP_FROMALTSTACK // Stack: SB'.time | SB.time
-            OP_GREATERTHAN OP_VERIFY
+            OP_FROMALTSTACK                 // Stack: SB' SB'.time start_time | Altstack: SB.hash
+            OP_2DUP                         // Stack: SB' SB'.time start_time SB'.time start_time | Altstack: SB.hash
+            OP_GREATERTHAN OP_VERIFY        // Stack: SB' SB'.time start_time | Altstack: SB.hash
 
             // SB'.time < start_time + 2 weeks
-            // get start_time here again
-            { TWO_WEEKS_IN_SECONDS} OP_ADD // Stack: SB'.time | start_time + 2 weeks
-            OP_LESSTHAN OP_VERIFY
+            { TWO_WEEKS_IN_SECONDS } OP_ADD // Stack: SB' SB'.time (start_time + 2 weeks) | Altstack: SB.hash
+            OP_LESSTHAN OP_VERIFY           // Stack: SB' | Altstack: SB.hash
+
+            // Calculate SB' hash
+            { sha256(SUPERBLOCK_MESSAGE_LENGTH) }
+            { sha256_32bytes() }
+            { sb_hash_from_bytes() }        // Stack: SB'.hash | Altstack: SB.hash
 
             // SB'.weight > SB.weight
-            OP_FROMALTSTACK
-            OP_FROMALTSTACK // Stack: SB'.weight | SB.weight
-            OP_LESSTHAN OP_VERIFY // We're comparing hashes as numbers; smaller number = bigger weight
+            // We're comparing hashes as numbers (smaller number = bigger weight),
+            // so we need to evaluate (SB'.hash < SB.hash).
+            { H256::fromaltstack() }        // Stack: SB'.hash SB.hash
+            { H256::lessthan(1, 0) } OP_VERIFY
 
             { self.n_of_n_taproot_public_key }
             OP_CHECKSIG
@@ -193,6 +195,7 @@ mod tests {
                 generate_winternitz_witness, winternitz_message_checksig, WinternitzPublicKey,
                 WinternitzSecret, WinternitzSigningInputs, LOG_D,
             },
+            utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
         },
         execute_script,
         hash::sha256::{sha256, sha256_32bytes},
@@ -218,90 +221,11 @@ mod tests {
         }
     }
 
-    // Source for below hash handling functions: https://github.com/alpenlabs/strata-bridge-poc/tree/main/crates/primitives/src/scripts/transform.rs
-    const LIMB_SIZE: u32 = 30;
-    pub type H256 = BigIntImpl<256, LIMB_SIZE>;
-
-    fn split_digit(window: u32, index: u32) -> Script {
-        script! {
-            // {v}
-            0                           // {v} {A}
-            OP_SWAP
-            for i in 0..index {
-                OP_TUCK                 // {v} {A} {v}
-                { 1 << (window - i - 1) }   // {v} {A} {v} {1000}
-                OP_GREATERTHANOREQUAL   // {v} {A} {1/0}
-                OP_TUCK                 // {v} {1/0} {A} {1/0}
-                OP_ADD                  // {v} {1/0} {A+1/0}
-                if i < index - 1 { { NMUL(2) } }
-                OP_ROT OP_ROT
-                OP_IF
-                    { 1 << (window - i - 1) }
-                    OP_SUB
-                OP_ENDIF
-            }
-            OP_SWAP
-        }
-    }
-
-    pub fn sb_hash_from_nibbles() -> Script {
-        const WINDOW: u32 = 4;
-        const N_DIGITS: u32 = (H256::N_BITS + WINDOW - 1) / WINDOW;
-
-        script! {
-            for i in 1..64 { { i } OP_ROLL }
-            for i in (1..=N_DIGITS).rev() {
-                if (i * WINDOW) % LIMB_SIZE == 0 {
-                    OP_TOALTSTACK
-                } else if (i * WINDOW) % LIMB_SIZE > 0 &&
-                            (i * WINDOW) % LIMB_SIZE < WINDOW {
-                    OP_SWAP
-                    { split_digit(WINDOW, (i * WINDOW) % LIMB_SIZE) }
-                    OP_ROT
-                    { NMUL(1 << ((i * WINDOW) % LIMB_SIZE)) }
-                    OP_ADD
-                    OP_TOALTSTACK
-                } else if i != N_DIGITS {
-                    { NMUL(1 << WINDOW) }
-                    OP_ADD
-                }
-            }
-            for _ in 1..H256::N_LIMBS { OP_FROMALTSTACK }
-            for i in 1..H256::N_LIMBS { { i } OP_ROLL }
-        }
-    }
-
-    pub fn sb_hash_from_bytes() -> Script {
-        const WINDOW: u32 = 8;
-        const N_DIGITS: u32 = (H256::N_BITS + WINDOW - 1) / WINDOW;
-
-        script! {
-            for i in 1..32 { { i } OP_ROLL }
-            for i in (1..=N_DIGITS).rev() {
-                if (i * WINDOW) % LIMB_SIZE == 0 {
-                    OP_TOALTSTACK
-                } else if (i * WINDOW) % LIMB_SIZE > 0 &&
-                            (i * WINDOW) % LIMB_SIZE < WINDOW {
-                    OP_SWAP
-                    { split_digit(WINDOW, (i * WINDOW) % LIMB_SIZE) }
-                    OP_ROT
-                    { NMUL(1 << ((i * WINDOW) % LIMB_SIZE)) }
-                    OP_ADD
-                    OP_TOALTSTACK
-                } else if i != N_DIGITS {
-                    { NMUL(1 << WINDOW) }
-                    OP_ADD
-                }
-            }
-            for _ in 1..H256::N_LIMBS { OP_FROMALTSTACK }
-            for i in 1..H256::N_LIMBS { { i } OP_ROLL }
-        }
-    }
-
     #[test]
     fn test_connector_b_leaf_2_script() {
         const TWO_WEEKS_IN_SECONDS: u32 = 60 * 60 * 24 * 14;
 
+        // TODO: setup the test headers appropriately for the verification in the script to pass
         let committed_sb = get_superblock_header();
         let mut disprove_sb = get_superblock_header();
         disprove_sb.time = get_start_time_block_number() + 1;
@@ -377,8 +301,6 @@ mod tests {
         let result = execute_script(s);
 
         println!("[DEBUG] result.error {:?}", result.error);
-        // println!("[DEBUG] result.remaining_script {:?}", result.remaining_script);
-        println!("[DEBUG] result.final_stack {:?}", result.final_stack);
         assert!(result.success);
     }
 }
