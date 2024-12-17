@@ -14,12 +14,7 @@ use super::{
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
         graphs::base::FEE_AMOUNT,
         scripts::*,
-    },
-    base::*,
-    pre_signed::*,
-    pre_signed_musig2::*,
-    signing::push_taproot_leaf_unlock_data_to_witness,
-    signing_winternitz::generate_winternitz_witness,
+    }, base::*, disprove, pre_signed::*, pre_signed_musig2::*, signing::push_taproot_leaf_unlock_data_to_witness, signing_winternitz::generate_winternitz_witness
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -176,7 +171,9 @@ impl DisproveChainTransaction {
         // Committed start time
         // Committed SB hash
 
-        unlock_data.push(get_superblock_message(disprove_sb));
+        let mut disprove_sb_message = get_superblock_message(disprove_sb);
+        disprove_sb_message.reverse();
+        unlock_data.extend(disprove_sb_message.into_iter().map(|byte| vec![byte]));
         unlock_data.extend(start_time_witness.to_vec());
         unlock_data.extend(superblock_hash_witness.to_vec());
 
