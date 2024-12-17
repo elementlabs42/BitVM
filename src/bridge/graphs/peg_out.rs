@@ -1642,6 +1642,19 @@ impl PegOutGraph {
             // complete disprove chain tx
             self.disprove_chain_transaction
                 .add_output(output_script_pubkey);
+
+            // TODO: This must be a heavier superblock than the one the Operator committed in the KickOff2 tx.
+            let disprove_sb = find_superblock();
+
+            // TODO: Extract the message + signature combo from the full input witness.
+            let start_time_witness = self.start_time_transaction.tx().input[0].witness.clone();
+            let superblock_hash_witness = self.kick_off_2_transaction.tx().input[0].witness.clone();
+
+            self.disprove_chain_transaction.sign(
+                &disprove_sb,
+                &start_time_witness,
+                &superblock_hash_witness,
+            );
             let disprove_chain_tx = self.disprove_chain_transaction.finalize();
 
             // broadcast disprove chain tx
