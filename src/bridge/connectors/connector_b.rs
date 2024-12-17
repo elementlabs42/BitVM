@@ -174,21 +174,30 @@ mod tests {
     use std::str::FromStr;
 
     use bitcoin::{
-        block::{Header, Version}, opcodes::all::OP_TOALTSTACK, BlockHash, CompactTarget, TxMerkleNode
+        block::{Header, Version},
+        opcodes::all::OP_TOALTSTACK,
+        BlockHash, CompactTarget, TxMerkleNode,
     };
     use bitcoin_script::{script, Script};
 
     use crate::{
-        bigint::BigIntImpl, bridge::{
+        bigint::BigIntImpl,
+        bridge::{
             constants::START_TIME_MESSAGE_LENGTH,
             superblock::{
-                extract_superblock_ts_from_header, get_start_time_block_number, get_superblock_hash_message, SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH
+                extract_superblock_ts_from_header, get_start_time_block_number,
+                get_superblock_hash_message, SUPERBLOCK_HASH_MESSAGE_LENGTH,
+                SUPERBLOCK_MESSAGE_LENGTH,
             },
             transactions::signing_winternitz::{
                 generate_winternitz_witness, winternitz_message_checksig, WinternitzPublicKey,
                 WinternitzSecret, WinternitzSigningInputs, LOG_D,
             },
-        }, execute_script, hash::sha256::{sha256, sha256_32bytes}, pseudo::NMUL, signatures::utils::digits_to_number
+        },
+        execute_script,
+        hash::sha256::{sha256, sha256_32bytes},
+        pseudo::NMUL,
+        signatures::utils::digits_to_number,
     };
 
     // Copied from tests/bridge/helper.rs
@@ -265,7 +274,7 @@ mod tests {
     pub fn sb_hash_from_bytes() -> Script {
         const WINDOW: u32 = 8;
         const N_DIGITS: u32 = (H256::N_BITS + WINDOW - 1) / WINDOW;
-    
+
         script! {
             for i in 1..32 { { i } OP_ROLL }
             for i in (1..=N_DIGITS).rev() {
@@ -288,7 +297,7 @@ mod tests {
             for i in 1..H256::N_LIMBS { { i } OP_ROLL }
         }
     }
-    
+
     #[test]
     fn test_connector_b_leaf_2_script() {
         const TWO_WEEKS_IN_SECONDS: u32 = 60 * 60 * 24 * 14;
@@ -296,7 +305,8 @@ mod tests {
         let committed_sb = get_superblock_header();
         let mut disprove_sb = get_superblock_header();
         disprove_sb.time = get_start_time_block_number() + 1;
-        let mut disprove_sb_message = crate::bridge::superblock::get_superblock_message(&disprove_sb);
+        let mut disprove_sb_message =
+            crate::bridge::superblock::get_superblock_message(&disprove_sb);
         disprove_sb_message.reverse();
 
         let superblock_hash_secret = WinternitzSecret::new(SUPERBLOCK_HASH_MESSAGE_LENGTH);
@@ -318,48 +328,48 @@ mod tests {
         let s = script! {
             // Witness data
 
-            { generate_winternitz_witness(&superblock_hash_signing_inputs).to_vec() }
             for byte in disprove_sb_message { {byte} }
             { generate_winternitz_witness(&start_time_signing_inputs).to_vec() }
+            { generate_winternitz_witness(&superblock_hash_signing_inputs).to_vec() }
 
-                                            // Stack: sig(SB.hash) SB' sig(start_time)
+                                            // Stack: SB' sig(start_time) sig(SB.hash)
 
             // Start unlock script
+
+            // Verify superblock hash commitment sig
+            { winternitz_message_checksig(&superblock_hash_public_key) }
+            // Convert committed SB hash to number and push it to altstack
+            { sb_hash_from_nibbles() }
+            { H256::toaltstack() }          // Stack: SB' sig(start_time) | Altstack: SB.hash
 
             // Verify start time commitment sig
             { winternitz_message_checksig(&start_time_public_key) }
             // Convert committed start time to number and push it to altstack
             { digits_to_number::<{ START_TIME_MESSAGE_LENGTH * 2 }, { LOG_D as usize }>() }
-            OP_TOALTSTACK                   // Stack: sig(SB.hash) SB' | Altstack: start_time
-            
+            OP_TOALTSTACK                   // Stack: SB' | Altstack: SB.hash start_time
+
             extract_superblock_ts_from_header
-                                            // Stack: sig(SB.hash) SB' SB'.time | Altstack: start_time
+                                            // Stack: SB' SB'.time | Altstack: SB.hash start_time
 
             // SB'.time > start_time
-            OP_FROMALTSTACK                 // Stack: sig(SB.hash) SB' SB'.time start_time
-            OP_2DUP                         // Stack: sig(SB.hash) SB' SB'.time start_time SB'.time start_time 
-            OP_GREATERTHAN OP_VERIFY        // Stack: sig(SB.hash) SB' SB'.time start_time
+            OP_FROMALTSTACK                 // Stack: SB' SB'.time start_time | Altstack: SB.hash
+            OP_2DUP                         // Stack: SB' SB'.time start_time SB'.time start_time | Altstack: SB.hash
+            OP_GREATERTHAN OP_VERIFY        // Stack: SB' SB'.time start_time | Altstack: SB.hash
 
             // SB'.time < start_time + 2 weeks
-            { TWO_WEEKS_IN_SECONDS } OP_ADD // Stack: sig(SB.hash) SB' SB'.time (start_time + 2 weeks)
-            OP_LESSTHAN OP_VERIFY           // Stack: sig(SB.hash) SB'
+            { TWO_WEEKS_IN_SECONDS } OP_ADD // Stack: SB' SB'.time (start_time + 2 weeks) | Altstack: SB.hash
+            OP_LESSTHAN OP_VERIFY           // Stack: SB' | Altstack: SB.hash
 
             // Calculate SB' hash
             { sha256(SUPERBLOCK_MESSAGE_LENGTH) }
-            // { sha256_32bytes() }
-            // { sb_hash_from_bytes() }        // Stack: sig(SB.hash) SB'.hash
-            // { H256::toaltstack() }          // Stack: sig(SB.hash) | Altstack: SB'.hash
+            { sha256_32bytes() }
+            { sb_hash_from_bytes() }        // Stack: SB'.hash | Altstack: SB.hash
 
-            // Verify superblock hash commitment sig
-            // { winternitz_message_checksig(&superblock_hash_public_key) }
-            // // Convert committed SB hash to number
-            // { sb_hash_from_nibbles() }      // Stack: SB.hash | Altstack: SB'.hash
-            
-            // // SB'.weight > SB.weight
-            // // We're comparing hashes as numbers (smaller number = bigger weight),
-            // // so we need to evaluate (SB.hash > SB'.hash).
-            // { H256::fromaltstack() }        // Stack: SB.hash SB'.hash
-            // { H256::greaterthan(1, 0) } OP_VERIFY
+            // SB'.weight > SB.weight
+            // We're comparing hashes as numbers (smaller number = bigger weight),
+            // so we need to evaluate (SB'.hash < SB.hash).
+            { H256::fromaltstack() }        // Stack: SB'.hash SB.hash
+            { H256::lessthan(1, 0) } OP_VERIFY
 
             OP_TRUE
         };

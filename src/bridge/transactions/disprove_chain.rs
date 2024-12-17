@@ -177,11 +177,11 @@ impl DisproveChainTransaction {
         // Committed start time
         // Committed SB hash
 
-        unlock_data.extend(superblock_hash_witness.to_vec());
         let mut disprove_sb_message = get_superblock_message(disprove_sb);
         disprove_sb_message.reverse();
         unlock_data.extend(disprove_sb_message.into_iter().map(|byte| vec![byte]));
         unlock_data.extend(start_time_witness.to_vec());
+        unlock_data.extend(superblock_hash_witness.to_vec());
 
         push_taproot_leaf_unlock_data_to_witness(self.tx_mut(), input_index, unlock_data);
         // TODO: We probably shouldn't finalize the witness when pre-signing (sign_input_0 calls finalize_input_0,

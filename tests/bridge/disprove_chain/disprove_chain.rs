@@ -62,16 +62,20 @@ mod tests {
         );
         disprove_chain_tx.add_output(reward_address.script_pubkey());
 
+        // TODO: setup the test headers appropriately for the verification in Disprove Chain to pass
+        let committed_sb = get_superblock_header();
+        let disprove_sb = get_superblock_header();
+
         let start_time_witness = generate_winternitz_witness(&WinternitzSigningInputs {
             message: &get_start_time_block_number().to_le_bytes(),
             signing_key: &config.commitment_secrets[&CommitmentMessageId::StartTime],
         });
-        let committed_sb = get_superblock_header();
-        let disprove_sb = get_superblock_header();
+
         let superblock_hash_witness = generate_winternitz_witness(&WinternitzSigningInputs {
             message: &get_superblock_hash_message(&committed_sb),
             signing_key: &config.commitment_secrets[&CommitmentMessageId::SuperblockHash],
         });
+
         disprove_chain_tx.sign(&disprove_sb, &start_time_witness, &superblock_hash_witness);
         let tx = disprove_chain_tx.finalize();
 
