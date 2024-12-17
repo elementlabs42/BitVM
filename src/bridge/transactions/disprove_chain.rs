@@ -161,6 +161,9 @@ impl DisproveChainTransaction {
     ) {
         let input_index = 0;
         self.sign_input_0(context, connector_b, &secret_nonces[&input_index]);
+        // TODO: We probably shouldn't finalize the witness when pre-signing (sign_input_0 calls finalize_input_0,
+        // which adds a control block to the witness). Please double-check that the control block should be only added
+        // after the tx is signed (see `sign()`) and ready to be broadcast.
     }
 
     pub fn sign(
@@ -184,9 +187,6 @@ impl DisproveChainTransaction {
         unlock_data.extend(superblock_hash_witness.to_vec());
 
         push_taproot_leaf_unlock_data_to_witness(self.tx_mut(), input_index, unlock_data);
-        // TODO: We probably shouldn't finalize the witness when pre-signing (sign_input_0 calls finalize_input_0,
-        // which adds a control block to the witness). The control block shold be added after this function ends.
-        // Suggest to add a finalize() function that will do that.
     }
 
     pub fn add_output(&mut self, output_script_pubkey: ScriptBuf) {
