@@ -783,10 +783,12 @@ impl BitVMClient {
                 PegOutOperatorStatus::PegOutKickOff2Available => {
                     self.broadcast_kick_off_2(peg_out_graph.id()).await
                 }
-                // TODO: uncomment after assert tx are done
-                // PegOutOperatorStatus::PegOutAssertAvailable => {
-                //     self.broadcast_assert(peg_out_graph.id()).await
-                // }
+                PegOutOperatorStatus::PegOutAssertInitialAvailable => {
+                    self.broadcast_assert_initial(peg_out_graph.id()).await
+                }
+                PegOutOperatorStatus::PegOutAssertFinalAvailable => {
+                    self.broadcast_assert_final(peg_out_graph.id()).await
+                }
                 PegOutOperatorStatus::PegOutTake1Available => {
                     self.broadcast_take_1(peg_out_graph.id()).await
                 }

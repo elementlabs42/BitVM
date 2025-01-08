@@ -171,7 +171,8 @@ pub enum PegOutOperatorStatus {
     PegOutKickOff1Available,
     PegOutStartTimeAvailable,
     PegOutKickOff2Available,
-    PegOutAssertAvailable,
+    PegOutAssertInitialAvailable,
+    PegOutAssertFinalAvailable,
     PegOutTake1Available,
     PegOutTake2Available,
 }
@@ -210,8 +211,11 @@ impl Display for PegOutOperatorStatus {
             PegOutOperatorStatus::PegOutKickOff2Available => {
                 write!(f, "Start time confirmed. Broadcast kick-off 2 transaction?")
             }
-            PegOutOperatorStatus::PegOutAssertAvailable => {
-                write!(f, "Dispute raised. Broadcast assert transaction?")
+            PegOutOperatorStatus::PegOutAssertInitialAvailable => {
+                write!(f, "Dispute raised. Broadcast initial assert transaction?")
+            }
+            PegOutOperatorStatus::PegOutAssertFinalAvailable => {
+                write!(f, "Dispute raised. Broadcast final assert transaction?")
             }
             PegOutOperatorStatus::PegOutTake1Available => write!(
                 f,
@@ -1364,7 +1368,11 @@ impl PegOutGraph {
                                     <= blockchain_height
                             })
                         {
-                            return PegOutOperatorStatus::PegOutAssertAvailable;
+                            if assert_initial_status.as_ref().is_ok_and(|status| status.confirmed) {
+                                return PegOutOperatorStatus::PegOutAssertFinalAvailable;
+                            } else {
+                                return PegOutOperatorStatus::PegOutAssertInitialAvailable;
+                            }
                         } else {
                             return PegOutOperatorStatus::PegOutWait;
                         }
