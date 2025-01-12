@@ -233,11 +233,11 @@ mod tests {
             crate::bridge::superblock::get_superblock_message(&disprove_sb);
         disprove_sb_message.reverse();
 
-        let superblock_hash_secret = WinternitzSecret::new(SUPERBLOCK_HASH_MESSAGE_LENGTH);
-        let superblock_hash_public_key = WinternitzPublicKey::from(&superblock_hash_secret);
-        let superblock_hash_signing_inputs = WinternitzSigningInputs {
+        let committed_sb_hash_secret = WinternitzSecret::new(SUPERBLOCK_HASH_MESSAGE_LENGTH);
+        let committed_sb_hash_public_key = WinternitzPublicKey::from(&committed_sb_hash_secret);
+        let committed_sb_hash_signing_inputs = WinternitzSigningInputs {
             message: &get_superblock_hash_message(&committed_sb),
-            signing_key: &superblock_hash_secret,
+            signing_key: &committed_sb_hash_secret,
         };
 
         let start_time_message = get_start_time_block_number().to_le_bytes();
@@ -254,14 +254,17 @@ mod tests {
 
             for byte in disprove_sb_message { {byte} }
             { generate_winternitz_witness(&start_time_signing_inputs).to_vec() }
-            { generate_winternitz_witness(&superblock_hash_signing_inputs).to_vec() }
-
+            { generate_winternitz_witness(&committed_sb_hash_signing_inputs).to_vec() }
+                                            // Terms used in stack notation below:
+                                            //   SB = commited SB (challenged SB)
+                                            //   SB' = disprove SB (challenger SB)
+                                            //
                                             // Stack: SB' sig(start_time) sig(SB.hash)
 
             // Start unlock script
 
             // Verify superblock hash commitment sig
-            { winternitz_message_checksig(&superblock_hash_public_key) }
+            { winternitz_message_checksig(&committed_sb_hash_public_key) }
             // Convert committed SB hash to number and push it to altstack
             { sb_hash_from_nibbles() }
             { H256::toaltstack() }          // Stack: SB' sig(start_time) | Altstack: SB.hash
@@ -300,7 +303,6 @@ mod tests {
 
         let result = execute_script(s);
 
-        println!("[DEBUG] result.error {:?}", result.error);
         assert!(result.success);
     }
 }
