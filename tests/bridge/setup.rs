@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use bitcoin::{Network, PublicKey};
 
-use super::helper::{get_intermediate_variables_cached, get_lock_scripts_cached};
+use super::helper::{
+    get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached,
+    get_lock_scripts_cached,
+};
 use bitvm::{
     bridge::{
         client::client::BitVMClient,
@@ -71,6 +74,8 @@ pub struct SetupConfig {
     pub depositor_evm_address: String,
     pub withdrawer_evm_address: String,
     pub commitment_secrets: HashMap<CommitmentMessageId, WinternitzSecret>,
+    pub correct_proof: RawProof,
+    pub incorrect_proof: RawProof,
 }
 
 pub async fn setup_test() -> SetupConfig {
@@ -251,6 +256,8 @@ pub async fn setup_test() -> SetupConfig {
         depositor_evm_address: DEPOSITOR_EVM_ADDRESS.to_string(),
         withdrawer_evm_address: WITHDRAWER_EVM_ADDRESS.to_string(),
         commitment_secrets,
+        correct_proof: get_correct_proof(),
+        incorrect_proof: get_incorrect_proof(),
     }
 }
 
