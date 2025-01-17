@@ -1844,8 +1844,8 @@ impl PegOutGraph {
                     // TODO: store and read vk
                     
                     // get commit from assert_commit txs
-                    let assert_commit_1_witness = get_commit_from_assert_commit_tx(&self.assert_commit_1_transaction.tx());
-                    let assert_commit_2_witness = get_commit_from_assert_commit_tx(&self.assert_commit_2_transaction.tx());
+                    let assert_commit_1_witness = get_commit_from_assert_commit_tx(self.assert_commit_1_transaction.tx());
+                    let assert_commit_2_witness = get_commit_from_assert_commit_tx(self.assert_commit_2_transaction.tx());
 
                     let (input_script_index, disprove_witness) = self
                         .connector_c
