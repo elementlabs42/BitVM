@@ -7,11 +7,12 @@ use bitcoin::{
 use esplora_client::{AsyncClient, Error, TxStatus};
 use musig2::SecNonce;
 use num_traits::ToPrimitive;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Display, Formatter, Result as FmtResult},
+    str::FromStr,
 };
 
 use crate::{
@@ -241,7 +242,7 @@ struct PegOutConnectors {
     assert_commit_connectors_f: AssertCommitConnectorsF,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
 pub enum CommitmentMessageId {
     PegOutTxIdSourceNetwork,
     PegOutTxIdDestinationNetwork,
@@ -250,6 +251,83 @@ pub enum CommitmentMessageId {
     SuperblockHash,
     // name of intermediate value and length of message
     Groth16IntermediateValues((String, usize)),
+}
+
+impl Serialize for CommitmentMessageId {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        s.serialize_str(self.to_string().as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for CommitmentMessageId {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct JsonCommitmentMessageIdVisitor;
+        impl<'de> de::Visitor<'de> for JsonCommitmentMessageIdVisitor {
+            type Value = CommitmentMessageId;
+
+            fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
+                formatter.write_str("a string containing CommitmentMessageId data")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let id = CommitmentMessageId::from_str(v);
+                match id {
+                    Ok(id) => Ok(id),
+                    Err(e) => Err(E::custom(e)),
+                }
+            }
+        }
+        d.deserialize_str(JsonCommitmentMessageIdVisitor)
+    }
+}
+
+impl Display for CommitmentMessageId {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        match self {
+            CommitmentMessageId::Groth16IntermediateValues((n, s)) => {
+                write!(f, "Groth16IntermediateValues({n},{s})")
+            }
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
+impl FromStr for CommitmentMessageId {
+    type Err = String;
+    fn from_str(input: &str) -> Result<CommitmentMessageId, Self::Err> {
+        match input {
+            "PegOutTxIdSourceNetwork" => Ok(CommitmentMessageId::PegOutTxIdSourceNetwork),
+            "PegOutTxIdDestinationNetwork" => Ok(CommitmentMessageId::PegOutTxIdDestinationNetwork),
+            "StartTime" => Ok(CommitmentMessageId::StartTime),
+            "Superblock" => Ok(CommitmentMessageId::Superblock),
+            "SuperblockHash" => Ok(CommitmentMessageId::SuperblockHash),
+            _ => {
+                if let Some(tuple) = input.strip_prefix("Groth16IntermediateValues(") {
+                    if let Some(tuple) = tuple.strip_suffix(")") {
+                        let parts = tuple.split(",").collect::<Vec<&str>>();
+                        if parts.len() == 2 {
+                            if let Ok(size) = parts[1].trim().parse::<usize>() {
+                                return Ok(CommitmentMessageId::Groth16IntermediateValues((
+                                    parts[0].trim().to_string(),
+                                    size,
+                                )));
+                            }
+                        }
+                    }
+                }
+                Err(format!("{} is not a variant of CommitmentMessageId", input))
+            }
+        }
+    }
 }
 
 impl CommitmentMessageId {
