@@ -18,7 +18,7 @@ use bitvm::{
             kick_off_2::MIN_RELAY_FEE_AMOUNT,
             pre_signed::PreSignedTransaction,
             pre_signed_musig2::PreSignedMusig2Transaction,
-        },
+        }, utils::get_commit_from_assert_commit_tx,
     },
     chunker::disprove_execution::RawProof,
 };
@@ -255,11 +255,15 @@ async fn test_disprove_success() {
     // disprove
     let vout = 1;
 
+    // get witness from assert_commit txs
+    let assert_commit_1_witness = get_commit_from_assert_commit_tx(&assert_commit_1_tx);
+    let assert_commit_2_witness = get_commit_from_assert_commit_tx(&assert_commit_2_tx);
+
     let (script_index, disprove_witness) = config
         .connector_c
         .generate_disprove_witness(
-            witness_for_commit1,
-            witness_for_commit2,
+            assert_commit_1_witness,
+            assert_commit_2_witness,
             wrong_proof.vk.clone(),
         )
         .unwrap();

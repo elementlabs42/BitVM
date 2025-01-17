@@ -1,4 +1,6 @@
-use bitcoin::Network;
+use bitcoin::{Network, Transaction};
+
+use crate::chunker::common::RawWitness;
 
 pub fn num_blocks_per_network(network: Network, mainnet_num_blocks: u32) -> u32 {
     if network == Network::Bitcoin {
@@ -6,4 +8,21 @@ pub fn num_blocks_per_network(network: Network, mainnet_num_blocks: u32) -> u32 
     } else {
         0
     }
+}
+
+pub fn get_commit_from_assert_commit_tx(assert_commit_tx: &Transaction) -> Vec<RawWitness> {
+  let mut assert_commit_witness = Vec::new();
+  for input in assert_commit_tx.input.iter() {
+    // remove script and control block from witness
+    let witness = remove_script_and_control_block_from_witness(input.witness.to_vec());
+    assert_commit_witness.push(witness);
+  }
+
+  assert_commit_witness
+}
+
+fn remove_script_and_control_block_from_witness(mut witness: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+  witness.truncate(witness.len() - 2);
+
+  witness
 }
