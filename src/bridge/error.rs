@@ -7,6 +7,7 @@ use std::fmt;
 pub enum ClientError {
     NoUserContextDefined,
     OperatorContextNotDefined,
+    ZkProofVerifyingKeyNotDefined,
     PegInGraphNotFound(GraphId),
     PegOutGraphNotFound(GraphId),
 }
@@ -60,7 +61,6 @@ pub enum Error {
     L2(L2Error),
     Chunker(ChunkerError),
     Other(&'static str),
-    ZkProofVerifyingKeyMissing,
 }
 
 impl fmt::Display for Error {

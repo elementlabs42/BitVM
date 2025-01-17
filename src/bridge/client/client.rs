@@ -1130,7 +1130,7 @@ impl BitVMClient {
                 output_script_pubkey,
                 self.zkproof_verifying_key
                     .as_ref()
-                    .ok_or(Error::ZkProofVerifyingKeyMissing)?,
+                    .ok_or(Error::Client(ClientError::ZkProofVerifyingKeyNotDefined))?,
             )
             .await?;
         self.broadcast_tx(&tx).await
