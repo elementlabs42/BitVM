@@ -112,7 +112,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(VERIFIER_0_SECRET),
         Some(WITHDRAWER_SECRET),
         None,
-        Some(RawProof::default().vk),
+        Some(get_correct_proof().vk),
     )
     .await;
 
@@ -125,7 +125,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(VERIFIER_1_SECRET),
         Some(WITHDRAWER_SECRET),
         None,
-        Some(RawProof::default().vk),
+        Some(get_correct_proof().vk),
     )
     .await;
 
