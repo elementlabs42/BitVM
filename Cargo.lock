@@ -1654,6 +1654,7 @@ dependencies = [
  "blake3",
  "clap",
  "colored",
+ "derivative",
  "dotenv",
  "esplora-client",
  "futures",

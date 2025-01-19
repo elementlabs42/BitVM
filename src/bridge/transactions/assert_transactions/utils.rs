@@ -73,7 +73,7 @@ pub fn sign_assert_tx_with_groth16_proof(
         .map(|(k, v)| {
             (
                 match k {
-                    CommitmentMessageId::Groth16IntermediateValues((name, _)) => name,
+                    CommitmentMessageId::Groth16IntermediateValues(name, _) => name,
                     _ => String::new(),
                 },
                 v,
@@ -102,7 +102,7 @@ pub fn sign_assert_tx_with_groth16_proof(
     for pks in commit1_publickeys {
         let mut witness = vec![];
         for (message, _) in pks {
-            if let CommitmentMessageId::Groth16IntermediateValues((name, _)) = message {
+            if let CommitmentMessageId::Groth16IntermediateValues(name, _) = message {
                 witness.append(&mut bridge_assigner.get_witness(elements.get(&name).unwrap()));
             }
         }
@@ -112,7 +112,7 @@ pub fn sign_assert_tx_with_groth16_proof(
     for pks in commit2_publickeys {
         let mut witness = vec![];
         for (message, _) in pks {
-            if let CommitmentMessageId::Groth16IntermediateValues((name, _)) = message {
+            if let CommitmentMessageId::Groth16IntermediateValues(name, _) = message {
                 witness.append(&mut bridge_assigner.get_witness(elements.get(&name).unwrap()));
             }
         }
@@ -138,7 +138,7 @@ pub fn groth16_commitment_secrets_to_public_keys(
     let mut connector_e2_commitment_public_keys = vec![];
 
     for (message_id, secret) in commitment_secrets.iter() {
-        if let CommitmentMessageId::Groth16IntermediateValues((_, _)) = message_id {
+        if let CommitmentMessageId::Groth16IntermediateValues(_, _) = message_id {
             let pushing_keys =
                 if connector_e1_commitment_public_keys.len() < connectors_e_of_transaction {
                     &mut connector_e1_commitment_public_keys

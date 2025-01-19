@@ -39,7 +39,7 @@ impl TaprootConnector for ConnectorE {
         let mut script = script! {};
         for (message, pk) in self.commitment_public_keys.iter().rev() {
             match message {
-                CommitmentMessageId::Groth16IntermediateValues((_, size)) => {
+                CommitmentMessageId::Groth16IntermediateValues(_, size) => {
                     script = script.push_script(
                         script! {
                             {winternitz_message_checksig_verify(pk, *size)}

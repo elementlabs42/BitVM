@@ -280,7 +280,7 @@ fn get_test_commitment_secrets() -> HashMap<CommitmentMessageId, WinternitzSecre
     // split variable to different connectors
     for (v, size) in all_variables {
         commitment_map.insert(
-            CommitmentMessageId::Groth16IntermediateValues((v, size)),
+            CommitmentMessageId::Groth16IntermediateValues(v, size),
             WinternitzSecret::new(size),
         );
     }

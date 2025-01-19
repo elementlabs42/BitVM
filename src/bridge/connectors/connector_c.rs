@@ -76,7 +76,7 @@ impl ConnectorC {
             .map(|(k, v)| {
                 (
                     match k {
-                        CommitmentMessageId::Groth16IntermediateValues((name, _)) => name,
+                        CommitmentMessageId::Groth16IntermediateValues(name, _) => name,
                         _ => String::new(),
                     },
                     v,
@@ -133,7 +133,7 @@ pub fn generate_assert_leaves(
         .map(|(k, v)| {
             (
                 match k {
-                    CommitmentMessageId::Groth16IntermediateValues((name, _)) => name,
+                    CommitmentMessageId::Groth16IntermediateValues(name, _) => name,
                     _ => String::new(),
                 },
                 v,

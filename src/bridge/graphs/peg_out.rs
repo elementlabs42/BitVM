@@ -4,6 +4,7 @@ use bitcoin::{
     key::Keypair,
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
+use derivative::Derivative;
 use esplora_client::{AsyncClient, TxStatus};
 use musig2::SecNonce;
 use num_traits::ToPrimitive;
@@ -14,6 +15,7 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     str::FromStr,
 };
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::{
     bridge::{
@@ -241,7 +243,7 @@ struct PegOutConnectors {
     assert_commit_connectors_f: AssertCommitConnectorsF,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
+#[derive(EnumIter, Display, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
 pub enum CommitmentMessageId {
     PegOutTxIdSourceNetwork,
     PegOutTxIdDestinationNetwork,
@@ -249,7 +251,8 @@ pub enum CommitmentMessageId {
     Superblock,
     SuperblockHash,
     // name of intermediate value and length of message
-    Groth16IntermediateValues((String, usize)),
+    #[strum(to_string = "Groth16IntermediateValues({0},{1})")]
+    Groth16IntermediateValues(String, usize),
 }
 
 impl Serialize for CommitmentMessageId {
@@ -289,43 +292,27 @@ impl<'de> Deserialize<'de> for CommitmentMessageId {
     }
 }
 
-impl Display for CommitmentMessageId {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        match self {
-            CommitmentMessageId::Groth16IntermediateValues((n, s)) => {
-                write!(f, "Groth16IntermediateValues({n},{s})")
-            }
-            _ => write!(f, "{:?}", self),
-        }
-    }
-}
-
 impl FromStr for CommitmentMessageId {
     type Err = String;
     fn from_str(input: &str) -> Result<CommitmentMessageId, Self::Err> {
-        match input {
-            "PegOutTxIdSourceNetwork" => Ok(CommitmentMessageId::PegOutTxIdSourceNetwork),
-            "PegOutTxIdDestinationNetwork" => Ok(CommitmentMessageId::PegOutTxIdDestinationNetwork),
-            "StartTime" => Ok(CommitmentMessageId::StartTime),
-            "Superblock" => Ok(CommitmentMessageId::Superblock),
-            "SuperblockHash" => Ok(CommitmentMessageId::SuperblockHash),
-            _ => {
-                if let Some(tuple) = input.strip_prefix("Groth16IntermediateValues(") {
-                    if let Some(tuple) = tuple.strip_suffix(")") {
-                        let parts = tuple.split(",").collect::<Vec<&str>>();
-                        if parts.len() == 2 {
-                            if let Ok(size) = parts[1].trim().parse::<usize>() {
-                                return Ok(CommitmentMessageId::Groth16IntermediateValues((
-                                    parts[0].trim().to_string(),
-                                    size,
-                                )));
-                            }
+        for variant in CommitmentMessageId::iter() {
+            if let Some(tuple) = input.strip_prefix("Groth16IntermediateValues(") {
+                if let Some(tuple) = tuple.strip_suffix(")") {
+                    let parts = tuple.split(",").collect::<Vec<&str>>();
+                    if parts.len() == 2 {
+                        if let Ok(size) = parts[1].trim().parse::<usize>() {
+                            return Ok(CommitmentMessageId::Groth16IntermediateValues(
+                                parts[0].trim().to_string(),
+                                size,
+                            ));
                         }
                     }
                 }
-                Err(format!("{} is not a variant of CommitmentMessageId", input))
+            } else if variant.to_string() == input {
+                return Ok(variant);
             }
         }
+        Err(format!("{} is not a variant of CommitmentMessageId", input))
     }
 }
 
@@ -361,7 +348,7 @@ impl CommitmentMessageId {
         // split variable to different connectors
         for (v, size) in all_variables {
             commitment_map.insert(
-                CommitmentMessageId::Groth16IntermediateValues((v, size)),
+                CommitmentMessageId::Groth16IntermediateValues(v, size),
                 WinternitzSecret::new(size),
             );
         }
@@ -377,7 +364,8 @@ impl Default for LockScriptsGeneratorWrapper {
     fn default() -> Self { LockScriptsGeneratorWrapper(generate_assert_leaves) }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Eq, PartialEq, Clone)]
 pub struct PegOutGraph {
     version: String,
     network: Network,
@@ -433,6 +421,7 @@ pub struct PegOutGraph {
     pub peg_out_transaction: Option<PegOutTransaction>,
 
     #[serde(skip)]
+    #[derivative(PartialEq = "ignore")]
     lock_scripts_generator_wrapper: LockScriptsGeneratorWrapper,
 }
 
