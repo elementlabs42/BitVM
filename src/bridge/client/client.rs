@@ -210,17 +210,29 @@ impl BitVMClient {
         }
     }
 
-    pub fn data(&self) -> &BitVMClientPublicData { &self.data }
+    pub fn data(&self) -> &BitVMClientPublicData {
+        &self.data
+    }
 
-    pub fn data_mut(&mut self) -> &mut BitVMClientPublicData { &mut self.data }
+    pub fn data_mut(&mut self) -> &mut BitVMClientPublicData {
+        &mut self.data
+    }
 
-    pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
+    pub fn private_data(&self) -> &BitVMClientPrivateData {
+        &self.private_data
+    }
 
-    pub async fn sync(&mut self) { self.read().await; }
+    pub async fn sync(&mut self) {
+        self.read().await;
+    }
 
-    pub async fn sync_l2(&mut self) { self.read_from_l2().await; }
+    pub async fn sync_l2(&mut self) {
+        self.read_from_l2().await;
+    }
 
-    pub async fn flush(&mut self) { self.save().await; }
+    pub async fn flush(&mut self) {
+        self.save().await;
+    }
 
     /*
     File syncing flow with data store
@@ -788,10 +800,10 @@ impl BitVMClient {
                     let _ = self.broadcast_kick_off_2(peg_out_graph.id()).await;
                 }
                 PegOutOperatorStatus::PegOutAssertInitialAvailable => {
-                    self.broadcast_assert_initial(peg_out_graph.id()).await
+                    let _ = self.broadcast_assert_initial(peg_out_graph.id()).await;
                 }
                 PegOutOperatorStatus::PegOutAssertFinalAvailable => {
-                    self.broadcast_assert_final(peg_out_graph.id()).await
+                    let _ = self.broadcast_assert_final(peg_out_graph.id()).await;
                 }
                 PegOutOperatorStatus::PegOutTake1Available => {
                     let _ = self.broadcast_take_1(peg_out_graph.id()).await;
@@ -1101,7 +1113,41 @@ impl BitVMClient {
         peg_out_graph_id: &String,
     ) -> Result<Txid, Error> {
         let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
-        let tx = graph.assert_initial(&self.esplora).await?;
+        let tx = graph
+            .assert_initial(&self.esplora, &self.verifier_context.as_ref().unwrap())
+            .await?;
+        self.broadcast_tx(&tx).await
+    }
+
+    pub async fn broadcast_assert_commit_1(
+        &mut self,
+        peg_out_graph_id: &String,
+    ) -> Result<Txid, Error> {
+        let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
+        let tx = graph
+            .assert_commitment_1(
+                &self.esplora,
+                &self.private_data.commitment_secrets
+                    [&self.verifier_context.as_ref().unwrap().verifier_public_key]
+                    [peg_out_graph_id],
+            )
+            .await?;
+        self.broadcast_tx(&tx).await
+    }
+
+    pub async fn broadcast_assert_commit_2(
+        &mut self,
+        peg_out_graph_id: &String,
+    ) -> Result<Txid, Error> {
+        let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
+        let tx = graph
+            .assert_commitment_2(
+                &self.esplora,
+                &self.private_data.commitment_secrets
+                    [&self.verifier_context.as_ref().unwrap().verifier_public_key]
+                    [peg_out_graph_id],
+            )
+            .await?;
         self.broadcast_tx(&tx).await
     }
 
@@ -1110,7 +1156,9 @@ impl BitVMClient {
         peg_out_graph_id: &String,
     ) -> Result<Txid, Error> {
         let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
-        let tx = graph.assert_final(&self.esplora).await?;
+        let tx = graph
+            .assert_final(&self.esplora, &self.verifier_context.as_ref().unwrap())
+            .await?;
         self.broadcast_tx(&tx).await
     }
 
