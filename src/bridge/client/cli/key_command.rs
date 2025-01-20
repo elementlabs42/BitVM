@@ -20,6 +20,7 @@ pub struct Keys {
     pub operator: Option<String>,
     pub verifier: Option<String>,
     pub withdrawer: Option<String>,
+    pub verifying_key: Option<String>,
 }
 
 pub struct KeysCommand {
@@ -52,6 +53,7 @@ impl KeysCommand {
             .arg(arg!(-o --operator <SECRET_KEY> "Secret key for operator").required(false))
             .arg(arg!(-v --verifier <SECRET_KEY> "Secret key for verifier").required(false))
             .arg(arg!(-w --withdrawer <SECRET_KEY> "Secret key for withdrawer").required(false))
+            .arg(arg!(-vk --zkp-verifying-key <SECRET_KEY> "Zero-knowledge proof verifying key").required(false))
             .group(ArgGroup::new("context")
                 .args(["depositor", "operator", "verifier", "withdrawer"])
                 .required(true))
@@ -101,6 +103,13 @@ impl KeysCommand {
                 eprintln!("error: Invalid withdrawer secret key.");
                 std::process::exit(1);
             }
+        } else if let Some(verifying_key) = sub_matches.get_one::<String>("zkp-verifying-key") {
+            if self.validate_verifying_key(verifying_key) {
+                config.keys.verifying_key = Some(verifying_key.clone());
+                println!("ZK verifying key saved successfully!");
+            } else {
+                println!("error: Invalid ZK verifying key.");
+            }
         } else {
             eprintln!("Invalid command. Use --help to see the valid commands.");
             std::process::exit(1);
@@ -133,6 +142,8 @@ impl KeysCommand {
     fn validate_key(&self, key: &str) -> bool {
         key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit())
     }
+
+    fn validate_verifying_key(&self, _key: &str) -> bool { todo!() }
 }
 fn pubkey_of(private_key: &str) -> PublicKey {
     generate_keys_from_secret(Network::Bitcoin, private_key).2
