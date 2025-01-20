@@ -4,7 +4,7 @@ use ark_std::test_rng;
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::{
     bridge::{
-        connectors::base::TaprootConnector,
+        connectors::{base::TaprootConnector, connector_c::get_commit_from_assert_commit_tx},
         graphs::base::DUST_AMOUNT,
         scripts::generate_pay_to_pubkey_script_address,
         transactions::{
@@ -20,7 +20,7 @@ use bitvm::{
             disprove::DisproveTransaction,
             pre_signed::PreSignedTransaction,
             pre_signed_musig2::PreSignedMusig2Transaction,
-        }, utils::get_commit_from_assert_commit_tx,
+        },
     },
     chunker::disprove_execution::RawProof,
 };
