@@ -15,7 +15,7 @@ use super::{
                 base::*, connector_4::Connector4, connector_5::Connector5, connector_c::ConnectorC,
             },
             contexts::{base::BaseContext, verifier::VerifierContext},
-            graphs::base::{DUST_AMOUNT, FEE_AMOUNT},
+            graphs::base::DUST_AMOUNT,
         },
         base::*,
         pre_signed::*,
@@ -38,27 +38,17 @@ pub struct AssertFinalTransaction {
 }
 
 impl PreSignedTransaction for AssertFinalTransaction {
-    fn tx(&self) -> &Transaction {
-        &self.tx
-    }
+    fn tx(&self) -> &Transaction { &self.tx }
 
-    fn tx_mut(&mut self) -> &mut Transaction {
-        &mut self.tx
-    }
+    fn tx_mut(&mut self) -> &mut Transaction { &mut self.tx }
 
-    fn prev_outs(&self) -> &Vec<TxOut> {
-        &self.prev_outs
-    }
+    fn prev_outs(&self) -> &Vec<TxOut> { &self.prev_outs }
 
-    fn prev_scripts(&self) -> &Vec<ScriptBuf> {
-        &self.prev_scripts
-    }
+    fn prev_scripts(&self) -> &Vec<ScriptBuf> { &self.prev_scripts }
 }
 
 impl PreSignedMusig2Transaction for AssertFinalTransaction {
-    fn musig2_nonces(&self) -> &HashMap<usize, HashMap<PublicKey, PubNonce>> {
-        &self.musig2_nonces
-    }
+    fn musig2_nonces(&self) -> &HashMap<usize, HashMap<PublicKey, PubNonce>> { &self.musig2_nonces }
     fn musig2_nonces_mut(&mut self) -> &mut HashMap<usize, HashMap<PublicKey, PubNonce>> {
         &mut self.musig2_nonces
     }
@@ -78,9 +68,7 @@ impl PreSignedMusig2Transaction for AssertFinalTransaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
-    fn verifier_inputs(&self) -> Vec<usize> {
-        vec![0]
-    }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![0] }
 }
 
 impl AssertFinalTransaction {
@@ -132,8 +120,8 @@ impl AssertFinalTransaction {
             .connector_f_2
             .generate_tx_in(&input_2);
 
-        let total_output_amount =
-            input_1.amount + input_2.amount + input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_1.amount + input_2.amount + input_0.amount
+            - Amount::from_sat(MIN_RELAY_FEE_ASSERT_FINAL);
 
         // goes to take_2 tx
         let _output_0 = TxOut {
@@ -253,7 +241,6 @@ impl AssertFinalTransaction {
 }
 
 impl BaseTransaction for AssertFinalTransaction {
-    fn finalize(&self) -> Transaction {
-        self.tx.clone()
-    }
+    fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { "AssertFinal" }
 }

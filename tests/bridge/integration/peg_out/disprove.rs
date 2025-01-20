@@ -5,7 +5,7 @@ use bitcoin::{Address, Amount, OutPoint};
 use bitvm::{
     bridge::{
         connectors::base::TaprootConnector,
-        graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT},
+        graphs::base::DUST_AMOUNT,
         scripts::generate_pay_to_pubkey_script_address,
         transactions::{
             assert_transactions::{
@@ -13,23 +13,25 @@ use bitvm::{
                 assert_commit_2::AssertCommit2Transaction, assert_final::AssertFinalTransaction,
                 assert_initial::AssertInitialTransaction, utils::sign_assert_tx_with_groth16_proof,
             },
-            base::{BaseTransaction, Input},
+            base::{
+                BaseTransaction, Input, MIN_RELAY_FEE_ASSERT, MIN_RELAY_FEE_DISPROVE,
+                MIN_RELAY_FEE_KICK_OFF_2,
+            },
             disprove::DisproveTransaction,
-            kick_off_2::MIN_RELAY_FEE_AMOUNT,
             pre_signed::PreSignedTransaction,
             pre_signed_musig2::PreSignedMusig2Transaction,
         },
     },
-    chunker::disprove_execution::{disprove_exec, RawProof},
+    chunker::disprove_execution::RawProof,
 };
 use num_traits::ToPrimitive;
 use rand::{RngCore as _, SeedableRng as _};
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::verify_funding_inputs,
+    helper::{check_tx_output_sum, verify_funding_inputs, wait_timelock_expiry},
     integration::peg_out::utils::create_and_mine_kick_off_2_tx,
-    setup::setup_test,
+    setup::{setup_test, INITIAL_AMOUNT},
 };
 
 fn wrong_proof_gen() -> RawProof {
@@ -37,8 +39,8 @@ fn wrong_proof_gen() -> RawProof {
     assert!(right_proof.valid_proof());
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
     right_proof.proof.a = G1Affine::rand(&mut rng);
-    let wrong_proof = right_proof;
-    wrong_proof
+
+    right_proof
 }
 
 #[tokio::test]
@@ -49,7 +51,12 @@ async fn test_disprove_success() {
     // verify funding inputs
     let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
     let kick_off_2_input_amount = Amount::from_sat(
-        INITIAL_AMOUNT + 300 * FEE_AMOUNT + MIN_RELAY_FEE_AMOUNT + 2000 * DUST_AMOUNT,
+        INITIAL_AMOUNT
+            + MIN_RELAY_FEE_KICK_OFF_2
+            + DUST_AMOUNT
+            + MIN_RELAY_FEE_ASSERT
+            + DUST_AMOUNT // assert has one more dust output
+            + MIN_RELAY_FEE_DISPROVE,
     );
     let kick_off_2_funding_utxo_address = config.connector_1.generate_taproot_address();
     funding_inputs.push((&kick_off_2_funding_utxo_address, kick_off_2_input_amount));
@@ -112,11 +119,8 @@ async fn test_disprove_success() {
         assert_initial.tx().output.len()
     );
     let assert_initial_result = config.client_0.esplora.broadcast(&assert_initial_tx).await;
-    assert!(
-        assert_initial_result.is_ok(),
-        "error: {:?}",
-        assert_initial_result.err()
-    );
+    println!("Assert initial tx result: {assert_initial_result:?}");
+    assert!(assert_initial_result.is_ok());
 
     // gen wrong proof and witness
     let wrong_proof = wrong_proof_gen();
@@ -126,7 +130,6 @@ async fn test_disprove_success() {
     // assert commit 1
     let mut vout_base = 1; // connector E
     let mut assert_commit_1 = AssertCommit1Transaction::new(
-        &config.operator_context,
         &config.assert_commit_connectors_e_1,
         &config.assert_commit_connectors_f.connector_f_1,
         (0..config.assert_commit_connectors_e_1.connectors_num())
@@ -140,7 +143,6 @@ async fn test_disprove_success() {
             .collect(),
     );
     assert_commit_1.sign(
-        &config.operator_context,
         &config.assert_commit_connectors_e_1,
         witness_for_commit1.clone(),
     );
@@ -161,15 +163,8 @@ async fn test_disprove_success() {
 
     // assert commit 2
     vout_base += config.assert_commit_connectors_e_1.connectors_num(); // connector E
-    let assert_commit_2_input_0 = Input {
-        outpoint: OutPoint {
-            txid: assert_initial_txid,
-            vout,
-        },
-        amount: assert_initial_tx.output[vout as usize].value,
-    };
+
     let mut assert_commit_2 = AssertCommit2Transaction::new(
-        &config.operator_context,
         &config.assert_commit_connectors_e_2,
         &config.assert_commit_connectors_f.connector_f_2,
         (0..config.assert_commit_connectors_e_2.connectors_num())
@@ -183,7 +178,6 @@ async fn test_disprove_success() {
             .collect(),
     );
     assert_commit_2.sign(
-        &config.operator_context,
         &config.assert_commit_connectors_e_2,
         witness_for_commit2.clone(),
     );
@@ -331,12 +325,11 @@ async fn test_disprove_success() {
     let disprove_txid = disprove_tx.compute_txid();
 
     // mine disprove
+    check_tx_output_sum(INITIAL_AMOUNT, &disprove_tx);
+    wait_timelock_expiry(config.network, Some("Assert connector 4")).await;
     let disprove_result = config.client_0.esplora.broadcast(&disprove_tx).await;
-    assert!(
-        disprove_result.is_ok(),
-        "error: {:?}",
-        disprove_result.err()
-    );
+    println!("Disprove tx result: {disprove_result:?}");
+    assert!(disprove_result.is_ok());
 
     // reward balance
     let reward_utxos = config

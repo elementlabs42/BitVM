@@ -1,5 +1,4 @@
-use bitcoin::opcodes::all::OP_FROMALTSTACK;
-use bitcoin::{opcodes::all::OP_TOALTSTACK, Witness};
+use bitcoin::Witness;
 use serde::{Deserialize, Serialize};
 
 use crate::signatures::winternitz_hash::WINTERNITZ_VARIABLE_VERIFIER;
@@ -152,7 +151,7 @@ mod tests {
     fn test_signing_winternitz_with_message_success() {
         let secret = WinternitzSecret::new(4);
         let public_key = WinternitzPublicKey::from(&secret);
-        let start_time_block_number = 860033 as u32;
+        let start_time_block_number = 860033_u32;
 
         let s = script! {
           { generate_winternitz_witness(

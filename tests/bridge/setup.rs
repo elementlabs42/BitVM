@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bitcoin::{Network, PublicKey};
 
+use super::helper::{get_intermediate_variables_cached, get_lock_scripts_cached};
 use bitvm::{
     bridge::{
         client::client::BitVMClient,
@@ -36,11 +37,14 @@ use bitvm::{
             signing_winternitz::{WinternitzPublicKey, WinternitzSecret},
         },
     },
-    chunker::assigner::BridgeAssigner,
     signatures::winternitz::Parameters,
 };
 
+pub const INITIAL_AMOUNT: u64 = 2 << 20; // 2097152
+pub const ONE_HUNDRED: u64 = 2 << 26; // 134217728
+
 pub struct SetupConfig {
+    pub network: Network,
     pub client_0: BitVMClient,
     pub client_1: BitVMClient,
     pub depositor_context: DepositorContext,
@@ -149,13 +153,16 @@ pub async fn setup_test() -> SetupConfig {
         connector_f_2,
     };
 
+    let commitment_public_keys = merge_to_connector_c_commits_public_key(
+        &connector_e1_commitment_public_keys,
+        &connector_e2_commitment_public_keys,
+    );
     let connector_c = ConnectorC::new(
         source_network,
         &operator_context.operator_taproot_public_key,
-        &merge_to_connector_c_commits_public_key(
-            &connector_e1_commitment_public_keys,
-            &connector_e2_commitment_public_keys,
-        ),
+        &commitment_public_keys,
+        get_lock_scripts_cached,
+        None,
     );
 
     let connector_z = ConnectorZ::new(
@@ -215,6 +222,7 @@ pub async fn setup_test() -> SetupConfig {
     );
 
     SetupConfig {
+        network: source_network,
         client_0,
         client_1,
         depositor_context,
@@ -268,10 +276,8 @@ fn get_test_commitment_secrets() -> HashMap<CommitmentMessageId, WinternitzSecre
         ),
     ]);
 
-    // maybe variable cache is more efficient
-    let all_variables = BridgeAssigner::default().all_intermediate_variable();
+    let all_variables = get_intermediate_variables_cached();
     // split variable to different connectors
-
     for (v, size) in all_variables {
         commitment_map.insert(
             CommitmentMessageId::Groth16IntermediateValues((v, size)),

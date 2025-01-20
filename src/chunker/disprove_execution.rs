@@ -2,6 +2,7 @@ use super::{
     assigner::BCAssigner, chunk_groth16_verifier::groth16_verify_to_segments, common::RawWitness,
     elements::dummy_element,
 };
+use crate::bridge::error::{ChunkerError, Error};
 use crate::chunker::common;
 use crate::groth16::{constants::LAMBDA, offchain_checker::compute_c_wi};
 use ark_bn254::{Bn254, G1Projective};
@@ -66,15 +67,15 @@ impl RawProof {
 
 pub fn disprove_exec<A: BCAssigner>(
     assigner: &mut A,
-    assert_witness: Vec<Vec<RawWitness>>,
+    assert_witnesses: Vec<Vec<RawWitness>>,
     vk: VerifyingKey<ark_bn254::Bn254>,
-) -> Option<(usize, RawWitness)> {
+) -> Result<(usize, RawWitness), Error> {
     // 0. recover assigner from witness
-    let (hash_map, wrong_proof) = assigner.recover_from_witness(assert_witness, vk);
+    let (hash_map, wrong_proof) = assigner.recover_from_witnesses(assert_witnesses, vk);
 
     // 1. if 'wrong_proof' is correct, return none
     if wrong_proof.valid_proof() {
-        return None;
+        return Err(Error::Chunker(ChunkerError::NotWrongProof));
     }
 
     // 2. derive assigner from wrong proof
@@ -113,7 +114,7 @@ pub fn disprove_exec<A: BCAssigner>(
 
         if is_param_equal && !is_result_equal {
             let disprove_witness = segment.witness(assigner);
-            return Some((idx, disprove_witness));
+            return Ok((idx, disprove_witness));
         }
     }
 
@@ -121,12 +122,12 @@ pub fn disprove_exec<A: BCAssigner>(
     for (idx, segment) in segments.iter().enumerate() {
         if segment.is_final() {
             let disprove_witness = segment.witness(assigner);
-            return Some((idx, disprove_witness));
+            return Ok((idx, disprove_witness));
         }
     }
 
     println!("Shouldn't happend, some chunk must can be available with a wrong proof");
-    None
+    Err(Error::Chunker(ChunkerError::InvalidProof))
 }
 
 #[cfg(test)]
@@ -148,7 +149,6 @@ mod tests {
     use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
     use ark_serialize::{CanonicalDeserialize as _, CanonicalSerialize as _};
     use ark_std::{test_rng, UniformRand};
-    use rand::rngs::mock;
     use rand::{RngCore, SeedableRng};
     use std::collections::BTreeMap;
     use std::rc::Rc;
@@ -217,9 +217,9 @@ mod tests {
         let proof = Groth16::<E>::prove(&pk, circuit, &mut rng).unwrap();
 
         RawProof {
-            proof: proof,
+            proof,
             public: vec![c],
-            vk: vk,
+            vk,
         }
     }
 
@@ -341,14 +341,14 @@ mod tests {
     #[test]
     fn offchain_check_wrong_proof() {
         let mut right_proof = gen_right_proof();
-        assert_eq!(right_proof.valid_proof(), true);
+        assert!(right_proof.valid_proof());
 
         // make it wrong
         let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
         right_proof.proof.a = G1Affine::rand(&mut rng);
         let wrong_proof = right_proof;
 
-        assert_eq!(wrong_proof.valid_proof(), false);
+        assert!(!wrong_proof.valid_proof());
     }
 
     #[test]
@@ -385,7 +385,7 @@ mod tests {
         // get all witnesses
         let assert_witnesses = assigner.all_intermediate_witnesses(elements);
 
-        let (_, recoverd_proof) = assigner.recover_from_witness(assert_witnesses, right_proof.vk);
+        let (_, recoverd_proof) = assigner.recover_from_witnesses(assert_witnesses, right_proof.vk);
         assert_eq!(recoverd_proof, wrong_proof)
     }
 }

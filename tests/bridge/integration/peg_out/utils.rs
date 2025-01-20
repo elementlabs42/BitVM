@@ -22,7 +22,7 @@ use bitvm::bridge::{
     },
 };
 
-use crate::bridge::helper::{generate_stub_outpoint, get_superblock_header};
+use crate::bridge::helper::{generate_stub_outpoint, get_superblock_header, wait_timelock_expiry};
 
 pub async fn create_and_mine_kick_off_1_tx(
     client: &BitVMClient,
@@ -41,10 +41,10 @@ pub async fn create_and_mine_kick_off_1_tx(
         amount: input_amount,
     };
     let mut kick_off_1 = KickOff1Transaction::new(
-        &operator_context,
-        &connector_1,
-        &connector_2,
-        &connector_6,
+        operator_context,
+        connector_1,
+        connector_2,
+        connector_6,
         kick_off_1_input,
     );
 
@@ -59,8 +59,8 @@ pub async fn create_and_mine_kick_off_1_tx(
         signing_key: &commitment_secrets[&CommitmentMessageId::PegOutTxIdDestinationNetwork],
     };
     kick_off_1.sign(
-        &operator_context,
-        &connector_6,
+        operator_context,
+        connector_6,
         &source_network_txid_digits,
         &destination_network_txid_digits,
     );
@@ -90,12 +90,11 @@ pub async fn create_and_mine_kick_off_2_tx(
         outpoint: kick_off_2_funding_outpoint,
         amount: input_amount,
     };
-    let mut kick_off_2 =
-        KickOff2Transaction::new(&operator_context, &connector_1, kick_off_2_input);
+    let mut kick_off_2 = KickOff2Transaction::new(operator_context, connector_1, kick_off_2_input);
     let superblock_header = get_superblock_header();
     kick_off_2.sign(
-        &operator_context,
-        &connector_1,
+        operator_context,
+        connector_1,
         &WinternitzSigningInputs {
             message: &get_superblock_message(&superblock_header),
             signing_key: &commitment_secrets[&CommitmentMessageId::Superblock],
@@ -109,12 +108,10 @@ pub async fn create_and_mine_kick_off_2_tx(
     let kick_off_2_txid = kick_off_2_tx.compute_txid();
 
     // mine kick-off 2 tx
+    wait_timelock_expiry(operator_context.network, Some("kick off 1 connector 1")).await;
     let kick_off_2_result = client.esplora.broadcast(&kick_off_2_tx).await;
-    assert!(
-        kick_off_2_result.is_ok(),
-        "error: {:?}",
-        kick_off_2_result.err()
-    );
+    println!("Kick off 2 tx result: {kick_off_2_result:?}");
+    assert!(kick_off_2_result.is_ok());
 
     (kick_off_2_tx, kick_off_2_txid)
 }
@@ -155,6 +152,7 @@ pub async fn create_and_mine_assert_tx(
     let assert_txid = assert_tx.compute_txid();
 
     // mine assert tx
+    wait_timelock_expiry(verifier_0_context.network, Some("kick off 2 connector b")).await;
     let assert_result = client.esplora.broadcast(&assert_tx).await;
     assert!(assert_result.is_ok());
 
