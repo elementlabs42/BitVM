@@ -790,6 +790,12 @@ impl BitVMClient {
                 PegOutOperatorStatus::PegOutAssertInitialAvailable => {
                     let _ = self.broadcast_assert_initial(peg_out_graph.id()).await;
                 }
+                PegOutOperatorStatus::PegOutAssertCommit1Available => {
+                    let _ = self.broadcast_assert_commit_1(peg_out_graph.id()).await;
+                }
+                PegOutOperatorStatus::PegOutAssertCommit2Available => {
+                    let _ = self.broadcast_assert_commit_2(peg_out_graph.id()).await;
+                }
                 PegOutOperatorStatus::PegOutAssertFinalAvailable => {
                     let _ = self.broadcast_assert_final(peg_out_graph.id()).await;
                 }
