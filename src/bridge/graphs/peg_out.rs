@@ -17,7 +17,9 @@ use std::{
 use crate::{
     bridge::{
         connectors::{
-            connector_c::{generate_assert_leaves, get_commit_from_assert_commit_tx, LockScriptsGenerator},
+            connector_c::{
+                generate_assert_leaves, get_commit_from_assert_commit_tx, LockScriptsGenerator,
+            },
             connector_d::ConnectorD,
             connector_e::ConnectorE,
             connector_f_1::ConnectorF1,
@@ -1842,14 +1844,19 @@ impl PegOutGraph {
             Ok(status) => match status.confirmed {
                 true => {
                     // TODO: store and read vk
-                    
-                    // get commit from assert_commit txs
-                    let assert_commit_1_witness = get_commit_from_assert_commit_tx(self.assert_commit_1_transaction.tx());
-                    let assert_commit_2_witness = get_commit_from_assert_commit_tx(self.assert_commit_2_transaction.tx());
 
-                    let (input_script_index, disprove_witness) = self
-                        .connector_c
-                        .generate_disprove_witness(assert_commit_1_witness, assert_commit_2_witness, RawProof::default().vk)?;
+                    // get commit from assert_commit txs
+                    let assert_commit_1_witness =
+                        get_commit_from_assert_commit_tx(self.assert_commit_1_transaction.tx());
+                    let assert_commit_2_witness =
+                        get_commit_from_assert_commit_tx(self.assert_commit_2_transaction.tx());
+
+                    let (input_script_index, disprove_witness) =
+                        self.connector_c.generate_disprove_witness(
+                            assert_commit_1_witness,
+                            assert_commit_2_witness,
+                            RawProof::default().vk,
+                        )?;
                     self.disprove_transaction.add_input_output(
                         &self.connector_c,
                         input_script_index as u32,
