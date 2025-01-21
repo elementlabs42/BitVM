@@ -241,6 +241,7 @@ struct PegOutConnectors {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
+#[serde(into = "String", try_from = "String")]
 pub enum CommitmentMessageId {
     PegOutTxIdSourceNetwork,
     PegOutTxIdDestinationNetwork,
@@ -249,6 +250,54 @@ pub enum CommitmentMessageId {
     SuperblockHash,
     // name of intermediate value and length of message
     Groth16IntermediateValues((String, usize)),
+}
+
+const VAL_SEPARATOR: char = '|';
+
+impl From<CommitmentMessageId> for String {
+    fn from(id: CommitmentMessageId) -> String {
+        match id {
+            CommitmentMessageId::PegOutTxIdSourceNetwork => "PegOutTxIdSourceNetwork".to_string(),
+            CommitmentMessageId::PegOutTxIdDestinationNetwork => {
+                "PegOutTxIdDestinationNetwork".to_string()
+            }
+            CommitmentMessageId::StartTime => "StartTime".to_string(),
+            CommitmentMessageId::Superblock => "Superblock".to_string(),
+            CommitmentMessageId::SuperblockHash => "SuperblockHash".to_string(),
+            CommitmentMessageId::Groth16IntermediateValues((var, size)) => {
+                format!(
+                    "Groth16IntermediateValues{}{}{}{}",
+                    VAL_SEPARATOR, var, VAL_SEPARATOR, size
+                )
+            }
+        }
+    }
+}
+
+impl TryFrom<String> for CommitmentMessageId {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "PegOutTxIdSourceNetwork" => Ok(CommitmentMessageId::PegOutTxIdSourceNetwork),
+            "PegOutTxIdDestinationNetwork" => Ok(CommitmentMessageId::PegOutTxIdDestinationNetwork),
+            "StartTime" => Ok(CommitmentMessageId::StartTime),
+            "Superblock" => Ok(CommitmentMessageId::Superblock),
+            "SuperblockHash" => Ok(CommitmentMessageId::SuperblockHash),
+            s if s.starts_with(&format!("Groth16IntermediateValues{}", VAL_SEPARATOR)) => {
+                let parts: Vec<_> = s.split(VAL_SEPARATOR).collect();
+                if parts.len() != 3 {
+                    return Err(format!("Invalid Groth16IntermediateValues format: {}", s));
+                }
+                let var = parts[1].to_string();
+                let size = parts[2]
+                    .parse::<usize>()
+                    .map_err(|e| format!("Invalid size in Groth16IntermediateValues: {}", e))?;
+                Ok(CommitmentMessageId::Groth16IntermediateValues((var, size)))
+            }
+            _ => Err(format!("Unknown CommitmentMessageId: {}", s)),
+        }
+    }
 }
 
 impl CommitmentMessageId {
@@ -355,7 +404,7 @@ pub struct PegOutGraph {
     pub peg_out_transaction: Option<PegOutTransaction>,
 
     #[serde(skip)]
-    lock_scripts_generator_wrapper: LockScriptsGeneratorWrapper,
+    pub lock_scripts_generator_wrapper: LockScriptsGeneratorWrapper,
 }
 
 impl BaseGraph for PegOutGraph {
