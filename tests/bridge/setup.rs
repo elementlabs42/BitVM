@@ -6,6 +6,7 @@ use super::helper::{get_intermediate_variables_cached, get_lock_scripts_cached};
 use bitvm::{
     bridge::{
         client::client::BitVMClient,
+        commitments::CommitmentMessageId,
         connectors::{
             connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
             connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
@@ -21,12 +22,9 @@ use bitvm::{
             base::generate_keys_from_secret, depositor::DepositorContext,
             operator::OperatorContext, verifier::VerifierContext, withdrawer::WithdrawerContext,
         },
-        graphs::{
-            base::{
-                DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
-                VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET,
-            },
-            peg_out::CommitmentMessageId,
+        graphs::base::{
+            DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
+            VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET,
         },
         superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
         transactions::{

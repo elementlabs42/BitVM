@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     bridge::{
-        error::Error, graphs::peg_out::CommitmentMessageId,
+        commitments::CommitmentMessageId, error::Error,
         transactions::signing_winternitz::WinternitzPublicKey,
     },
     chunker::{

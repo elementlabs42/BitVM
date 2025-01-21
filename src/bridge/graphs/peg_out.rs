@@ -13,10 +13,10 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Display, Formatter, Result as FmtResult},
 };
-use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::{
     bridge::{
+        commitments::CommitmentMessageId,
         connectors::{
             connector_c::{generate_assert_leaves, LockScriptsGenerator},
             connector_d::ConnectorD,
@@ -24,13 +24,10 @@ use crate::{
             connector_f_1::ConnectorF1,
             connector_f_2::ConnectorF2,
         },
-        constants::{
-            DESTINATION_NETWORK_TXID_LENGTH, SOURCE_NETWORK_TXID_LENGTH, START_TIME_MESSAGE_LENGTH,
-        },
         error::{Error, GraphError, L2Error, NamedTx},
         superblock::{
             find_superblock, get_start_time_block_number, get_superblock_hash_message,
-            get_superblock_message, SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH,
+            get_superblock_message,
         },
         transactions::{
             assert_transactions::{
@@ -49,7 +46,7 @@ use crate::{
             signing_winternitz::WinternitzSigningInputs,
         },
     },
-    chunker::{assigner::BridgeAssigner, disprove_execution::RawProof},
+    chunker::disprove_execution::RawProof,
 };
 
 use super::{
@@ -239,101 +236,6 @@ struct PegOutConnectors {
     assert_commit_connectors_e_1: AssertCommit1ConnectorsE,
     assert_commit_connectors_e_2: AssertCommit2ConnectorsE,
     assert_commit_connectors_f: AssertCommitConnectorsF,
-}
-
-#[derive(
-    Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Display, Debug, EnumIter,
-)]
-#[serde(into = "String", try_from = "String")]
-pub enum CommitmentMessageId {
-    PegOutTxIdSourceNetwork,
-    PegOutTxIdDestinationNetwork,
-    StartTime,
-    Superblock,
-    SuperblockHash,
-    // name of intermediate value and length of message
-    Groth16IntermediateValues((String, usize)),
-}
-
-const VAL_SEPARATOR: char = '|';
-
-impl From<CommitmentMessageId> for String {
-    fn from(id: CommitmentMessageId) -> String {
-        match id {
-            CommitmentMessageId::Groth16IntermediateValues((var, size)) => {
-                format!(
-                    "Groth16IntermediateValues{}{}{}{}",
-                    VAL_SEPARATOR, var, VAL_SEPARATOR, size
-                )
-            }
-            _ => id.to_string(),
-        }
-    }
-}
-
-impl TryFrom<String> for CommitmentMessageId {
-    type Error = String;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        for variant in CommitmentMessageId::iter() {
-            if s == variant.to_string() {
-                return Ok(variant);
-            } else if s.starts_with(&format!("Groth16IntermediateValues{}", VAL_SEPARATOR)) {
-                let parts: Vec<_> = s.split(VAL_SEPARATOR).collect();
-                if parts.len() != 3 {
-                    return Err(format!("Invalid Groth16IntermediateValues format: {}", s));
-                }
-                let var = parts[1].to_string();
-                let size = parts[2]
-                    .parse::<usize>()
-                    .map_err(|e| format!("Invalid size in Groth16IntermediateValues: {}", e))?;
-                return Ok(CommitmentMessageId::Groth16IntermediateValues((var, size)));
-            }
-        }
-
-        Err(format!("Unknown CommitmentMessageId: {}", s))
-    }
-}
-
-impl CommitmentMessageId {
-    // btree map is a copy of chunker related commitments
-    pub fn generate_commitment_secrets() -> HashMap<CommitmentMessageId, WinternitzSecret> {
-        let mut commitment_map = HashMap::from([
-            (
-                CommitmentMessageId::PegOutTxIdSourceNetwork,
-                WinternitzSecret::new(SOURCE_NETWORK_TXID_LENGTH),
-            ),
-            (
-                CommitmentMessageId::PegOutTxIdDestinationNetwork,
-                WinternitzSecret::new(DESTINATION_NETWORK_TXID_LENGTH),
-            ),
-            (
-                CommitmentMessageId::StartTime,
-                WinternitzSecret::new(START_TIME_MESSAGE_LENGTH),
-            ),
-            (
-                CommitmentMessageId::Superblock,
-                WinternitzSecret::new(SUPERBLOCK_MESSAGE_LENGTH),
-            ),
-            (
-                CommitmentMessageId::SuperblockHash,
-                WinternitzSecret::new(SUPERBLOCK_HASH_MESSAGE_LENGTH),
-            ),
-        ]);
-
-        // maybe variable cache is more efficient
-        let all_variables = BridgeAssigner::default().all_intermediate_variables();
-
-        // split variable to different connectors
-        for (v, size) in all_variables {
-            commitment_map.insert(
-                CommitmentMessageId::Groth16IntermediateValues((v, size)),
-                WinternitzSecret::new(size),
-            );
-        }
-
-        commitment_map
-    }
 }
 
 #[derive(Eq, PartialEq, Clone)]

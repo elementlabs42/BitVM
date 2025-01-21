@@ -1,4 +1,5 @@
 pub mod client;
+pub mod commitments;
 pub mod connectors;
 pub mod constants;
 pub mod contexts;
