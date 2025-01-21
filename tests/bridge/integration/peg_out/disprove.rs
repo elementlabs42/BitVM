@@ -48,8 +48,9 @@ fn wrong_proof_gen() -> RawProof {
 #[tokio::test]
 async fn test_disprove_success() {
     // TODO: remove lock script cache
-    //       or refactor setup_test to generate lock scripts for connector c
+    //       OR refactor setup_test to generate lock scripts for connector c
     //       to prevent mandatory-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation) error
+    //       OR verify if making the wrong proof deterministic addresses the issue.
     let config = setup_test_full().await;
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
 
