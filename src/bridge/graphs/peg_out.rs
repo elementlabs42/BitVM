@@ -310,7 +310,9 @@ impl CommitmentMessageId {
 pub struct LockScriptsGeneratorWrapper(pub LockScriptsGenerator);
 
 impl Default for LockScriptsGeneratorWrapper {
-    fn default() -> Self { LockScriptsGeneratorWrapper(generate_assert_leaves) }
+    fn default() -> Self {
+        LockScriptsGeneratorWrapper(generate_assert_leaves)
+    }
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -375,9 +377,13 @@ pub struct PegOutGraph {
 }
 
 impl BaseGraph for PegOutGraph {
-    fn network(&self) -> Network { self.network }
+    fn network(&self) -> Network {
+        self.network
+    }
 
-    fn id(&self) -> &String { &self.id }
+    fn id(&self) -> &String {
+        &self.id
+    }
 
     fn verifier_sign(
         &mut self,
@@ -1883,8 +1889,7 @@ impl PegOutGraph {
         client: &AsyncClient,
         commitment_secrets: &HashMap<CommitmentMessageId, WinternitzSecret>,
     ) -> Result<Transaction, Error> {
-        let x = verify_if_not_mined(client, self.assert_commit_2_transaction.tx().compute_txid())
-            .await?;
+        verify_if_not_mined(client, self.assert_commit_2_transaction.tx().compute_txid()).await?;
 
         let assert_initial_txid = self.assert_initial_transaction.tx().compute_txid();
         let assert_initial_status = client.get_tx_status(&assert_initial_txid).await;
@@ -2081,7 +2086,9 @@ impl PegOutGraph {
         }
     }
 
-    pub fn is_peg_out_initiated(&self) -> bool { self.peg_out_chain_event.is_some() }
+    pub fn is_peg_out_initiated(&self) -> bool {
+        self.peg_out_chain_event.is_some()
+    }
 
     pub fn min_crowdfunding_amount(&self) -> u64 {
         self.challenge_transaction.min_crowdfunding_amount()
