@@ -13,7 +13,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Display, Formatter, Result as FmtResult},
 };
-use strum::Display;
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::{
     bridge::{
@@ -241,7 +241,9 @@ struct PegOutConnectors {
     assert_commit_connectors_f: AssertCommitConnectorsF,
 }
 
-#[derive(Display, Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
+#[derive(
+    Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Display, Debug, EnumIter,
+)]
 #[serde(into = "String", try_from = "String")]
 pub enum CommitmentMessageId {
     PegOutTxIdSourceNetwork,
@@ -273,13 +275,10 @@ impl TryFrom<String> for CommitmentMessageId {
     type Error = String;
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
-        match s.as_str() {
-            "PegOutTxIdSourceNetwork" => Ok(CommitmentMessageId::PegOutTxIdSourceNetwork),
-            "PegOutTxIdDestinationNetwork" => Ok(CommitmentMessageId::PegOutTxIdDestinationNetwork),
-            "StartTime" => Ok(CommitmentMessageId::StartTime),
-            "Superblock" => Ok(CommitmentMessageId::Superblock),
-            "SuperblockHash" => Ok(CommitmentMessageId::SuperblockHash),
-            s if s.starts_with(&format!("Groth16IntermediateValues{}", VAL_SEPARATOR)) => {
+        for variant in CommitmentMessageId::iter() {
+            if s == variant.to_string() {
+                return Ok(variant);
+            } else if s.starts_with(&format!("Groth16IntermediateValues{}", VAL_SEPARATOR)) {
                 let parts: Vec<_> = s.split(VAL_SEPARATOR).collect();
                 if parts.len() != 3 {
                     return Err(format!("Invalid Groth16IntermediateValues format: {}", s));
@@ -288,10 +287,11 @@ impl TryFrom<String> for CommitmentMessageId {
                 let size = parts[2]
                     .parse::<usize>()
                     .map_err(|e| format!("Invalid size in Groth16IntermediateValues: {}", e))?;
-                Ok(CommitmentMessageId::Groth16IntermediateValues((var, size)))
+                return Ok(CommitmentMessageId::Groth16IntermediateValues((var, size)));
             }
-            _ => Err(format!("Unknown CommitmentMessageId: {}", s)),
         }
+
+        Err(format!("Unknown CommitmentMessageId: {}", s))
     }
 }
 
