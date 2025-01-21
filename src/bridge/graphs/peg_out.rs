@@ -308,9 +308,7 @@ impl CommitmentMessageId {
 pub struct LockScriptsGeneratorWrapper(pub LockScriptsGenerator);
 
 impl Default for LockScriptsGeneratorWrapper {
-    fn default() -> Self {
-        LockScriptsGeneratorWrapper(generate_assert_leaves)
-    }
+    fn default() -> Self { LockScriptsGeneratorWrapper(generate_assert_leaves) }
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -375,13 +373,9 @@ pub struct PegOutGraph {
 }
 
 impl BaseGraph for PegOutGraph {
-    fn network(&self) -> Network {
-        self.network
-    }
+    fn network(&self) -> Network { self.network }
 
-    fn id(&self) -> &String {
-        &self.id
-    }
+    fn id(&self) -> &String { &self.id }
 
     fn verifier_sign(
         &mut self,
@@ -1407,17 +1401,22 @@ impl PegOutGraph {
                                 .as_ref()
                                 .is_ok_and(|status| status.confirmed)
                             {
-                                return PegOutOperatorStatus::PegOutAssertFinalAvailable;
-                            } else if assert_commit_1_status
-                                .as_ref()
-                                .is_ok_and(|status| status.confirmed)
-                            {
-                                return PegOutOperatorStatus::PegOutAssertCommit1Available;
-                            } else if assert_commit_2_status
-                                .as_ref()
-                                .is_ok_and(|status| status.confirmed)
-                            {
-                                return PegOutOperatorStatus::PegOutAssertCommit2Available;
+                                if assert_commit_1_status
+                                    .as_ref()
+                                    .is_ok_and(|status| status.confirmed)
+                                    && assert_commit_2_status
+                                        .as_ref()
+                                        .is_ok_and(|status| status.confirmed)
+                                {
+                                    return PegOutOperatorStatus::PegOutAssertFinalAvailable;
+                                } else if assert_commit_1_status
+                                    .as_ref()
+                                    .is_ok_and(|status| status.confirmed)
+                                {
+                                    return PegOutOperatorStatus::PegOutAssertCommit2Available;
+                                } else {
+                                    return PegOutOperatorStatus::PegOutAssertCommit1Available;
+                                }
                             } else {
                                 return PegOutOperatorStatus::PegOutAssertInitialAvailable;
                             }
@@ -1820,11 +1819,7 @@ impl PegOutGraph {
         }
     }
 
-    pub async fn assert_initial(
-        &mut self,
-        client: &AsyncClient,
-        verifier_context: &VerifierContext,
-    ) -> Result<Transaction, Error> {
+    pub async fn assert_initial(&mut self, client: &AsyncClient) -> Result<Transaction, Error> {
         verify_if_not_mined(client, self.assert_initial_transaction.tx().compute_txid()).await?;
 
         let kick_off_2_txid = self.kick_off_2_transaction.tx().compute_txid();
@@ -1840,16 +1835,6 @@ impl PegOutGraph {
                             block_height + self.connector_b.num_blocks_timelock_1 <= height
                         }) =>
                     {
-                        let secret_nonces = self
-                            .assert_initial_transaction
-                            .push_nonces(&verifier_context);
-
-                        self.assert_initial_transaction.pre_sign(
-                            &verifier_context,
-                            &self.connector_b,
-                            &secret_nonces,
-                        );
-
                         Ok(self.assert_initial_transaction.finalize())
                     }
                     _ => Err(Error::Graph(GraphError::PrecedingTxTimelockNotMet(
@@ -1864,14 +1849,16 @@ impl PegOutGraph {
         }
     }
 
-    pub async fn assert_commitment_1(
+    pub async fn assert_commit_1(
         &mut self,
         client: &AsyncClient,
         commitment_secrets: &HashMap<CommitmentMessageId, WinternitzSecret>,
     ) -> Result<Transaction, Error> {
         verify_if_not_mined(client, self.assert_commit_1_transaction.tx().compute_txid()).await?;
+
         let assert_initial_txid = self.assert_initial_transaction.tx().compute_txid();
         let assert_initial_status = client.get_tx_status(&assert_initial_txid).await;
+
         match assert_initial_status {
             Ok(status) => match status.confirmed {
                 true => {
@@ -1889,14 +1876,17 @@ impl PegOutGraph {
         }
     }
 
-    pub async fn assert_commitment_2(
+    pub async fn assert_commit_2(
         &mut self,
         client: &AsyncClient,
         commitment_secrets: &HashMap<CommitmentMessageId, WinternitzSecret>,
     ) -> Result<Transaction, Error> {
-        verify_if_not_mined(client, self.assert_commit_1_transaction.tx().compute_txid()).await?;
+        let x = verify_if_not_mined(client, self.assert_commit_2_transaction.tx().compute_txid())
+            .await?;
+
         let assert_initial_txid = self.assert_initial_transaction.tx().compute_txid();
         let assert_initial_status = client.get_tx_status(&assert_initial_txid).await;
+
         match assert_initial_status {
             Ok(status) => match status.confirmed {
                 true => {
@@ -1914,11 +1904,7 @@ impl PegOutGraph {
         }
     }
 
-    pub async fn assert_final(
-        &mut self,
-        client: &AsyncClient,
-        verifier_context: &VerifierContext,
-    ) -> Result<Transaction, Error> {
+    pub async fn assert_final(&mut self, client: &AsyncClient) -> Result<Transaction, Error> {
         verify_if_not_mined(client, self.assert_final_transaction.tx().compute_txid()).await?;
 
         let assert_initial_txid = self.assert_initial_transaction.tx().compute_txid();
@@ -1926,17 +1912,7 @@ impl PegOutGraph {
 
         match assert_initial_status {
             Ok(status) => match status.confirmed {
-                true => {
-                    let secret_nonces =
-                        self.assert_final_transaction.push_nonces(&verifier_context);
-
-                    self.assert_final_transaction.pre_sign(
-                        &verifier_context,
-                        &self.connector_d,
-                        &secret_nonces,
-                    );
-                    Ok(self.assert_final_transaction.finalize())
-                }
+                true => Ok(self.assert_final_transaction.finalize()),
                 false => Err(Error::Graph(GraphError::PrecedingTxNotConfirmed(vec![
                     NamedTx::for_tx(&self.assert_initial_transaction, status.confirmed),
                 ]))),
@@ -2007,7 +1983,7 @@ impl PegOutGraph {
     pub async fn take_1(&mut self, client: &AsyncClient) -> Result<Transaction, Error> {
         verify_if_not_mined(client, self.take_1_transaction.tx().compute_txid()).await?;
         verify_if_not_mined(client, self.challenge_transaction.tx().compute_txid()).await?;
-        verify_if_not_mined(client, self.assert_final_transaction.tx().compute_txid()).await?;
+        verify_if_not_mined(client, self.assert_initial_transaction.tx().compute_txid()).await?;
         verify_if_not_mined(client, self.disprove_chain_transaction.tx().compute_txid()).await?;
 
         let peg_in_confirm_status = client.get_tx_status(&self.peg_in_confirm_txid).await;
@@ -2094,9 +2070,7 @@ impl PegOutGraph {
         }
     }
 
-    pub fn is_peg_out_initiated(&self) -> bool {
-        self.peg_out_chain_event.is_some()
-    }
+    pub fn is_peg_out_initiated(&self) -> bool { self.peg_out_chain_event.is_some() }
 
     pub fn min_crowdfunding_amount(&self) -> u64 {
         self.challenge_transaction.min_crowdfunding_amount()
