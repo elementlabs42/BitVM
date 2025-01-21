@@ -4,7 +4,7 @@ use ark_std::test_rng;
 use bitcoin::{Address, Amount, OutPoint};
 use bitvm::{
     bridge::{
-        connectors::base::TaprootConnector,
+        connectors::{base::TaprootConnector, connector_c::get_commit_from_assert_commit_tx},
         graphs::base::DUST_AMOUNT,
         scripts::generate_pay_to_pubkey_script_address,
         transactions::{
@@ -22,7 +22,6 @@ use bitvm::{
             pre_signed::PreSignedTransaction,
             pre_signed_musig2::PreSignedMusig2Transaction,
         },
-        utils::get_commit_from_assert_commit_tx,
     },
     chunker::disprove_execution::RawProof,
 };
@@ -34,7 +33,7 @@ use crate::bridge::{
     faucet::{Faucet, FaucetType},
     helper::{check_tx_output_sum, verify_funding_inputs, wait_timelock_expiry},
     integration::peg_out::utils::create_and_mine_kick_off_2_tx,
-    setup::{setup_test, INITIAL_AMOUNT},
+    setup::{setup_test_full, INITIAL_AMOUNT},
 };
 
 fn wrong_proof_gen() -> RawProof {
@@ -51,7 +50,7 @@ async fn test_disprove_success() {
     // TODO: remove lock script cache
     //       or refactor setup_test to generate lock scripts for connector c
     //       to prevent mandatory-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation) error
-    let config = setup_test().await;
+    let config = setup_test_full().await;
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
 
     // verify funding inputs

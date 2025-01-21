@@ -16,11 +16,11 @@ use esplora_client::AsyncClient;
 use crate::bridge::{
     faucet::Faucet,
     helper::{generate_stub_outpoint, wait_timelock_expiry},
-    setup::SetupConfig,
+    setup::SetupConfigFull,
 };
 
 pub async fn fund_create_and_mine_assert_initial_tx(
-    config: &SetupConfig,
+    config: &SetupConfigFull,
     faucet: &Faucet,
     input_amount: Amount,
 ) -> Transaction {

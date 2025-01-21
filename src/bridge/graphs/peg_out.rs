@@ -17,7 +17,9 @@ use std::{
 use crate::{
     bridge::{
         connectors::{
-            connector_c::{generate_assert_leaves, LockScriptsGenerator},
+            connector_c::{
+                generate_assert_leaves, get_commit_from_assert_commit_tx, LockScriptsGenerator,
+            },
             connector_d::ConnectorD,
             connector_e::ConnectorE,
             connector_f_1::ConnectorF1,
@@ -47,7 +49,6 @@ use crate::{
             pre_signed_musig2::PreSignedMusig2Transaction,
             signing_winternitz::WinternitzSigningInputs,
         },
-        utils::get_commit_from_assert_commit_tx,
     },
     chunker::{assigner::BridgeAssigner, disprove_execution::RawProof},
 };
