@@ -13,6 +13,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Display, Formatter, Result as FmtResult},
 };
+use strum::Display;
 
 use crate::{
     bridge::{
@@ -240,7 +241,7 @@ struct PegOutConnectors {
     assert_commit_connectors_f: AssertCommitConnectorsF,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
+#[derive(Display, Serialize, Deserialize, Eq, PartialEq, Hash, Clone, PartialOrd, Ord, Debug)]
 #[serde(into = "String", try_from = "String")]
 pub enum CommitmentMessageId {
     PegOutTxIdSourceNetwork,
@@ -257,19 +258,13 @@ const VAL_SEPARATOR: char = '|';
 impl From<CommitmentMessageId> for String {
     fn from(id: CommitmentMessageId) -> String {
         match id {
-            CommitmentMessageId::PegOutTxIdSourceNetwork => "PegOutTxIdSourceNetwork".to_string(),
-            CommitmentMessageId::PegOutTxIdDestinationNetwork => {
-                "PegOutTxIdDestinationNetwork".to_string()
-            }
-            CommitmentMessageId::StartTime => "StartTime".to_string(),
-            CommitmentMessageId::Superblock => "Superblock".to_string(),
-            CommitmentMessageId::SuperblockHash => "SuperblockHash".to_string(),
             CommitmentMessageId::Groth16IntermediateValues((var, size)) => {
                 format!(
                     "Groth16IntermediateValues{}{}{}{}",
                     VAL_SEPARATOR, var, VAL_SEPARATOR, size
                 )
             }
+            _ => id.to_string(),
         }
     }
 }
