@@ -11,10 +11,11 @@ use bitvm::{
             assert_transactions::{
                 assert_commit_1::AssertCommit1Transaction,
                 assert_commit_2::AssertCommit2Transaction, assert_final::AssertFinalTransaction,
-                assert_initial::AssertInitialTransaction, utils::sign_assert_tx_with_groth16_proof,
+                utils::sign_assert_tx_with_groth16_proof,
             },
             base::{
-                BaseTransaction, Input, MIN_RELAY_FEE_ASSERT, MIN_RELAY_FEE_DISPROVE,
+                BaseTransaction, Input, MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2,
+                MIN_RELAY_FEE_ASSERT_FINAL, MIN_RELAY_FEE_ASSERT_INITIAL, MIN_RELAY_FEE_DISPROVE,
                 MIN_RELAY_FEE_KICK_OFF_2,
             },
             disprove::DisproveTransaction,
@@ -28,6 +29,7 @@ use num_traits::ToPrimitive;
 use rand::{RngCore as _, SeedableRng as _};
 
 use crate::bridge::{
+    assert::helper::create_and_mine_assert_initial_tx,
     faucet::{Faucet, FaucetType},
     helper::{check_tx_output_sum, verify_funding_inputs, wait_timelock_expiry},
     integration::peg_out::utils::create_and_mine_kick_off_2_tx,
@@ -45,6 +47,9 @@ fn wrong_proof_gen() -> RawProof {
 
 #[tokio::test]
 async fn test_disprove_success() {
+    // TODO: remove lock script cache
+    //       or refactor setup_test to generate lock scripts for connector c
+    //       to prevent mandatory-script-verify-flag-failed (Script failed an OP_EQUALVERIFY operation) error
     let config = setup_test_full().await;
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
 
@@ -53,9 +58,12 @@ async fn test_disprove_success() {
     let kick_off_2_input_amount = Amount::from_sat(
         INITIAL_AMOUNT
             + MIN_RELAY_FEE_KICK_OFF_2
-            + DUST_AMOUNT
-            + MIN_RELAY_FEE_ASSERT
-            + DUST_AMOUNT // assert has one more dust output
+            + DUST_AMOUNT // connector 3 to take 1
+            + MIN_RELAY_FEE_ASSERT_INITIAL
+            + MIN_RELAY_FEE_ASSERT_COMMIT1
+            + MIN_RELAY_FEE_ASSERT_COMMIT2
+            + MIN_RELAY_FEE_ASSERT_FINAL
+            + DUST_AMOUNT // connector 4 to take 2
             + MIN_RELAY_FEE_DISPROVE,
     );
     let kick_off_2_funding_utxo_address = config.connector_1.generate_taproot_address();
@@ -88,39 +96,19 @@ async fn test_disprove_success() {
         },
         amount: kick_off_2_tx.output[vout as usize].value,
     };
-    let mut assert_initial = AssertInitialTransaction::new(
+
+    let (assert_initial_tx, assert_initial_txid) = create_and_mine_assert_initial_tx(
+        &config.client_0.esplora,
+        config.network,
+        &config.verifier_0_context,
+        &config.verifier_1_context,
         &config.connector_b,
         &config.connector_d,
         &config.assert_commit_connectors_e_1,
         &config.assert_commit_connectors_e_2,
         assert_initial_input_0,
-    );
-
-    let secret_nonces_0 = assert_initial.push_nonces(&config.verifier_0_context);
-    let secret_nonces_1 = assert_initial.push_nonces(&config.verifier_1_context);
-
-    assert_initial.pre_sign(
-        &config.verifier_0_context,
-        &config.connector_b,
-        &secret_nonces_0,
-    );
-    assert_initial.pre_sign(
-        &config.verifier_1_context,
-        &config.connector_b,
-        &secret_nonces_1,
-    );
-
-    let assert_initial_tx = assert_initial.finalize();
-    let assert_initial_txid = assert_initial_tx.compute_txid();
-    println!(
-        "txid: {}, assert_initial_tx inputs {}, outputs {}",
-        assert_initial_txid,
-        assert_initial.tx().input.len(),
-        assert_initial.tx().output.len()
-    );
-    let assert_initial_result = config.client_0.esplora.broadcast(&assert_initial_tx).await;
-    println!("Assert initial tx result: {assert_initial_result:?}");
-    assert!(assert_initial_result.is_ok());
+    )
+    .await;
 
     // gen wrong proof and witness
     let wrong_proof = wrong_proof_gen();
