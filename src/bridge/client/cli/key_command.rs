@@ -143,7 +143,7 @@ impl KeysCommand {
         key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit())
     }
 
-    // TODO: This is TBD. Verifying key (VK) validation is unclear at the moment.
+    // TODO: This is TBD. Verifying key validation is unclear at the moment.
     // We'll add it once circuit design is finalized and we can run a Groth16 setup.
     fn validate_verifying_key(&self, _key: &str) -> bool { todo!() }
 }
