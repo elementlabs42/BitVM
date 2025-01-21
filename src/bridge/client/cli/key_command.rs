@@ -53,7 +53,7 @@ impl KeysCommand {
             .arg(arg!(-o --operator <SECRET_KEY> "Secret key for operator").required(false))
             .arg(arg!(-v --verifier <SECRET_KEY> "Secret key for verifier").required(false))
             .arg(arg!(-w --withdrawer <SECRET_KEY> "Secret key for withdrawer").required(false))
-            .arg(arg!(-vk --zkp-verifying-key <SECRET_KEY> "Zero-knowledge proof verifying key").required(false))
+            .arg(arg!(-vk --zkp-verifying-key <KEY> "Zero-knowledge proof verifying key").required(false))
             .group(ArgGroup::new("context")
                 .args(["depositor", "operator", "verifier", "withdrawer"])
                 .required(true))
@@ -143,6 +143,8 @@ impl KeysCommand {
         key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit())
     }
 
+    // TODO: This is TBD. Verifying key (VK) validation is unclear at the moment.
+    // We'll add it once circuit design is finalized and we can run a Groth16 setup.
     fn validate_verifying_key(&self, _key: &str) -> bool { todo!() }
 }
 fn pubkey_of(private_key: &str) -> PublicKey {
