@@ -7,7 +7,7 @@ pub(super) const fn log_base_ceil(n: u32, base: u32) -> u32 {
         cur *= base as u64;
         res += 1;
     }
-    return res;
+    res
 }
 
 pub(super) fn to_digits(mut number: u32, base: u32, digit_count: i32) -> Vec<u32> {
@@ -72,13 +72,6 @@ pub fn u32_to_le_bytes_minimal(a: u32) -> Vec<u8> {
         a_bytes.pop(); // Remove trailing zeros
     }
     a_bytes
-}
-
-
-pub(super) fn get_type_name<T>() -> String {
-    let full_type_name = std::any::type_name::<T>();
-    let res = full_type_name.split("::").last().unwrap_or(full_type_name);
-    res.to_string()
 }
 
 #[cfg(test)]

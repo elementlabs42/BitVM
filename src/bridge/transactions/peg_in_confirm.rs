@@ -9,13 +9,14 @@ use super::{
     super::{
         connectors::{base::*, connector_0::Connector0, connector_z::ConnectorZ},
         contexts::{base::BaseContext, depositor::DepositorContext, verifier::VerifierContext},
-        graphs::base::FEE_AMOUNT,
     },
     base::*,
     pre_signed::*,
     pre_signed_musig2::*,
     signing::*,
 };
+
+pub const PEG_IN_CONFIRM_TX_NAME: &str = "PegInConfirm";
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PegInConfirmTransaction {
@@ -63,6 +64,7 @@ impl PreSignedMusig2Transaction for PegInConfirmTransaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![0] }
 }
 
 impl PegInConfirmTransaction {
@@ -88,14 +90,14 @@ impl PegInConfirmTransaction {
         connector_0: &Connector0,
         connector_z: &ConnectorZ,
         input_0: Input,
-        n_of_n_public_keys: &Vec<PublicKey>,
+        n_of_n_public_keys: &[PublicKey],
         depositor_signature: bitcoin::taproot::Signature,
     ) -> Self {
         let mut this = Self::new_for_validation(
             connector_0,
             connector_z,
             input_0,
-            n_of_n_public_keys.clone(),
+            n_of_n_public_keys.to_owned(),
         );
 
         this.push_depositor_signature_input(0, depositor_signature);
@@ -112,7 +114,7 @@ impl PegInConfirmTransaction {
         let input_0_leaf = 1;
         let _input_0 = connector_z.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_PEG_IN_CONFIRM);
 
         let _output_0 = TxOut {
             value: total_output_amount,
@@ -158,9 +160,7 @@ impl PegInConfirmTransaction {
         input_index: usize,
         signature: bitcoin::taproot::Signature,
     ) {
-        let mut unlock_data: Vec<Vec<u8>> = Vec::new();
-
-        unlock_data.push(signature.to_vec());
+        let unlock_data: Vec<Vec<u8>> = vec![signature.to_vec()];
 
         push_taproot_leaf_unlock_data_to_witness(&mut self.tx, input_index, unlock_data);
     }
@@ -197,16 +197,6 @@ impl PegInConfirmTransaction {
         );
     }
 
-    pub fn push_nonces(&mut self, context: &VerifierContext) -> HashMap<usize, SecNonce> {
-        let mut secret_nonces = HashMap::new();
-
-        let input_index = 0;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        secret_nonces
-    }
-
     pub fn pre_sign(
         &mut self,
         context: &VerifierContext,
@@ -233,7 +223,7 @@ impl PegInConfirmTransaction {
 
         self.n_of_n_public_keys.iter().all(|verifier_key| {
             self.musig2_nonces.contains_key(&input_index)
-                && self.musig2_nonces[&input_index].contains_key(&verifier_key)
+                && self.musig2_nonces[&input_index].contains_key(verifier_key)
         })
     }
     pub fn has_signature_of(&self, context: &VerifierContext) -> bool {
@@ -247,11 +237,12 @@ impl PegInConfirmTransaction {
 
         self.n_of_n_public_keys.iter().all(|verifier_key| {
             self.musig2_signatures.contains_key(&input_index)
-                && self.musig2_signatures[&input_index].contains_key(&verifier_key)
+                && self.musig2_signatures[&input_index].contains_key(verifier_key)
         })
     }
 }
 
 impl BaseTransaction for PegInConfirmTransaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { PEG_IN_CONFIRM_TX_NAME }
 }

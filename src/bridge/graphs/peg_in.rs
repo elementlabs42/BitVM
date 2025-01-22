@@ -2,7 +2,8 @@ use bitcoin::{
     hex::{Case::Upper, DisplayHex},
     Network, OutPoint, PublicKey, Transaction, Txid, XOnlyPublicKey,
 };
-use esplora_client::{AsyncClient, Error, TxStatus};
+use esplora_client::{AsyncClient, TxStatus};
+use itertools::Itertools;
 use musig2::SecNonce;
 use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -12,15 +13,18 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
 };
 
-use crate::bridge::client::sdk::{
-    query::GraphCliQuery, query_contexts::depositor_signatures::DepositorSignatures,
+use crate::bridge::{
+    client::sdk::{
+        query::GraphCliQuery, query_contexts::depositor_signatures::DepositorSignatures,
+    },
+    error::{Error, GraphError, NamedTx},
+    transactions::pre_signed_musig2::PreSignedMusig2Transaction,
 };
 
 use super::{
     super::{
         connectors::{connector_0::Connector0, connector_z::ConnectorZ},
         contexts::{depositor::DepositorContext, verifier::VerifierContext},
-        graphs::base::get_block_height,
         transactions::{
             base::{validate_transaction, verify_public_nonces_for_tx, BaseTransaction, Input},
             peg_in_confirm::PegInConfirmTransaction,
@@ -29,7 +33,11 @@ use super::{
             pre_signed::PreSignedTransaction,
         },
     },
-    base::{broadcast_and_verify, get_tx_statuses, verify_if_not_mined, BaseGraph, GRAPH_VERSION},
+    base::{
+        get_tx_statuses, verify_if_not_mined, BaseGraph, GraphId, GRAPH_VERSION,
+        NUM_REQUIRED_OPERATORS,
+    },
+    peg_out::{PegOutGraph, PegOutId},
 };
 
 pub enum PegInDepositorStatus {
@@ -64,10 +72,11 @@ impl Display for PegInDepositorStatus {
 
 #[derive(Debug, PartialEq)]
 pub enum PegInVerifierStatus {
-    AwaitingDeposit,     // no action required, wait
-    PendingOurNonces,    // the given verifier needs to submit nonces
-    AwaitingNonces,      // the given verifier submitted nonces, awaiting other verifier's nonces
-    PendingOurSignature, // the given verifier needs to submit signature
+    AwaitingDeposit,                   // no action required, wait
+    AwaitingPegOutCreation,            // need operator(s) to come online to create peg-out grah
+    PendingOurNonces(Vec<GraphId>),    // the given verifier needs to submit nonces
+    AwaitingNonces, // the given verifier submitted nonces, awaiting other verifier's nonces
+    PendingOurSignature(Vec<GraphId>), // the given verifier needs to submit signature
     AwaitingSignatures, // the given verifier submitted signatures, awaiting other verifier's signatures
     ReadyToSubmit,      // all signatures collected, can now submit
     Complete,           // peg-in complete
@@ -79,23 +88,23 @@ impl Display for PegInVerifierStatus {
             PegInVerifierStatus::AwaitingDeposit => {
                 write!(f, "Peg-in deposit transaction not confirmed yet. Wait...")
             }
+            PegInVerifierStatus::AwaitingPegOutCreation => {
+                write!(f, "No peg-out graph available yet. Wait...")
+            }
             PegInVerifierStatus::ReadyToSubmit => {
                 write!(
                     f,
                     "Peg-in confirm transaction pre-signed. Broadcast confirm transaction?"
                 )
             }
-            PegInVerifierStatus::PendingOurNonces => {
-                write!(f, "Nonce required. Share peg-in confirm nonce?")
+            PegInVerifierStatus::PendingOurNonces(_) => {
+                write!(f, "Nonce required. Share nonce?")
             }
             PegInVerifierStatus::AwaitingNonces => {
-                write!(f, "Awaiting peg-in confirm nonces. Wait...")
+                write!(f, "Awaiting nonces. Wait...")
             }
-            PegInVerifierStatus::PendingOurSignature => {
-                write!(
-                    f,
-                    "Signature required. Pre-sign peg-in confirm transaction?"
-                )
+            PegInVerifierStatus::PendingOurSignature(_) => {
+                write!(f, "Signature required. Pre-sign transactions?")
             }
             PegInVerifierStatus::AwaitingSignatures => {
                 write!(f, "Awaiting peg-in confirm signatures. Wait...")
@@ -149,16 +158,42 @@ pub struct PegInGraph {
 
     pub depositor_public_key: PublicKey,
     depositor_taproot_public_key: XOnlyPublicKey,
-    depositor_evm_address: String,
+    pub depositor_evm_address: String,
 
     connector_0: Connector0,
     connector_z: ConnectorZ,
+
+    pub peg_out_graphs: Vec<PegOutId>,
 }
 
 impl BaseGraph for PegInGraph {
     fn network(&self) -> Network { self.network }
 
     fn id(&self) -> &String { &self.id }
+
+    fn verifier_sign(
+        &mut self,
+        verifier_context: &VerifierContext,
+        secret_nonces: &HashMap<Txid, HashMap<usize, SecNonce>>,
+    ) {
+        self.peg_in_confirm_transaction.pre_sign(
+            verifier_context,
+            &self.connector_z,
+            &secret_nonces[&self.peg_in_confirm_transaction.tx().compute_txid()],
+        );
+    }
+
+    fn push_verifier_nonces(
+        &mut self,
+        verifier_context: &VerifierContext,
+    ) -> HashMap<Txid, HashMap<usize, SecNonce>> {
+        [(
+            self.peg_in_confirm_transaction.tx().compute_txid(),
+            self.peg_in_confirm_transaction
+                .push_nonces(verifier_context),
+        )]
+        .into()
+    }
 }
 
 impl PegInGraph {
@@ -177,7 +212,7 @@ impl PegInGraph {
         let peg_in_refund_transaction = PegInRefundTransaction::new(
             context,
             &connectors.connector_z,
-            generate_input(&peg_in_deposit_transaction.tx(), peg_in_refund_vout_0),
+            generate_input(peg_in_deposit_transaction.tx(), peg_in_refund_vout_0),
         );
 
         let peg_in_confirm_vout_0: usize = 0;
@@ -185,7 +220,7 @@ impl PegInGraph {
             context,
             &connectors.connector_0,
             &connectors.connector_z,
-            generate_input(&peg_in_deposit_transaction.tx(), peg_in_confirm_vout_0),
+            generate_input(peg_in_deposit_transaction.tx(), peg_in_confirm_vout_0),
         );
 
         PegInGraph {
@@ -203,15 +238,17 @@ impl PegInGraph {
             depositor_evm_address: evm_address.to_string(),
             connector_0: connectors.connector_0,
             connector_z: connectors.connector_z,
+            peg_out_graphs: Vec::new(),
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_for_query(
         network: Network,
         depositor_public_key: &PublicKey,
         depositor_taproot_public_key: &XOnlyPublicKey,
         n_of_n_public_key: &PublicKey,
-        n_of_n_public_keys: &Vec<PublicKey>,
+        n_of_n_public_keys: &[PublicKey],
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         depositor_evm_address: &str,
         deposit_input: Input,
@@ -228,12 +265,13 @@ impl PegInGraph {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_depositor_signatures(
         network: Network,
         depositor_public_key: &PublicKey,
         depositor_taproot_public_key: &XOnlyPublicKey,
         n_of_n_public_key: &PublicKey,
-        n_of_n_public_keys: &Vec<PublicKey>,
+        n_of_n_public_keys: &[PublicKey],
         n_of_n_taproot_public_key: &XOnlyPublicKey,
         depositor_evm_address: &str,
         deposit_input: Input,
@@ -259,7 +297,7 @@ impl PegInGraph {
             network,
             depositor_public_key,
             &connectors.connector_z,
-            generate_input(&peg_in_deposit_transaction.tx(), peg_in_refund_vout_0),
+            generate_input(peg_in_deposit_transaction.tx(), peg_in_refund_vout_0),
             signatures.refund,
         );
 
@@ -267,7 +305,7 @@ impl PegInGraph {
         let peg_in_confirm_transaction = PegInConfirmTransaction::new_with_depositor_signature(
             &connectors.connector_0,
             &connectors.connector_z,
-            generate_input(&peg_in_deposit_transaction.tx(), peg_in_confirm_vout_0),
+            generate_input(peg_in_deposit_transaction.tx(), peg_in_confirm_vout_0),
             n_of_n_public_keys,
             signatures.confirm,
         );
@@ -280,13 +318,14 @@ impl PegInGraph {
             peg_in_refund_transaction,
             peg_in_confirm_transaction,
             n_of_n_public_key: *n_of_n_public_key,
-            n_of_n_public_keys: n_of_n_public_keys.clone(),
+            n_of_n_public_keys: n_of_n_public_keys.to_owned(),
             n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
             depositor_public_key: *depositor_public_key,
             depositor_taproot_public_key: *depositor_taproot_public_key,
             depositor_evm_address: depositor_evm_address.to_string(),
             connector_0: connectors.connector_0,
             connector_z: connectors.connector_z,
+            peg_out_graphs: Vec::new(),
         }
     }
 
@@ -306,32 +345,6 @@ impl PegInGraph {
         )
     }
 
-    pub fn push_nonces(
-        &mut self,
-        context: &VerifierContext,
-    ) -> HashMap<Txid, HashMap<usize, SecNonce>> {
-        let mut secret_nonces = HashMap::new();
-
-        secret_nonces.insert(
-            self.peg_in_confirm_transaction.tx().compute_txid(),
-            self.peg_in_confirm_transaction.push_nonces(context),
-        );
-
-        secret_nonces
-    }
-
-    pub fn pre_sign(
-        &mut self,
-        context: &VerifierContext,
-        secret_nonces: &HashMap<Txid, HashMap<usize, SecNonce>>,
-    ) {
-        self.peg_in_confirm_transaction.pre_sign(
-            context,
-            &self.connector_z,
-            &secret_nonces[&self.peg_in_confirm_transaction.tx().compute_txid()],
-        );
-    }
-
     pub fn peg_in_confirm_transaction_ref(&self) -> &PegInConfirmTransaction {
         &self.peg_in_confirm_transaction
     }
@@ -340,7 +353,15 @@ impl PegInGraph {
         &self,
         client: &AsyncClient,
         verifier: Option<&VerifierContext>,
+        peg_outs: &[&PegOutGraph],
     ) -> PegInVerifierStatus {
+        // check that the supplied peg out graphs match our expectation
+        let supplied_peg_out_ids = peg_outs.iter().map(|x| x.id()).sorted().collect::<Vec<_>>();
+        let expected_peg_out_ids = self.peg_out_graphs.iter().sorted().collect::<Vec<_>>();
+        if supplied_peg_out_ids != expected_peg_out_ids {
+            panic!("Invalid peg outs supplied as argument");
+        }
+
         let (peg_in_deposit_status, peg_in_confirm_status, _) =
             Self::get_peg_in_statuses(self, client).await;
 
@@ -349,34 +370,62 @@ impl PegInGraph {
             return PegInVerifierStatus::AwaitingDeposit;
         }
 
+        if peg_outs.len() < NUM_REQUIRED_OPERATORS {
+            return PegInVerifierStatus::AwaitingPegOutCreation;
+        }
+
         if peg_in_confirm_status.is_ok_and(|status| status.confirmed) {
             // peg in complete
             return PegInVerifierStatus::Complete;
         }
 
         if let Some(verifier_context) = verifier {
+            let mut peg_outs_without_nonces = peg_outs
+                .iter()
+                .filter(|x| !x.has_all_nonces_of(verifier_context))
+                .map(|x| x.id().clone())
+                .collect::<Vec<_>>();
             if !self
                 .peg_in_confirm_transaction
                 .has_nonce_of(verifier_context)
             {
-                return PegInVerifierStatus::PendingOurNonces;
+                peg_outs_without_nonces.push(self.id().clone());
+            }
+            if !peg_outs_without_nonces.is_empty() {
+                return PegInVerifierStatus::PendingOurNonces(peg_outs_without_nonces);
             }
         }
 
-        if !self.peg_in_confirm_transaction.has_all_nonces() {
+        let has_all_pegin_nonces = self.peg_in_confirm_transaction.has_all_nonces();
+        let has_all_pegout_nonces = peg_outs
+            .iter()
+            .any(|peg_out| peg_out.has_all_nonces(&self.n_of_n_public_keys));
+        if !has_all_pegin_nonces || !has_all_pegout_nonces {
             return PegInVerifierStatus::AwaitingNonces;
         }
 
         if let Some(verifier_context) = verifier {
+            let mut peg_outs_without_signatures = peg_outs
+                .iter()
+                .filter(|x| !x.has_all_signatures_of(verifier_context))
+                .map(|x| x.id().clone())
+                .collect::<Vec<_>>();
             if !self
                 .peg_in_confirm_transaction
-                .has_signature_of(verifier_context)
+                .has_signatures_for(verifier_context.verifier_public_key)
             {
-                return PegInVerifierStatus::PendingOurSignature;
+                peg_outs_without_signatures.push(self.id().clone());
+            }
+            if !peg_outs_without_signatures.is_empty() {
+                return PegInVerifierStatus::PendingOurSignature(peg_outs_without_signatures);
             }
         }
 
-        if !self.peg_in_confirm_transaction.has_all_signatures() {
+        let has_all_pegin_signatures = self.peg_in_confirm_transaction.has_all_signatures();
+        let has_all_pegout_signatures = peg_outs
+            .iter()
+            .any(|peg_out| peg_out.has_all_signatures(&self.n_of_n_public_keys));
+        if !has_all_pegin_signatures || !has_all_pegout_signatures {
             return PegInVerifierStatus::AwaitingSignatures;
         }
 
@@ -391,28 +440,26 @@ impl PegInGraph {
         if peg_in_deposit_status.is_ok_and(|status| status.confirmed) {
             if peg_in_confirm_status.is_ok_and(|status| status.confirmed) {
                 // peg in complete
-                return PegInOperatorStatus::PegInComplete;
+                PegInOperatorStatus::PegInComplete
+            } else if self.peg_in_confirm_transaction.has_all_signatures() {
+                // should execute peg-in confirm
+                PegInOperatorStatus::PegInConfirmAvailable
             } else {
-                if self.peg_in_confirm_transaction.has_all_signatures() {
-                    // should execute peg-in confirm
-                    return PegInOperatorStatus::PegInConfirmAvailable;
-                } else {
-                    // peg-in confirm not yet presigned, wait
-                    return PegInOperatorStatus::PegInWait;
-                }
+                // peg-in confirm not yet presigned, wait
+                PegInOperatorStatus::PegInWait
             }
         } else {
             // peg-in deposit not confirmed yet, wait
-            return PegInOperatorStatus::PegInWait;
+            PegInOperatorStatus::PegInWait
         }
     }
 
     pub fn interpret_depositor_status(
         &self,
-        peg_in_deposit_status: &Result<TxStatus, Error>,
-        peg_in_confirm_status: &Result<TxStatus, Error>,
-        peg_in_refund_status: &Result<TxStatus, Error>,
-        blockchain_height: u32,
+        peg_in_deposit_status: &Result<TxStatus, esplora_client::Error>,
+        peg_in_confirm_status: &Result<TxStatus, esplora_client::Error>,
+        peg_in_refund_status: &Result<TxStatus, esplora_client::Error>,
+        blockchain_height: Result<u32, esplora_client::Error>,
     ) -> PegInDepositorStatus {
         if peg_in_deposit_status
             .as_ref()
@@ -423,41 +470,41 @@ impl PegInGraph {
                 .is_ok_and(|status| status.confirmed)
             {
                 // peg-in complete
-                return PegInDepositorStatus::PegInConfirmComplete;
-            } else {
-                if peg_in_deposit_status
-                    .as_ref()
-                    .unwrap()
-                    .block_height
-                    .is_some_and(|block_height| {
-                        block_height + self.connector_z.num_blocks_timelock_0 <= blockchain_height
+                PegInDepositorStatus::PegInConfirmComplete
+            } else if peg_in_deposit_status
+                .as_ref()
+                .unwrap()
+                .block_height
+                .is_some_and(|block_height| {
+                    blockchain_height.is_ok_and(|height| {
+                        block_height + self.connector_z.num_blocks_timelock_0 <= height
                     })
+                })
+            {
+                if peg_in_refund_status
+                    .as_ref()
+                    .is_ok_and(|status| status.confirmed)
                 {
-                    if peg_in_refund_status
-                        .as_ref()
-                        .is_ok_and(|status| status.confirmed)
-                    {
-                        // peg-in refund complete
-                        return PegInDepositorStatus::PegInRefundComplete;
-                    } else {
-                        // peg-in refund available
-                        return PegInDepositorStatus::PegInRefundAvailable;
-                    }
+                    // peg-in refund complete
+                    PegInDepositorStatus::PegInRefundComplete
                 } else {
-                    // peg-in confirm not confirmed yet, refund not available yet, wait
-                    return PegInDepositorStatus::PegInConfirmWait;
+                    // peg-in refund available
+                    PegInDepositorStatus::PegInRefundAvailable
                 }
+            } else {
+                // peg-in confirm not confirmed yet, refund not available yet, wait
+                PegInDepositorStatus::PegInConfirmWait
             }
         } else {
             // peg-in deposit not confirmed yet, wait
-            return PegInDepositorStatus::PegInDepositWait;
+            PegInDepositorStatus::PegInDepositWait
         }
     }
 
     pub async fn depositor_status(&self, client: &AsyncClient) -> PegInDepositorStatus {
         let tx_statuses = get_tx_statuses(
             client,
-            &vec![
+            &[
                 self.peg_in_deposit_transaction.tx().compute_txid(),
                 self.peg_in_confirm_transaction.tx().compute_txid(),
                 self.peg_in_refund_transaction.tx().compute_txid(),
@@ -470,69 +517,54 @@ impl PegInGraph {
                 // make sure vectors size are the same or will panic
                 _ => unreachable!(),
             };
-        let blockchain_height = get_block_height(client).await;
 
         self.interpret_depositor_status(
             peg_in_deposit_status,
             peg_in_confirm_status,
             peg_in_refund_status,
-            blockchain_height,
+            client.get_height().await,
         )
     }
 
-    // todo: return txid
-    pub async fn deposit(&self, client: &AsyncClient) -> Txid {
+    pub async fn deposit(&mut self, client: &AsyncClient) -> Result<Transaction, Error> {
         let txid = self.peg_in_deposit_transaction.tx().compute_txid();
-        verify_if_not_mined(client, txid).await;
-
-        // complete deposit tx
-        let deposit_tx = self.peg_in_deposit_transaction.finalize();
-
-        // broadcast deposit tx
-        broadcast_and_verify(&client, &deposit_tx).await;
-
-        txid
+        verify_if_not_mined(client, txid).await?;
+        Ok(self.peg_in_deposit_transaction.finalize())
     }
 
-    pub async fn confirm(&self, client: &AsyncClient) -> Txid {
+    pub async fn confirm(&mut self, client: &AsyncClient) -> Result<Transaction, Error> {
         let txid = self.peg_in_confirm_transaction.tx().compute_txid();
-        verify_if_not_mined(client, txid).await;
+        verify_if_not_mined(client, txid).await?;
 
-        let deposit_status = client
-            .get_tx_status(&self.peg_in_deposit_transaction.tx().compute_txid())
-            .await;
+        let deposit_txid = self.peg_in_deposit_transaction.tx().compute_txid();
+        let deposit_status = client.get_tx_status(&deposit_txid).await;
 
-        if deposit_status.is_ok_and(|status| status.confirmed) {
-            // complete confirm tx
-            let confirm_tx = self.peg_in_confirm_transaction.finalize();
-
-            // broadcast confirm tx
-            broadcast_and_verify(&client, &confirm_tx).await;
-
-            txid
-        } else {
-            panic!("Deposit tx has not been confirmed!");
+        match deposit_status {
+            Ok(status) => match status.confirmed {
+                true => Ok(self.peg_in_confirm_transaction.finalize()),
+                false => Err(Error::Graph(GraphError::PrecedingTxNotConfirmed(vec![
+                    NamedTx::for_tx(&self.peg_in_deposit_transaction, status.confirmed),
+                ]))),
+            },
+            Err(e) => Err(Error::Esplora(e)),
         }
     }
 
-    pub async fn refund(&self, client: &AsyncClient) -> Txid {
+    pub async fn refund(&mut self, client: &AsyncClient) -> Result<Transaction, Error> {
         let txid = self.peg_in_refund_transaction.tx().compute_txid();
-        verify_if_not_mined(client, txid).await;
+        verify_if_not_mined(client, txid).await?;
 
-        let deposit_status = client
-            .get_tx_status(&self.peg_in_deposit_transaction.tx().compute_txid())
-            .await;
+        let deposit_txid = self.peg_in_deposit_transaction.tx().compute_txid();
+        let deposit_status = client.get_tx_status(&deposit_txid).await;
 
-        if deposit_status.is_ok_and(|status| status.confirmed) {
-            // complete refund tx
-            let refund_tx = self.peg_in_refund_transaction.finalize();
-
-            // broadcast refund tx
-            broadcast_and_verify(&client, &refund_tx).await;
-
-            txid
-        } else {
-            panic!("Deposit tx has not been confirmed!");
+        match deposit_status {
+            Ok(status) => match status.confirmed {
+                true => Ok(self.peg_in_refund_transaction.finalize()),
+                false => Err(Error::Graph(GraphError::PrecedingTxNotConfirmed(vec![
+                    NamedTx::for_tx(&self.peg_in_deposit_transaction, status.confirmed),
+                ]))),
+            },
+            Err(e) => Err(Error::Esplora(e)),
         }
     }
 
@@ -540,9 +572,9 @@ impl PegInGraph {
         &self,
         client: &AsyncClient,
     ) -> (
-        Result<TxStatus, Error>,
-        Result<TxStatus, Error>,
-        Result<TxStatus, Error>,
+        Result<TxStatus, esplora_client::Error>,
+        Result<TxStatus, esplora_client::Error>,
+        Result<TxStatus, esplora_client::Error>,
     ) {
         let peg_in_deposit_status = client
             .get_tx_status(&self.peg_in_deposit_transaction.tx().compute_txid())
@@ -556,11 +588,11 @@ impl PegInGraph {
             .get_tx_status(&self.peg_in_refund_transaction.tx().compute_txid())
             .await;
 
-        return (
+        (
             peg_in_deposit_status,
             peg_in_confirm_status,
             peg_in_refund_status,
-        );
+        )
     }
 
     pub fn validate(&self) -> bool {
@@ -595,6 +627,11 @@ impl PegInGraph {
     pub fn merge(&mut self, source_peg_in_graph: &PegInGraph) {
         self.peg_in_confirm_transaction
             .merge(&source_peg_in_graph.peg_in_confirm_transaction);
+
+        self.peg_out_graphs
+            .extend(source_peg_in_graph.peg_out_graphs.clone());
+        self.peg_out_graphs.sort();
+        self.peg_out_graphs.dedup();
     }
 }
 
@@ -651,12 +688,13 @@ fn create_new_connectors(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_graph_without_signing(
     network: Network,
     depositor_public_key: &PublicKey,
     depositor_taproot_public_key: &XOnlyPublicKey,
     n_of_n_public_key: &PublicKey,
-    n_of_n_public_keys: &Vec<PublicKey>,
+    n_of_n_public_keys: &[PublicKey],
     n_of_n_taproot_public_key: &XOnlyPublicKey,
     depositor_evm_address: &str,
     deposit_input: Input,
@@ -679,15 +717,15 @@ fn create_graph_without_signing(
         network,
         depositor_public_key,
         &connectors.connector_z,
-        generate_input(&peg_in_deposit_transaction.tx(), peg_in_refund_vout_0),
+        generate_input(peg_in_deposit_transaction.tx(), peg_in_refund_vout_0),
     );
 
     let peg_in_confirm_vout_0: usize = 0;
     let peg_in_confirm_transaction = PegInConfirmTransaction::new_for_validation(
         &connectors.connector_0,
         &connectors.connector_z,
-        generate_input(&peg_in_deposit_transaction.tx(), peg_in_confirm_vout_0),
-        n_of_n_public_keys.clone(),
+        generate_input(peg_in_deposit_transaction.tx(), peg_in_confirm_vout_0),
+        n_of_n_public_keys.to_owned(),
     );
 
     PegInGraph {
@@ -698,13 +736,14 @@ fn create_graph_without_signing(
         peg_in_refund_transaction,
         peg_in_confirm_transaction,
         n_of_n_public_key: *n_of_n_public_key,
-        n_of_n_public_keys: n_of_n_public_keys.clone(),
+        n_of_n_public_keys: n_of_n_public_keys.to_owned(),
         n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
         depositor_public_key: *depositor_public_key,
         depositor_taproot_public_key: *depositor_taproot_public_key,
         depositor_evm_address: depositor_evm_address.to_string(),
         connector_0: connectors.connector_0,
         connector_z: connectors.connector_z,
+        peg_out_graphs: Vec::new(),
     }
 }
 

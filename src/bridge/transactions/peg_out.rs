@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::bridge::client::chain::chain::PegOutEvent;
 
 use super::{
-    super::{contexts::operator::OperatorContext, graphs::base::FEE_AMOUNT, scripts::*},
+    super::{contexts::operator::OperatorContext, scripts::*},
     base::*,
     pre_signed::*,
 };
@@ -58,7 +58,7 @@ impl PegOutTransaction {
             witness: Witness::default(),
         };
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_PEG_OUT);
 
         let _output_0 = TxOut {
             value: total_output_amount,
@@ -80,10 +80,10 @@ impl PegOutTransaction {
             },
             prev_outs: vec![TxOut {
                 value: input_0.amount,
-                script_pubkey: generate_pay_to_pubkey_script_address(network, &operator_public_key)
+                script_pubkey: generate_pay_to_pubkey_script_address(network, operator_public_key)
                     .script_pubkey(),
             }],
-            prev_scripts: vec![generate_pay_to_pubkey_script(&operator_public_key)],
+            prev_scripts: vec![generate_pay_to_pubkey_script(operator_public_key)],
         }
     }
 
@@ -101,4 +101,5 @@ impl PegOutTransaction {
 
 impl BaseTransaction for PegOutTransaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { "PegOut" }
 }

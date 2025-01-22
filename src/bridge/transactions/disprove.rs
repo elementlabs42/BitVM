@@ -5,11 +5,12 @@ use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::chunker::common::RawWitness;
+
 use super::{
     super::{
         connectors::{base::*, connector_5::Connector5, connector_c::ConnectorC},
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        graphs::base::FEE_AMOUNT,
         scripts::*,
     },
     base::*,
@@ -63,6 +64,7 @@ impl PreSignedMusig2Transaction for DisproveTransaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![0] }
 }
 
 impl DisproveTransaction {
@@ -98,14 +100,16 @@ impl DisproveTransaction {
         let input_1_leaf = script_index;
         let _input_1 = connector_c.generate_taproot_leaf_tx_in(input_1_leaf, &input_1);
 
-        let total_output_amount = input_0.amount + input_1.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount =
+            input_0.amount + input_1.amount - Amount::from_sat(MIN_RELAY_FEE_DISPROVE);
 
+        let output_0_amount = total_output_amount / 2;
         let _output_0 = TxOut {
-            value: total_output_amount / 2,
+            value: output_0_amount,
             script_pubkey: generate_burn_script_address(network).script_pubkey(),
         };
 
-        let reward_output_amount = total_output_amount - (total_output_amount / 2);
+        let reward_output_amount = total_output_amount - output_0_amount;
         let _output_1 = TxOut {
             value: reward_output_amount,
             script_pubkey: ScriptBuf::default(),
@@ -171,16 +175,6 @@ impl DisproveTransaction {
         );
     }
 
-    pub fn push_nonces(&mut self, context: &VerifierContext) -> HashMap<usize, SecNonce> {
-        let mut secret_nonces = HashMap::new();
-
-        let input_index = 0;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        secret_nonces
-    }
-
     pub fn pre_sign(
         &mut self,
         context: &VerifierContext,
@@ -195,6 +189,7 @@ impl DisproveTransaction {
         &mut self,
         connector_c: &ConnectorC,
         input_script_index: u32,
+        input_script_witness: RawWitness,
         output_script_pubkey: ScriptBuf,
     ) {
         // Add output
@@ -204,8 +199,9 @@ impl DisproveTransaction {
         let input_index = 1;
 
         // Push the unlocking witness
-        let unlock_witness = connector_c.generate_taproot_leaf_script_witness(input_script_index);
-        self.tx.input[input_index].witness.push(unlock_witness);
+        input_script_witness
+            .into_iter()
+            .for_each(|x| self.tx.input[input_index].witness.push(x));
 
         // Push script + control block
         let script = connector_c.generate_taproot_leaf_script(input_script_index);
@@ -232,4 +228,5 @@ impl BaseTransaction for DisproveTransaction {
 
         self.tx.clone()
     }
+    fn name(&self) -> &'static str { "Disprove" }
 }

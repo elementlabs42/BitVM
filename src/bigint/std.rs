@@ -1,6 +1,8 @@
+use bitcoin::script::read_scriptint;
 use num_bigint::BigUint;
 use num_traits::Num;
 use std::str::FromStr;
+use std::cmp::Ordering;
 
 use crate::bigint::BigIntImpl;
 use crate::pseudo::push_to_stack;
@@ -22,8 +24,8 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
             chunk_vec.resize(LIMB_SIZE as usize, false);
 
             let mut elem = 0u32;
-            for i in 0..LIMB_SIZE as usize {
-                if chunk_vec[i] {
+            for (i, chunk_i) in chunk_vec.iter().enumerate() {
+                if *chunk_i {
                     elem += 1 << i;
                 }
             }
@@ -39,6 +41,40 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
             }
             { push_to_stack(0,Self::N_LIMBS as usize - limbs.len()) }
         }
+    }
+
+    pub fn read_u32_le(mut witness: Vec<Vec<u8>>) -> Vec<u32> {
+        assert_eq!(witness.len() as u32, Self::N_LIMBS);
+
+        witness.reverse();
+
+        let mut bits: Vec<bool> = vec![];
+        for element in witness.iter() {
+            let limb = read_scriptint(element).unwrap();
+            for i in 0..LIMB_SIZE {
+                bits.push((limb & (1 << i)) != 0);
+            }
+        }
+
+        bits.resize(N_BITS as usize, false);
+
+        let mut u32s = vec![];
+
+        for chunk in bits.chunks(32) {
+            let mut chunk_vec = chunk.to_vec();
+            chunk_vec.resize(32, false);
+
+            let mut elem = 0u32;
+            for i in 0..32_usize {
+                if chunk_vec[i] {
+                    elem += 1 << i;
+                }
+            }
+
+            u32s.push(elem);
+        }
+
+        u32s
     }
 
     pub fn push_u64_le(v: &[u64]) -> Script {
@@ -120,7 +156,8 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
                 }
                 OP_1SUB OP_PICK
             }
-        }.add_stack_hint(-(Self::N_LIMBS as i32), Self::N_LIMBS as i32)
+        }
+        .add_stack_hint(-(Self::N_LIMBS as i32), Self::N_LIMBS as i32)
     }
 
     pub fn roll(mut a: u32) -> Script {
@@ -160,7 +197,9 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
     }
 
     #[inline]
-    pub fn push_zero() -> Script { push_to_stack(0, Self::N_LIMBS as usize) }
+    pub fn push_zero() -> Script {
+        push_to_stack(0, Self::N_LIMBS as usize)
+    }
 
     #[inline]
     pub fn push_one() -> Script {
@@ -238,7 +277,6 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
         }
     }
 
-
     pub fn is_negative(depth: u32) -> Script {
         script! {
             { (1 + depth) * Self::N_LIMBS - 1 } OP_PICK
@@ -257,31 +295,33 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
     }
 
     /// Resize positive numbers
-    /// 
+    ///
     /// # Note
     ///
     /// Does not work for negative numbers
     pub fn resize<const T_BITS: u32>() -> Script {
-        let n_limbs_self = (N_BITS + LIMB_SIZE - 1) / LIMB_SIZE;
-        let n_limbs_target = (T_BITS + LIMB_SIZE - 1) / LIMB_SIZE;
+        let n_limbs_self = N_BITS.div_ceil(LIMB_SIZE);
+        let n_limbs_target = T_BITS.div_ceil(LIMB_SIZE);
 
-        if n_limbs_target == n_limbs_self {
-            return script! {};
-        } else if n_limbs_target > n_limbs_self {
-            let n_limbs_to_add = n_limbs_target - n_limbs_self;
-            script! {
-                if n_limbs_to_add > 0 {
-                    {0} {crate::pseudo::OP_NDUP((n_limbs_to_add - 1) as usize)} // Pushing zeros to the stack
+        match n_limbs_target.cmp(&n_limbs_self) {
+            Ordering::Equal => script! {},
+            Ordering::Greater => {
+                let n_limbs_to_add = n_limbs_target - n_limbs_self;
+                script! {
+                    if n_limbs_to_add > 0 {
+                        {0} {crate::pseudo::OP_NDUP((n_limbs_to_add - 1) as usize)} // Pushing zeros to the stack
+                    }
+                    for _ in 0..n_limbs_self {
+                        { n_limbs_target - 1 } OP_ROLL
+                    }
                 }
-                for _ in 0..n_limbs_self {
-                    { n_limbs_target - 1 } OP_ROLL
-                }
-            }
-        } else {
-            let n_limbs_to_remove = n_limbs_self - n_limbs_target;
-            script! {
-                for _ in 0..n_limbs_to_remove {
-                    { n_limbs_target } OP_ROLL OP_DROP
+            },
+            Ordering::Less => {
+                let n_limbs_to_remove = n_limbs_self - n_limbs_target;
+                script! {
+                    for _ in 0..n_limbs_to_remove {
+                        { n_limbs_target } OP_ROLL OP_DROP
+                    }
                 }
             }
         }
@@ -292,7 +332,7 @@ impl<const N_BITS: u32, const LIMB_SIZE: u32> BigIntImpl<N_BITS, LIMB_SIZE> {
 mod test {
     use crate::bigint::{BigIntImpl, U254};
     use crate::run;
-    use crate::treepp::execute_script;
+    
     use bitcoin_script::script;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha20Rng;

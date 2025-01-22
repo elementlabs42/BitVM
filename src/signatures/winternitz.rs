@@ -42,8 +42,12 @@ impl Parameters {
             n,
         }
     }
-    fn byte_message_length(&self) -> u32 { return (self.n0 * self.log_d + 7) / 8; }
-    pub fn total_digit_count(&self) -> u32 { self.n }
+    fn byte_message_length(&self) -> u32 {
+        (self.n0 * self.log_d + 7) / 8
+    }
+    pub fn total_digit_count(&self) -> u32 {
+        self.n
+    }
 }
 
 fn public_key_for_digit(ps: &Parameters, secret_key: &SecretKey, digit_index: u32) -> HashOut {
@@ -75,8 +79,7 @@ pub fn digit_signature(
 }
 
 pub fn generate_public_key(ps: &Parameters, secret_key: &SecretKey) -> PublicKey {
-    let mut public_key = PublicKey::new();
-    public_key.reserve(ps.n as usize);
+    let mut public_key = PublicKey::with_capacity(ps.n as usize);
     for i in 0..ps.n {
         public_key.push(public_key_for_digit(ps, secret_key, i));
     }
@@ -86,7 +89,7 @@ pub fn generate_public_key(ps: &Parameters, secret_key: &SecretKey) -> PublicKey
 fn checksum(ps: &Parameters, digits: Vec<u32>) -> u32 {
     let mut sum = 0;
     for digit in digits {
-        sum += digit as u32;
+        sum += digit;
     }
     ps.d * ps.n0 - sum
 }
@@ -172,6 +175,12 @@ pub struct Winternitz<VERIFIER: Verifier, CONVERTER: Converter> {
     phantom1: PhantomData<CONVERTER>,
 }
 
+impl<VERIFIER: Verifier, CONVERTER: Converter> Default for Winternitz<VERIFIER, CONVERTER> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<VERIFIER: Verifier, CONVERTER: Converter> Winternitz<VERIFIER, CONVERTER> {
     pub const fn new() -> Self {
         Winternitz {
@@ -198,7 +207,7 @@ impl<VERIFIER: Verifier, CONVERTER: Converter> Winternitz<VERIFIER, CONVERTER> {
         VERIFIER::sign_digits(
             ps,
             secret_key,
-            bytes_to_u32s(ps.n0, ps.log_d, &message_bytes),
+            bytes_to_u32s(ps.n0, ps.log_d, message_bytes),
         )
     }
 
@@ -208,7 +217,7 @@ impl<VERIFIER: Verifier, CONVERTER: Converter> Winternitz<VERIFIER, CONVERTER> {
             for _ in 1..ps.n0 {
                 OP_FROMALTSTACK OP_TUCK OP_SUB
             }
-            { ps.d as u32 * ps.n0 }
+            { ps.d * ps.n0 }
             OP_ADD
             OP_FROMALTSTACK
             for _ in 0..ps.n1 - 1 {
@@ -606,8 +615,7 @@ impl Converter for StraightforwardConverter {
             script_lines.push(script! {
                 OP_0
             });
-            for i in 0..lens.len() {
-                let l = lens[i];
+            for l in lens {
                 if last_bytes >= 8 {
                     //assert!(last_bytes == 8);
                     last_bytes = 0;
@@ -644,13 +652,18 @@ mod test {
     use super::*;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha20Rng;
-    use std::sync::Mutex;
-    lazy_static::lazy_static! {
-        static ref MALICIOUS_RNG: Mutex<ChaCha20Rng> = Mutex::new(ChaCha20Rng::seed_from_u64(337));
-    }
+    use std::sync::{LazyLock, Mutex};
+    static MALICIOUS_RNG: LazyLock<Mutex<ChaCha20Rng>> =
+        LazyLock::new(|| Mutex::new(ChaCha20Rng::seed_from_u64(337)));
 
     const SAMPLE_SECRET_KEY: &str = "b138982ce17ac813d505b5b40b665d404e9528e7";
     const TEST_COUNT: u32 = 20;
+
+    fn get_type_name<T>() -> String {
+        let full_type_name = std::any::type_name::<T>();
+        let res = full_type_name.split("::").last().unwrap_or(full_type_name);
+        res.to_string()
+    }
 
     //This test is not extensive and definitely misses corner cases, if there are any
     fn try_malicious(ps: &Parameters, _message: &Vec<u8>, verifier: &str) -> Script {
@@ -766,10 +779,10 @@ mod test {
         };
         let ps = Parameters::new(8, 4);
         let public_key = generate_public_key(&ps, &secret_key);
-        
+
         let message = 860033 as u32;
         let message_bytes = &message.to_le_bytes();
-        
+
         let winternitz_verifier = Winternitz::<ListpickVerifier, VoidConverter>::new();
 
         let s = script! {

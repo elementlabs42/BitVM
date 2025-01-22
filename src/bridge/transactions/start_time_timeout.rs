@@ -9,7 +9,6 @@ use super::{
     super::{
         connectors::{base::*, connector_1::Connector1, connector_2::Connector2},
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        graphs::base::FEE_AMOUNT,
         scripts::*,
     },
     base::*,
@@ -62,6 +61,7 @@ impl PreSignedMusig2Transaction for StartTimeTimeoutTransaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![0, 1] }
 }
 
 impl StartTimeTimeoutTransaction {
@@ -72,13 +72,7 @@ impl StartTimeTimeoutTransaction {
         input_0: Input,
         input_1: Input,
     ) -> Self {
-        Self::new_for_validation(
-            context.network,
-            &connector_1,
-            &connector_2,
-            input_0,
-            input_1,
-        )
+        Self::new_for_validation(context.network, connector_1, connector_2, input_0, input_1)
     }
 
     pub fn new_for_validation(
@@ -94,7 +88,8 @@ impl StartTimeTimeoutTransaction {
         let input_1_leaf = 2;
         let _input_1 = connector_1.generate_taproot_leaf_tx_in(input_1_leaf, &input_1);
 
-        let total_output_amount = input_0.amount + input_1.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount =
+            input_0.amount + input_1.amount - Amount::from_sat(MIN_RELAY_FEE_START_TIME_TIMEOUT);
 
         // Output[0]: value=V*2%*95% to burn
         let _output_0 = TxOut {
@@ -200,20 +195,6 @@ impl StartTimeTimeoutTransaction {
         );
     }
 
-    pub fn push_nonces(&mut self, context: &VerifierContext) -> HashMap<usize, SecNonce> {
-        let mut secret_nonces = HashMap::new();
-
-        let input_index = 0;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        let input_index = 1;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        secret_nonces
-    }
-
     pub fn pre_sign(
         &mut self,
         context: &VerifierContext,
@@ -247,4 +228,5 @@ impl BaseTransaction for StartTimeTimeoutTransaction {
 
         self.tx.clone()
     }
+    fn name(&self) -> &'static str { "StartTimeTimeout" }
 }

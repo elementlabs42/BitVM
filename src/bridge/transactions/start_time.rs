@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::bridge::connectors::{base::TaprootConnector, connector_2::Connector2};
 
 use super::{
-    super::{contexts::operator::OperatorContext, graphs::base::FEE_AMOUNT, scripts::*},
+    super::{contexts::operator::OperatorContext, scripts::*},
     base::*,
     pre_signed::*,
     pre_signed_musig2::*,
@@ -60,18 +60,17 @@ impl PreSignedMusig2Transaction for StartTimeTransaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![] }
 }
 
 impl StartTimeTransaction {
     pub fn new(context: &OperatorContext, connector_2: &Connector2, input_0: Input) -> Self {
-        let this = Self::new_for_validation(
+        Self::new_for_validation(
             context.network,
             &context.operator_public_key,
             connector_2,
             input_0,
-        );
-
-        this
+        )
     }
 
     pub fn new_for_validation(
@@ -83,11 +82,11 @@ impl StartTimeTransaction {
         let input_0_leaf = 0;
         let _input_0 = connector_2.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_START_TIME);
 
         let _output_0 = TxOut {
             value: total_output_amount,
-            script_pubkey: generate_pay_to_pubkey_script_address(network, &operator_public_key)
+            script_pubkey: generate_pay_to_pubkey_script_address(network, operator_public_key)
                 .script_pubkey(),
         };
 
@@ -172,4 +171,5 @@ impl StartTimeTransaction {
 
 impl BaseTransaction for StartTimeTransaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { "StartTime" }
 }

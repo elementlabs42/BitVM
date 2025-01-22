@@ -12,7 +12,7 @@ use super::{
             connector_c::ConnectorC,
         },
         contexts::{base::BaseContext, verifier::VerifierContext},
-        graphs::base::{DUST_AMOUNT, FEE_AMOUNT},
+        graphs::base::DUST_AMOUNT,
     },
     base::*,
     pre_signed::*,
@@ -63,6 +63,7 @@ impl PreSignedMusig2Transaction for AssertTransaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![0] }
 }
 
 impl AssertTransaction {
@@ -86,21 +87,21 @@ impl AssertTransaction {
         let input_0_leaf = 1;
         let _input_0 = connector_b.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount = input_0.amount - Amount::from_sat(FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_ASSERT);
 
         let _output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: connector_4.generate_address().script_pubkey(),
         };
 
-        let _output_1 = TxOut {
-            value: total_output_amount - Amount::from_sat(DUST_AMOUNT) * 2,
-            script_pubkey: connector_5.generate_taproot_address().script_pubkey(),
-        };
-
         let _output_2 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+        };
+
+        let _output_1 = TxOut {
+            value: total_output_amount - _output_0.value - _output_2.value,
+            script_pubkey: connector_5.generate_taproot_address().script_pubkey(),
         };
 
         AssertTransaction {
@@ -153,16 +154,6 @@ impl AssertTransaction {
         );
     }
 
-    pub fn push_nonces(&mut self, context: &VerifierContext) -> HashMap<usize, SecNonce> {
-        let mut secret_nonces = HashMap::new();
-
-        let input_index = 0;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        secret_nonces
-    }
-
     pub fn pre_sign(
         &mut self,
         context: &VerifierContext,
@@ -181,4 +172,5 @@ impl AssertTransaction {
 
 impl BaseTransaction for AssertTransaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { "Assert" }
 }

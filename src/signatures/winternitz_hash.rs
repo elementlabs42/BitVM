@@ -9,6 +9,7 @@ const MESSAGE_HASH_LEN: u32 = 20;
 pub static WINTERNITZ_HASH_VERIFIER: Winternitz::<ListpickVerifier, StraightforwardConverter> = Winternitz::new();
 pub static WINTERNITZ_MESSAGE_VERIFIER: Winternitz::<ListpickVerifier, VoidConverter> = Winternitz::new();
 pub static WINTERNITZ_HASH_PARAMETERS: Parameters = Parameters::new(MESSAGE_HASH_LEN * 2, 4);
+pub static WINTERNITZ_VARIABLE_VERIFIER: Winternitz::<ListpickVerifier, StraightforwardConverter> = Winternitz::new();
 
 /// Verify a Winternitz signature for the hash of the top `input_len` many bytes on the stack
 /// The hash function is blake3 with a 20-byte digest size
@@ -16,7 +17,7 @@ pub static WINTERNITZ_HASH_PARAMETERS: Parameters = Parameters::new(MESSAGE_HASH
 pub fn check_hash_sig(public_key: &PublicKey, input_len: usize) -> Script {
     script! {
         // 1. Verify the signature and compute the signed message
-        { WINTERNITZ_HASH_VERIFIER.checksig_verify(&WINTERNITZ_HASH_PARAMETERS, &public_key) }
+        { WINTERNITZ_HASH_VERIFIER.checksig_verify(&WINTERNITZ_HASH_PARAMETERS, public_key) }
         for _ in 0..MESSAGE_HASH_LEN {
             OP_TOALTSTACK
         }
@@ -81,7 +82,7 @@ mod test {
             //
             { check_hash_sig(&public_key, message.len()) }
             OP_TRUE
-        }).success == true);   
+        }).success);   
     }
 
 }

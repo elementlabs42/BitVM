@@ -3,17 +3,18 @@ use std::time::Duration;
 use bitcoin::Amount;
 
 use bitvm::bridge::{
-    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
-    scripts::generate_pay_to_pubkey_script_address,
+    graphs::base::FEE_AMOUNT, scripts::generate_pay_to_pubkey_script_address,
     transactions::base::Input,
 };
 
 use serial_test::serial;
 use tokio::time::sleep;
 
-use crate::bridge::faucet::Faucet;
-
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
+use crate::bridge::{
+    faucet::{Faucet, FaucetType},
+    helper::{generate_stub_outpoint, TX_WAIT_TIME},
+    setup::{setup_test, INITIAL_AMOUNT},
+};
 
 #[tokio::test]
 #[serial]
@@ -28,9 +29,11 @@ async fn test_musig2_peg_in() {
         config.depositor_context.network,
         &config.depositor_context.depositor_public_key,
     );
-    let faucet = Faucet::new();
+    let faucet = Faucet::new(FaucetType::EsploraRegtest);
     faucet
-        .fund_input_and_wait(&depositor_funding_utxo_address, amount)
+        .fund_input(&depositor_funding_utxo_address, amount)
+        .await
+        .wait()
         .await;
     let outpoint = generate_stub_outpoint(
         &depositor_operator_verifier_0_client,
@@ -47,7 +50,8 @@ async fn test_musig2_peg_in() {
     println!("Depositor: Mining peg in deposit...");
     depositor_operator_verifier_0_client
         .broadcast_peg_in_deposit(&graph_id)
-        .await;
+        .await
+        .expect("Failed to broadcast peg-in deposit");
 
     println!("Depositor: Saving state changes to remote...");
     depositor_operator_verifier_0_client.flush().await;
@@ -57,7 +61,7 @@ async fn test_musig2_peg_in() {
     depositor_operator_verifier_0_client.sync().await;
 
     println!("Verifier 0: Generating nonces...");
-    depositor_operator_verifier_0_client.push_peg_in_nonces(&graph_id);
+    depositor_operator_verifier_0_client.push_verifier_nonces(&graph_id);
 
     println!("Verifier 0: Saving state changes to remote...");
     depositor_operator_verifier_0_client.flush().await;
@@ -67,7 +71,7 @@ async fn test_musig2_peg_in() {
     verifier_1_client.sync().await;
 
     println!("Verifier 1: Generating nonces...");
-    verifier_1_client.push_peg_in_nonces(&graph_id);
+    verifier_1_client.push_verifier_nonces(&graph_id);
 
     println!("Verifier 1: Saving state changes to remote...");
     verifier_1_client.flush().await;
@@ -77,7 +81,7 @@ async fn test_musig2_peg_in() {
     depositor_operator_verifier_0_client.sync().await;
 
     println!("Verifier 0: Pre-signing...");
-    depositor_operator_verifier_0_client.pre_sign_peg_in(&graph_id);
+    depositor_operator_verifier_0_client.push_verifier_signature(&graph_id);
 
     println!("Verifier 0: Saving state changes to remote...");
     depositor_operator_verifier_0_client.flush().await;
@@ -87,7 +91,7 @@ async fn test_musig2_peg_in() {
     verifier_1_client.sync().await;
 
     println!("Verifier 1: Pre-signing...");
-    verifier_1_client.pre_sign_peg_in(&graph_id);
+    verifier_1_client.push_verifier_signature(&graph_id);
 
     println!("Verifier 1: Saving state changes to remote...");
     verifier_1_client.flush().await;
@@ -96,15 +100,19 @@ async fn test_musig2_peg_in() {
     println!("Operator: Reading state from remote...");
     depositor_operator_verifier_0_client.sync().await;
 
-    let wait_time = 45;
-    println!("Waiting {wait_time}s for peg-in deposit transaction to be mined...");
-    sleep(Duration::from_secs(wait_time)).await; // TODO: Replace this with a 'wait x amount of time till tx is mined' routine.
-                                                 // See the relevant TODO in PegInGraph::confirm().
+    let timeout = Duration::from_secs(TX_WAIT_TIME);
+    println!(
+        "Waiting {:?} for peg-in deposit transaction to be mined...",
+        timeout
+    );
+    sleep(timeout).await; // TODO: Replace this with a 'wait x amount of time till tx is mined' routine.
+                          // See the relevant TODO in PegInGraph::confirm().
 
     println!("Depositor: Mining peg in confirm...");
     depositor_operator_verifier_0_client
         .broadcast_peg_in_confirm(&graph_id)
-        .await;
+        .await
+        .expect("Failed to broadcast peg-in confirm");
 
     println!("Operator: Saving state changes to remote...");
     depositor_operator_verifier_0_client.flush().await;

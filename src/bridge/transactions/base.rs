@@ -1,12 +1,33 @@
+use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
+use crate::bridge::graphs::base::MIN_RELAY_FEE_RATE;
 use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use core::cmp;
+use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use std::collections::HashMap;
 
-use super::{
-    pre_signed::PreSignedTransaction,
-    pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction},
-};
+// TODO: set to larger value to be compatible with future tx modifications
+pub const RELAY_FEE_BUFFER_MULTIPLIER: f32 = 1.0;
+pub const MIN_RELAY_FEE_KICK_OFF_1: u64 = relay_fee(6231);
+pub const MIN_RELAY_FEE_START_TIME: u64 = relay_fee(407);
+pub const MIN_RELAY_FEE_START_TIME_TIMEOUT: u64 = relay_fee(264);
+pub const MIN_RELAY_FEE_KICK_OFF_2: u64 = relay_fee(5461);
+pub const MIN_RELAY_FEE_KICK_OFF_TIMEOUT: u64 = relay_fee(181);
+pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(372);
+pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(347);
+pub const MIN_RELAY_FEE_PEG_IN_DEPOSIT: u64 = relay_fee(122);
+pub const MIN_RELAY_FEE_PEG_IN_CONFIRM: u64 = relay_fee(173);
+pub const MIN_RELAY_FEE_PEG_IN_REFUND: u64 = relay_fee(138);
+pub const MIN_RELAY_FEE_PEG_OUT: u64 = relay_fee(122);
+pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
+pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
+pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(45212);
+pub const MIN_RELAY_FEE_ASSERT_COMMIT1: u64 = relay_fee(739137);
+pub const MIN_RELAY_FEE_ASSERT_COMMIT2: u64 = relay_fee(378584);
+pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(352);
+pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
+pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(194415);
+pub const MIN_RELAY_FEE_DISPROVE_CHAIN: u64 = relay_fee(224);
 
 pub struct Input {
     pub outpoint: OutPoint,
@@ -20,6 +41,7 @@ pub struct InputWithScript<'a> {
 }
 
 pub trait BaseTransaction {
+    fn name(&self) -> &'static str;
     // fn initialize(&mut self, context: &dyn BaseContext);
 
     // TODO: Use musig2 to aggregate signatures
@@ -28,6 +50,10 @@ pub trait BaseTransaction {
     // TODO: Implement default that goes through all leaves and checks if one of them is executable
     // TODO: Return a Result with an Error in case the witness can't be created
     fn finalize(&self) -> Transaction;
+}
+
+pub const fn relay_fee(vsize: usize) -> u64 {
+    (vsize as f32 * RELAY_FEE_BUFFER_MULTIPLIER) as u64 * MIN_RELAY_FEE_RATE
 }
 
 pub fn merge_transactions(
@@ -66,13 +92,35 @@ pub fn merge_musig2_nonces_and_signatures(
     source_transaction: &dyn PreSignedMusig2Transaction,
 ) {
     let nonces = destination_transaction.musig2_nonces_mut();
-    nonces.extend(source_transaction.musig2_nonces().clone());
+    merge_hash_maps(nonces, source_transaction.musig2_nonces().clone());
 
     let nonce_signatures = destination_transaction.musig2_nonce_signatures_mut();
-    nonce_signatures.extend(source_transaction.musig2_nonce_signatures().clone());
+    merge_hash_maps(
+        nonce_signatures,
+        source_transaction.musig2_nonce_signatures().clone(),
+    );
 
     let signatures = destination_transaction.musig2_signatures_mut();
-    signatures.extend(source_transaction.musig2_signatures().clone());
+    merge_hash_maps(signatures, source_transaction.musig2_signatures().clone());
+}
+
+// merge the nonce/signature hashmaps. We can't just do a.extend(b) since that would just overwrite the inner
+// hashmap rather than merging it
+fn merge_hash_maps<T: Clone>(
+    a: &mut HashMap<usize, HashMap<PublicKey, T>>,
+    b: HashMap<usize, HashMap<PublicKey, T>>,
+) {
+    let all_keys = a
+        .keys()
+        .chain(b.keys())
+        .unique()
+        .cloned()
+        .collect::<Vec<_>>();
+    for key in all_keys {
+        let q = a.entry(key).or_default();
+        let w = b.get(&key).cloned().unwrap_or(HashMap::new());
+        q.extend(w.clone());
+    }
 }
 
 pub fn validate_transaction(
@@ -130,9 +178,7 @@ fn verify_public_nonces(
     ret_val
 }
 
-pub fn verify_public_nonces_for_tx(
-    tx: &(impl PreSignedTransaction + PreSignedMusig2Transaction),
-) -> bool {
+pub fn verify_public_nonces_for_tx(tx: &impl PreSignedMusig2Transaction) -> bool {
     verify_public_nonces(
         tx.musig2_nonces(),
         tx.musig2_nonce_signatures(),
@@ -219,7 +265,7 @@ mod tests {
         let (all_nonces, mut all_sigs) = get_test_nonces();
 
         let input_index = all_sigs.len() / 2;
-        let pubkey = all_sigs[&input_index].keys().next().unwrap().clone();
+        let pubkey = *all_sigs[&input_index].keys().next().unwrap();
         let mut bad_sig = all_sigs[&input_index][&pubkey].serialize();
         bad_sig[SCHNORR_SIGNATURE_SIZE - 1] += 1;
         all_sigs

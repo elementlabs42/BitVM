@@ -13,7 +13,6 @@ use super::{
             connector_c::ConnectorC,
         },
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
-        graphs::base::FEE_AMOUNT,
         scripts::*,
     },
     base::*,
@@ -66,9 +65,11 @@ impl PreSignedMusig2Transaction for Take2Transaction {
     ) -> &mut HashMap<usize, HashMap<PublicKey, PartialSignature>> {
         &mut self.musig2_signatures
     }
+    fn verifier_inputs(&self) -> Vec<usize> { vec![0, 2] }
 }
 
 impl Take2Transaction {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         context: &OperatorContext,
         connector_0: &Connector0,
@@ -98,6 +99,7 @@ impl Take2Transaction {
         this
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_for_validation(
         network: Network,
         operator_public_key: &PublicKey,
@@ -122,7 +124,7 @@ impl Take2Transaction {
         let _input_3 = connector_c.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
 
         let total_output_amount = input_0.amount + input_1.amount + input_2.amount + input_3.amount
-            - Amount::from_sat(FEE_AMOUNT);
+            - Amount::from_sat(MIN_RELAY_FEE_TAKE_2);
 
         let _output_0 = TxOut {
             value: total_output_amount,
@@ -258,20 +260,6 @@ impl Take2Transaction {
         );
     }
 
-    pub fn push_nonces(&mut self, context: &VerifierContext) -> HashMap<usize, SecNonce> {
-        let mut secret_nonces = HashMap::new();
-
-        let input_index = 0;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        let input_index = 2;
-        let secret_nonce = push_nonce(self, context, input_index);
-        secret_nonces.insert(input_index, secret_nonce);
-
-        secret_nonces
-    }
-
     pub fn pre_sign(
         &mut self,
         context: &VerifierContext,
@@ -298,4 +286,5 @@ impl Take2Transaction {
 
 impl BaseTransaction for Take2Transaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { "Take2" }
 }

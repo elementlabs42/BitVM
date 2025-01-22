@@ -1,8 +1,9 @@
 use alloy::primitives::Address;
-use bitcoin::{Network, PublicKey, XOnlyPublicKey};
+use bitcoin::{Amount, Network, OutPoint, PublicKey, XOnlyPublicKey};
 use clap::{arg, ArgMatches, Command};
 use core::str::FromStr;
 
+pub const ESPLORA_FUNDING_URL: &str = "https://faucet.mutinynet.com/";
 use super::{
     query_response::{Response, ResponseStatus},
     validation::{validate, ArgType},
@@ -14,12 +15,14 @@ use crate::bridge::{
     },
     constants::DestinationNetwork,
     contexts::base::generate_keys_from_secret,
-    graphs::base::{VERIFIER_0_SECRET, VERIFIER_1_SECRET},
+    graphs::base::VERIFIER_0_SECRET,
+    scripts::generate_pay_to_pubkey_script_address,
     transactions::base::Input,
 };
 
 pub struct QueryCommand {
     client: BitVMClient,
+    network: Network,
 }
 
 pub const FAKE_SECRET: &str = "1000000000000000000000000000000000000000000000000000000000000000";
@@ -32,12 +35,8 @@ impl QueryCommand {
     ) -> Self {
         let (_, _, verifier_0_public_key) =
             generate_keys_from_secret(Network::Bitcoin, VERIFIER_0_SECRET);
-        let (_, _, verifier_1_public_key) =
-            generate_keys_from_secret(Network::Bitcoin, VERIFIER_1_SECRET);
 
-        let mut n_of_n_public_keys: Vec<PublicKey> = Vec::new();
-        n_of_n_public_keys.push(verifier_0_public_key);
-        n_of_n_public_keys.push(verifier_1_public_key);
+        let n_of_n_public_keys: Vec<PublicKey> = vec![verifier_0_public_key];
 
         let bitvm_client = BitVMClient::new(
             source_network,
@@ -45,14 +44,16 @@ impl QueryCommand {
             &n_of_n_public_keys,
             Some(FAKE_SECRET),
             Some(FAKE_SECRET),
-            Some(FAKE_SECRET),
+            Some(VERIFIER_0_SECRET),
             Some(FAKE_SECRET),
             path_prefix,
+            None,
         )
         .await;
 
         Self {
             client: bitvm_client,
+            network: source_network,
         }
     }
 
@@ -61,10 +62,131 @@ impl QueryCommand {
         self.client.sync_l2().await;
     }
 
+    pub fn pegin_deposit_tx_command() -> Command {
+        Command::new("pegin_deposit_tx")
+            .about("Subcommand for handling pegin deposit transactions")
+            .arg(arg!(<AMOUNT> "Amount of assets to peg-in").required(true))
+            .arg(
+                arg!(<RECIPIENT_ADDRESS> "Recipient L2 chain address for peg-in transaction")
+                    .required(true),
+            )
+    }
+
+    pub fn pegin_confirm_tx_command() -> Command {
+        Command::new("pegin_confirm_tx")
+            .about("Subcommand for handling pegin confirm transactions")
+            .arg(arg!(<AMOUNT> "Amount of assets to peg-in").required(true))
+            .arg(
+                arg!(<RECIPIENT_ADDRESS> "Recipient L2 chain address for peg-in transaction")
+                    .required(true),
+            )
+    }
+
+    pub fn pegin_refund_tx_command() -> Command {
+        Command::new("pegin_refund_tx")
+            .about("Subcommand for handling pegin refund transactions")
+            .arg(arg!(<AMOUNT> "Amount of assets to peg-in").required(true))
+            .arg(
+                arg!(<RECIPIENT_ADDRESS> "Recipient L2 chain address for peg-in transaction")
+                    .required(true),
+            )
+    }
+
+    pub async fn handle_pegin_refund_tx_command(
+        &self,
+        depositor_public_key: &PublicKey,
+        sub_matches: &ArgMatches,
+    ) -> Response {
+        let amount = sub_matches.get_one::<String>("AMOUNT").unwrap();
+        let recipient_address = sub_matches.get_one::<String>("RECIPIENT_ADDRESS").unwrap();
+        let depositor_taproot_key = XOnlyPublicKey::from(*depositor_public_key);
+        let amount: Amount = Amount::from_sat(amount.parse::<u64>().unwrap());
+        let taproot_address = self.client.generate_connector_z_taproot_address(
+            self.network,
+            recipient_address,
+            &depositor_taproot_key,
+        );
+        let outpoint = self
+            .generate_stub_outpoint(&self.client, &taproot_address, amount)
+            .await;
+        let result = self.client.generate_presign_pegin_refund_tx(
+            self.network,
+            amount,
+            recipient_address,
+            depositor_public_key,
+            outpoint,
+        );
+        Response::new(
+            ResponseStatus::OK,
+            Some(serde_json::to_value(result).unwrap()),
+        )
+    }
+
+    pub async fn handle_pegin_deposit_tx_command(
+        &self,
+        depositor_public_key: &PublicKey,
+        sub_matches: &ArgMatches,
+    ) -> Response {
+        let amount = sub_matches.get_one::<String>("AMOUNT").unwrap();
+        let recipient_address = sub_matches.get_one::<String>("RECIPIENT_ADDRESS").unwrap();
+        let amount: Amount = Amount::from_sat(amount.parse::<u64>().unwrap());
+        let outpoint = self
+            .generate_stub_outpoint(
+                &self.client,
+                &generate_pay_to_pubkey_script_address(self.network, depositor_public_key),
+                amount,
+            )
+            .await;
+        let result = self.client.generate_presign_pegin_deposit_tx(
+            self.network,
+            amount,
+            recipient_address,
+            depositor_public_key,
+            outpoint,
+        );
+        Response::new(
+            ResponseStatus::OK,
+            Some(serde_json::to_value(result).unwrap()),
+        )
+    }
+
     pub fn depositor_command() -> Command {
         Command::new("depositor")
             .about("fetch peg-in graphs related to the specified depositor")
             .arg(arg!(<DEPOSITOR_PUBLIC_KEY> "Depositor public key").required(true))
+            .subcommand(Self::pegin_deposit_tx_command())
+            .subcommand(Self::pegin_confirm_tx_command())
+            .subcommand(Self::pegin_refund_tx_command())
+    }
+
+    pub async fn handle_pegin_confirm_tx_command(
+        &self,
+        depositor_public_key: &PublicKey,
+        sub_matches: &ArgMatches,
+    ) -> Response {
+        let amount = sub_matches.get_one::<String>("AMOUNT").unwrap();
+        let recipient_address = sub_matches.get_one::<String>("RECIPIENT_ADDRESS").unwrap();
+        let depositor_taproot_key = XOnlyPublicKey::from(*depositor_public_key);
+        let amount: Amount = Amount::from_sat(amount.parse::<u64>().unwrap());
+        let taproot_address = self.client.generate_connector_z_taproot_address(
+            self.network,
+            recipient_address,
+            &depositor_taproot_key,
+        );
+        let outpoint = self
+            .generate_stub_outpoint(&self.client, &taproot_address, amount)
+            .await;
+        let result = self.client.generate_presign_pegin_confirm_tx(
+            self.network,
+            recipient_address,
+            amount,
+            &depositor_taproot_key,
+            outpoint,
+        );
+        Response::new(
+            ResponseStatus::OK,
+            Some(serde_json::to_value(result).unwrap()),
+        )
     }
 
     pub async fn handle_depositor(&mut self, matches: &ArgMatches) -> Response {
@@ -72,11 +194,35 @@ impl QueryCommand {
             PublicKey::from_str(matches.get_one::<String>("DEPOSITOR_PUBLIC_KEY").unwrap());
         if pubkey.is_err() {
             return Response::new(
-                ResponseStatus::NOK(format!(
-                    "Invalid public key. Use bitcoin public key format."
-                )),
+                ResponseStatus::NOK(
+                    "Invalid public key. Use bitcoin public key format.".to_string(),
+                ),
                 None,
             );
+        }
+        if matches.subcommand_matches("pegin_deposit_tx").is_some() {
+            return self
+                .handle_pegin_deposit_tx_command(
+                    &pubkey.unwrap(),
+                    matches.subcommand_matches("pegin_deposit_tx").unwrap(),
+                )
+                .await;
+        }
+        if matches.subcommand_matches("pegin_confirm_tx").is_some() {
+            return self
+                .handle_pegin_confirm_tx_command(
+                    &pubkey.unwrap(),
+                    matches.subcommand_matches("pegin_confirm_tx").unwrap(),
+                )
+                .await;
+        }
+        if matches.subcommand_matches("pegin_refund_tx").is_some() {
+            return self
+                .handle_pegin_refund_tx_command(
+                    &pubkey.unwrap(),
+                    matches.subcommand_matches("pegin_refund_tx").unwrap(),
+                )
+                .await;
         }
 
         self.sync().await;
@@ -91,7 +237,10 @@ impl QueryCommand {
                     Some(serde_json::to_value(result).expect("Failed to merge value vector"));
                 Response::new(ResponseStatus::OK, data)
             }
-            _ => Response::new(ResponseStatus::NOK(format!("Depositor not found.")), None),
+            _ => Response::new(
+                ResponseStatus::NOK("Depositor not found.".to_string()),
+                None,
+            ),
         }
     }
 
@@ -124,7 +273,7 @@ impl QueryCommand {
         self.sync().await;
         let result = self
             .client
-            .get_withdrawer_status(&chain_address.unwrap().to_string().as_str())
+            .get_withdrawer_status(chain_address.unwrap().to_string().as_str())
             .await;
 
         match result.len() {
@@ -133,7 +282,10 @@ impl QueryCommand {
                     Some(serde_json::to_value(result).expect("Failed to merge value vector"));
                 Response::new(ResponseStatus::OK, data)
             }
-            _ => Response::new(ResponseStatus::NOK(format!("Withdrawer not found.")), None),
+            _ => Response::new(
+                ResponseStatus::NOK("Withdrawer not found.".to_string()),
+                None,
+            ),
         }
     }
 
@@ -168,10 +320,10 @@ impl QueryCommand {
         };
 
         self.sync().await;
-        let mut result_depositor = self.client.get_depositor_status(&pubkey).await;
+        let mut result_depositor = self.client.get_depositor_status(pubkey).await;
         let mut result_withdrawer = self
             .client
-            .get_withdrawer_status(&chain_address.to_string().as_str())
+            .get_withdrawer_status(chain_address.to_string().as_str())
             .await;
 
         let result = match (result_depositor.len(), result_withdrawer.len()) {
@@ -191,7 +343,7 @@ impl QueryCommand {
                 Response::new(ResponseStatus::OK, data)
             }
             _ => Response::new(
-                ResponseStatus::NOK(format!("Depositor / Withdrawer not found.")),
+                ResponseStatus::NOK("Depositor / Withdrawer not found.".to_string()),
                 None,
             ),
         }
@@ -233,7 +385,7 @@ impl QueryCommand {
             },
             _ => unreachable!(),
         };
-        let x_only_pubkey = XOnlyPublicKey::from(pubkey.clone());
+        let x_only_pubkey = XOnlyPublicKey::from(*pubkey);
 
         // do not need to sync
         let result = self
@@ -245,7 +397,7 @@ impl QueryCommand {
                     outpoint: *outpoint,
                     amount: *satoshis,
                 },
-                &chain_address.to_string().as_str(),
+                chain_address.to_string().as_str(),
             )
             .await;
 
@@ -311,19 +463,19 @@ impl QueryCommand {
                 }
                 _ => unreachable!(),
             };
-        let x_only_pubkey = XOnlyPublicKey::from(pubkey.clone());
+        let x_only_pubkey = XOnlyPublicKey::from(*pubkey);
 
         self.sync().await;
         let result = self
             .client
             .create_peg_in_graph_with_depositor_signatures(
-                &pubkey,
+                pubkey,
                 &x_only_pubkey,
                 Input {
                     outpoint: *outpoint,
                     amount: *satoshis,
                 },
-                &chain_address.to_string().as_str(),
+                chain_address.to_string().as_str(),
                 &DepositorSignatures {
                     deposit: *deposit,
                     refund: *refund,
@@ -380,9 +532,32 @@ impl QueryCommand {
                 Response::new(ResponseStatus::OK, data)
             }
             _ => Response::new(
-                ResponseStatus::NOK(format!("No available peg-in graphs found.")),
+                ResponseStatus::NOK("No available peg-in graphs found.".to_string()),
                 None,
             ),
+        }
+    }
+
+    pub async fn generate_stub_outpoint(
+        &self,
+        client: &BitVMClient,
+        funding_utxo_address: &bitcoin::Address,
+        input_value: Amount,
+    ) -> OutPoint {
+        let funding_utxo = client
+            .get_initial_utxo(funding_utxo_address.clone(), input_value)
+            .await
+            .unwrap_or_else(|| {
+                panic!(
+                    "Fund {:?} with {} sats at {}",
+                    funding_utxo_address,
+                    input_value.to_sat(),
+                    ESPLORA_FUNDING_URL,
+                );
+            });
+        OutPoint {
+            txid: funding_utxo.txid,
+            vout: funding_utxo.vout,
         }
     }
 }

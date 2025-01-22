@@ -3,12 +3,14 @@ use bitcoin::{
     TapSighashType, Transaction, TxIn, TxOut, Witness,
 };
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+
+use crate::bridge::graphs::base::DUST_AMOUNT;
 
 use super::{
     super::{
         connectors::{base::*, connector_a::ConnectorA},
         contexts::{base::BaseContext, operator::OperatorContext},
-        graphs::base::FEE_AMOUNT,
         scripts::*,
     },
     base::*,
@@ -67,11 +69,11 @@ impl ChallengeTransaction {
         let _input_0 = connector_a.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
         let total_output_amount =
-            input_0.amount + input_amount_crowdfunding - Amount::from_sat(FEE_AMOUNT);
+            input_0.amount + input_amount_crowdfunding - Amount::from_sat(MIN_RELAY_FEE_CHALLENGE);
 
         let _output_0 = TxOut {
             value: total_output_amount,
-            script_pubkey: generate_pay_to_pubkey_script_address(network, &operator_public_key)
+            script_pubkey: generate_pay_to_pubkey_script_address(network, operator_public_key)
                 .script_pubkey(),
         };
 
@@ -125,15 +127,21 @@ impl ChallengeTransaction {
         for input in inputs {
             total_input_amount += input.amount;
         }
-        if total_input_amount < self.input_amount_crowdfunding {
-            panic!("Total input amount too low. Add additional input.");
-        } else if total_input_amount > self.input_amount_crowdfunding {
-            // add refund output
-            let _output = TxOut {
-                value: total_input_amount - self.input_amount_crowdfunding,
-                script_pubkey: output_script_pubkey,
-            };
-            self.tx.output.push(_output);
+        match total_input_amount.cmp(&self.input_amount_crowdfunding) {
+            Ordering::Less => panic!("Total input amount too low. Add additional input."),
+            Ordering::Greater => {
+                let discrepency = total_input_amount - self.input_amount_crowdfunding;
+                if discrepency.to_sat() >= DUST_AMOUNT {
+                    // add refund output
+                    let _output = TxOut {
+                        value: discrepency,
+                        script_pubkey: output_script_pubkey,
+                    };
+                    self.tx.output.push(_output);
+                }
+                // discrepency less than dust will be lost as relay fee
+            }
+            Ordering::Equal => {}
         }
 
         // add crowdfunding inputs
@@ -166,6 +174,8 @@ impl ChallengeTransaction {
     pub fn merge(&mut self, challenge: &ChallengeTransaction) {
         merge_transactions(&mut self.tx, &challenge.tx);
     }
+
+    pub fn min_crowdfunding_amount(&self) -> u64 { self.input_amount_crowdfunding.to_sat() }
 }
 
 impl BaseTransaction for ChallengeTransaction {
@@ -176,4 +186,5 @@ impl BaseTransaction for ChallengeTransaction {
 
         self.tx.clone()
     }
+    fn name(&self) -> &'static str { "Challenge" }
 }

@@ -11,7 +11,7 @@ use super::{
             connector_a::ConnectorA,
         },
         contexts::operator::OperatorContext,
-        graphs::base::{DUST_AMOUNT, FEE_AMOUNT, MESSAGE_COMMITMENT_FEE_AMOUNT},
+        graphs::base::DUST_AMOUNT,
     },
     base::*,
     pre_signed::*,
@@ -46,7 +46,7 @@ impl KickOff1Transaction {
         connector_6: &Connector6,
         input_0: Input,
     ) -> Self {
-        let this = Self::new_for_validation(
+        Self::new_for_validation(
             context.network,
             &context.operator_taproot_public_key,
             &context.n_of_n_taproot_public_key,
@@ -54,9 +54,7 @@ impl KickOff1Transaction {
             connector_2,
             connector_6,
             input_0,
-        );
-
-        this
+        )
     }
 
     pub fn new_for_validation(
@@ -77,22 +75,22 @@ impl KickOff1Transaction {
         let input_0_leaf = 0;
         let _input_0 = connector_6.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
 
-        let total_output_amount =
-            input_0.amount - Amount::from_sat(MESSAGE_COMMITMENT_FEE_AMOUNT * 2 + FEE_AMOUNT);
+        let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_KICK_OFF_1);
 
         let _output_0 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
             script_pubkey: connector_a.generate_taproot_address().script_pubkey(),
         };
 
-        let _output_1 = TxOut {
-            value: total_output_amount - Amount::from_sat(DUST_AMOUNT) * 2,
-            script_pubkey: connector_1.generate_taproot_address().script_pubkey(),
+        // fund start time relay fee here since it has no other inputs
+        let _output_2 = TxOut {
+            value: Amount::from_sat(DUST_AMOUNT + MIN_RELAY_FEE_START_TIME),
+            script_pubkey: connector_2.generate_taproot_address().script_pubkey(),
         };
 
-        let _output_2 = TxOut {
-            value: Amount::from_sat(DUST_AMOUNT),
-            script_pubkey: connector_2.generate_taproot_address().script_pubkey(),
+        let _output_1 = TxOut {
+            value: total_output_amount - _output_0.value - _output_2.value,
+            script_pubkey: connector_1.generate_taproot_address().script_pubkey(),
         };
 
         KickOff1Transaction {
@@ -136,10 +134,10 @@ impl KickOff1Transaction {
         unlock_data.push(schnorr_signature.to_vec());
 
         // get winternitz signature for source network txid
-        unlock_data.extend(generate_winternitz_witness(&source_network_txid_inputs).to_vec());
+        unlock_data.extend(generate_winternitz_witness(source_network_txid_inputs).to_vec());
 
         // get winternitz signature for destination network txid
-        unlock_data.extend(generate_winternitz_witness(&destination_network_txid_inputs).to_vec());
+        unlock_data.extend(generate_winternitz_witness(destination_network_txid_inputs).to_vec());
 
         populate_taproot_input_witness(
             self.tx_mut(),
@@ -168,4 +166,5 @@ impl KickOff1Transaction {
 
 impl BaseTransaction for KickOff1Transaction {
     fn finalize(&self) -> Transaction { self.tx.clone() }
+    fn name(&self) -> &'static str { "KickOff1" }
 }
