@@ -61,29 +61,29 @@ async fn test_disprove_chain_tx_success() {
     );
     disprove_chain_tx.add_output(reward_address.script_pubkey());
 
-        // TODO: setup the test headers appropriately for the verification in Disprove Chain to pass
-        let committed_sb = get_superblock_header();
-        let disprove_sb = get_superblock_header();
+    // TODO: setup the test headers appropriately for the verification in Disprove Chain to pass
+    let committed_sb = get_superblock_header();
+    let disprove_sb = get_superblock_header();
 
-        let start_time_witness = generate_winternitz_witness(&WinternitzSigningInputs {
-            message: &get_start_time_block_number().to_le_bytes(),
-            signing_key: &config.commitment_secrets[&CommitmentMessageId::StartTime],
-        });
+    let start_time_witness = generate_winternitz_witness(&WinternitzSigningInputs {
+        message: &get_start_time_block_number().to_le_bytes(),
+        signing_key: &config.commitment_secrets[&CommitmentMessageId::StartTime],
+    });
 
-        let superblock_hash_witness = generate_winternitz_witness(&WinternitzSigningInputs {
-            message: &get_superblock_hash_message(&committed_sb),
-            signing_key: &config.commitment_secrets[&CommitmentMessageId::SuperblockHash],
-        });
+    let superblock_hash_witness = generate_winternitz_witness(&WinternitzSigningInputs {
+        message: &get_superblock_hash_message(&committed_sb),
+        signing_key: &config.commitment_secrets[&CommitmentMessageId::SuperblockHash],
+    });
 
-        disprove_chain_tx.sign(&disprove_sb, &start_time_witness, &superblock_hash_witness);
-        let tx = disprove_chain_tx.finalize();
+    disprove_chain_tx.sign(&disprove_sb, &start_time_witness, &superblock_hash_witness);
+    let tx = disprove_chain_tx.finalize();
 
-        let result = config.client_0.esplora.broadcast(&tx).await;
-        println!("Txid: {:?}", tx.compute_txid());
-        println!("Broadcast result: {:?}\n", result);
-        // println!("Transaction hex: \n{}", serialize_hex(&tx));
-        assert!(result.is_ok());
-    }
+    let result = config.client_0.esplora.broadcast(&tx).await;
+    println!("Txid: {:?}", tx.compute_txid());
+    println!("Broadcast result: {:?}\n", result);
+    // println!("Transaction hex: \n{}", serialize_hex(&tx));
+    assert!(result.is_ok());
+}
 
 #[tokio::test]
 //TODO: delete it after confirmation, disprove chain only needs 2 outputs

@@ -1950,15 +1950,17 @@ impl PegOutGraph {
                     let disprove_sb = find_superblock();
 
                     // TODO: Extract the message + signature combo from the full input witness.
-                    let start_time_witness = self.start_time_transaction.tx().input[0].witness.clone();
-                    let superblock_hash_witness = self.kick_off_2_transaction.tx().input[0].witness.clone();
+                    let start_time_witness =
+                        self.start_time_transaction.tx().input[0].witness.clone();
+                    let superblock_hash_witness =
+                        self.kick_off_2_transaction.tx().input[0].witness.clone();
 
                     self.disprove_chain_transaction.sign(
                         &disprove_sb,
                         &start_time_witness,
                         &superblock_hash_witness,
                     );
-            
+
                     Ok(self.disprove_chain_transaction.finalize())
                 }
                 false => Err(Error::Graph(GraphError::PrecedingTxNotConfirmed(vec![
