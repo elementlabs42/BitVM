@@ -1,9 +1,11 @@
 use super::key_command::KeysCommand;
 use crate::bridge::client::client::BitVMClient;
+use crate::bridge::common::ZkProofVerifyingKey;
 use crate::bridge::constants::DestinationNetwork;
 use crate::bridge::contexts::base::generate_keys_from_secret;
 use crate::bridge::graphs::base::{VERIFIER_0_SECRET, VERIFIER_1_SECRET};
 use crate::bridge::transactions::base::Input;
+use ark_serialize::CanonicalDeserialize;
 use bitcoin::PublicKey;
 use bitcoin::{Network, OutPoint};
 use clap::{arg, ArgMatches, Command};
@@ -46,6 +48,12 @@ impl ClientCommand {
             vec![verifier_0_public_key, verifier_1_public_key]
         });
 
+        let mut verifying_key = None;
+        if let Some(vk) = config.keys.verifying_key {
+            let bytes = hex::decode(vk).unwrap();
+            verifying_key = Some(ZkProofVerifyingKey::deserialize_compressed(&*bytes).unwrap());
+        }
+
         let bitvm_client = BitVMClient::new(
             source_network,
             destination_network,
@@ -55,6 +63,7 @@ impl ClientCommand {
             config.keys.verifier.as_deref(),
             config.keys.withdrawer.as_deref(),
             None,
+            verifying_key,
         )
         .await;
 
@@ -176,7 +185,14 @@ impl ClientCommand {
                     .subcommand(Command::new("kick_off_1").about("Broadcast kick off 1"))
                     .subcommand(Command::new("kick_off_2").about("Broadcast kick off 2"))
                     .subcommand(Command::new("start_time").about("Broadcast start time"))
-                    .subcommand(Command::new("assert").about("Broadcast assert"))
+                    .subcommand(Command::new("assert_initial").about("Broadcast assert initial"))
+                    .subcommand(
+                        Command::new("assert_commit_1").about("Broadcast assert commitment 1"),
+                    )
+                    .subcommand(
+                        Command::new("assert_commit_2").about("Broadcast assert commitment 2"),
+                    )
+                    .subcommand(Command::new("assert_final").about("Broadcast assert final"))
                     .subcommand(Command::new("take_1").about("Broadcast take 1"))
                     .subcommand(Command::new("take_2").about("Broadcast take 2"))
                     .subcommand_required(true),
@@ -197,6 +213,8 @@ impl ClientCommand {
             Some(("kick_off_2", _)) => self.client.broadcast_kick_off_2(graph_id).await,
             Some(("start_time", _)) => self.client.broadcast_start_time(graph_id).await,
             Some(("assert_initial", _)) => self.client.broadcast_assert_initial(graph_id).await,
+            Some(("assert_commit_1", _)) => self.client.broadcast_assert_commit_1(graph_id).await,
+            Some(("assert_commit_2", _)) => self.client.broadcast_assert_commit_2(graph_id).await,
             Some(("assert_final", _)) => self.client.broadcast_assert_final(graph_id).await,
             Some(("take_1", _)) => self.client.broadcast_take_1(graph_id).await,
             Some(("take_2", _)) => self.client.broadcast_take_2(graph_id).await,

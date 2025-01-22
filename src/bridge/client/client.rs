@@ -15,6 +15,7 @@ use std::{
 
 use crate::bridge::{
     commitments::CommitmentMessageId,
+    common::ZkProofVerifyingKey,
     connectors::{
         base::TaprootConnector,
         connector_0::Connector0,
@@ -119,6 +120,8 @@ pub struct BitVMClient {
     private_data: BitVMClientPrivateData,
 
     chain_adaptor: Chain,
+
+    zkproof_verifying_key: Option<ZkProofVerifyingKey>,
 }
 
 impl BitVMClient {
@@ -131,6 +134,7 @@ impl BitVMClient {
         verifier_secret: Option<&str>,
         withdrawer_secret: Option<&str>,
         file_path_prefix: Option<&str>,
+        zkproof_verifying_key: Option<ZkProofVerifyingKey>,
     ) -> Self {
         let mut depositor_context = None;
         if depositor_secret.is_some() {
@@ -208,6 +212,8 @@ impl BitVMClient {
             private_data,
 
             chain_adaptor,
+
+            zkproof_verifying_key,
         }
     }
 
@@ -788,10 +794,18 @@ impl BitVMClient {
                 PegOutOperatorStatus::PegOutKickOff2Available => {
                     let _ = self.broadcast_kick_off_2(peg_out_graph.id()).await;
                 }
-                // TODO: uncomment after assert tx are done
-                // PegOutOperatorStatus::PegOutAssertAvailable => {
-                //     self.broadcast_assert(peg_out_graph.id()).await
-                // }
+                PegOutOperatorStatus::PegOutAssertInitialAvailable => {
+                    let _ = self.broadcast_assert_initial(peg_out_graph.id()).await;
+                }
+                PegOutOperatorStatus::PegOutAssertCommit1Available => {
+                    let _ = self.broadcast_assert_commit_1(peg_out_graph.id()).await;
+                }
+                PegOutOperatorStatus::PegOutAssertCommit2Available => {
+                    let _ = self.broadcast_assert_commit_2(peg_out_graph.id()).await;
+                }
+                PegOutOperatorStatus::PegOutAssertFinalAvailable => {
+                    let _ = self.broadcast_assert_final(peg_out_graph.id()).await;
+                }
                 PegOutOperatorStatus::PegOutTake1Available => {
                     let _ = self.broadcast_take_1(peg_out_graph.id()).await;
                 }
@@ -1104,6 +1118,38 @@ impl BitVMClient {
         self.broadcast_tx(&tx).await
     }
 
+    pub async fn broadcast_assert_commit_1(
+        &mut self,
+        peg_out_graph_id: &String,
+    ) -> Result<Txid, Error> {
+        let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
+        let tx = graph
+            .assert_commit_1(
+                &self.esplora,
+                &self.private_data.commitment_secrets
+                    [&self.verifier_context.as_ref().unwrap().verifier_public_key]
+                    [peg_out_graph_id],
+            )
+            .await?;
+        self.broadcast_tx(&tx).await
+    }
+
+    pub async fn broadcast_assert_commit_2(
+        &mut self,
+        peg_out_graph_id: &String,
+    ) -> Result<Txid, Error> {
+        let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
+        let tx = graph
+            .assert_commit_2(
+                &self.esplora,
+                &self.private_data.commitment_secrets
+                    [&self.verifier_context.as_ref().unwrap().verifier_public_key]
+                    [peg_out_graph_id],
+            )
+            .await?;
+        self.broadcast_tx(&tx).await
+    }
+
     pub async fn broadcast_assert_final(
         &mut self,
         peg_out_graph_id: &String,
@@ -1119,7 +1165,15 @@ impl BitVMClient {
         output_script_pubkey: ScriptBuf,
     ) -> Result<Txid, Error> {
         let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
-        let tx = graph.disprove(&self.esplora, output_script_pubkey).await?;
+        let tx = graph
+            .disprove(
+                &self.esplora,
+                output_script_pubkey,
+                self.zkproof_verifying_key
+                    .as_ref()
+                    .ok_or(Error::Client(ClientError::ZkProofVerifyingKeyNotDefined))?,
+            )
+            .await?;
         self.broadcast_tx(&tx).await
     }
 

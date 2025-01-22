@@ -1,34 +1,30 @@
 use bitcoin::{Amount, OutPoint};
 
-use bitvm::{
-    bridge::{
-        graphs::base::DUST_AMOUNT,
-        transactions::{
-            assert_transactions::{
-                assert_commit_1::AssertCommit1Transaction,
-                assert_commit_2::AssertCommit2Transaction,
-                utils::sign_assert_tx_with_groth16_proof,
-            },
-            base::{
-                BaseTransaction, Input, MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2,
-                MIN_RELAY_FEE_ASSERT_FINAL, MIN_RELAY_FEE_ASSERT_INITIAL,
-            },
+use bitvm::bridge::{
+    graphs::base::DUST_AMOUNT,
+    transactions::{
+        assert_transactions::{
+            assert_commit_1::AssertCommit1Transaction, assert_commit_2::AssertCommit2Transaction,
+            utils::sign_assert_tx_with_groth16_proof,
+        },
+        base::{
+            BaseTransaction, Input, MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2,
+            MIN_RELAY_FEE_ASSERT_FINAL, MIN_RELAY_FEE_ASSERT_INITIAL,
         },
     },
-    chunker::disprove_execution::RawProof,
 };
 use num_traits::ToPrimitive;
 
 use crate::bridge::{
-    assert::helper::create_and_mine_assert_initial_tx,
+    assert::helper::fund_create_and_mine_assert_initial_tx,
     faucet::{Faucet, FaucetType},
     helper::{check_tx_output_sum, get_reward_amount, wait_timelock_expiry},
-    setup::{setup_test, ONE_HUNDRED},
+    setup::{setup_test_full, ONE_HUNDRED},
 };
 
 #[tokio::test]
 async fn test_assert_commits_tx_success() {
-    let config = setup_test().await;
+    let config = setup_test_full().await;
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
 
     let reward_amount = get_reward_amount(ONE_HUNDRED);
@@ -45,7 +41,7 @@ async fn test_assert_commits_tx_success() {
             + MIN_RELAY_FEE_ASSERT_COMMIT2
             + MIN_RELAY_FEE_ASSERT_FINAL,
     );
-    let assert_inital_tx = create_and_mine_assert_initial_tx(&config, &faucet, amount).await;
+    let assert_inital_tx = fund_create_and_mine_assert_initial_tx(&config, &faucet, amount).await;
 
     let mut vout_base = 1;
     let mut assert_commit1 = AssertCommit1Transaction::new(
@@ -79,7 +75,7 @@ async fn test_assert_commits_tx_success() {
     );
 
     let (witness_for_commit1, witness_for_commit2) =
-        sign_assert_tx_with_groth16_proof(&config.commitment_secrets, &RawProof::default());
+        sign_assert_tx_with_groth16_proof(&config.commitment_secrets, &config.correct_proof);
     assert_commit1.sign(
         &config.assert_commit_connectors_e_1,
         witness_for_commit1.clone(),
