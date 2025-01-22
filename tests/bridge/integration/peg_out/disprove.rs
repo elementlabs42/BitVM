@@ -1,26 +1,22 @@
 use bitcoin::{Address, Amount, OutPoint};
-use bitvm::{
-    bridge::{
-        connectors::{base::TaprootConnector, connector_c::get_commit_from_assert_commit_tx},
-        graphs::base::DUST_AMOUNT,
-        scripts::generate_pay_to_pubkey_script_address,
-        transactions::{
-            assert_transactions::{
-                assert_commit_1::AssertCommit1Transaction,
-                assert_commit_2::AssertCommit2Transaction, assert_final::AssertFinalTransaction,
-                utils::sign_assert_tx_with_groth16_proof,
-            },
-            base::{
-                BaseTransaction, Input, MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2,
-                MIN_RELAY_FEE_ASSERT_FINAL, MIN_RELAY_FEE_ASSERT_INITIAL, MIN_RELAY_FEE_DISPROVE,
-                MIN_RELAY_FEE_KICK_OFF_2,
-            },
-            disprove::DisproveTransaction,
-            pre_signed::PreSignedTransaction,
-            pre_signed_musig2::PreSignedMusig2Transaction,
+use bitvm::bridge::{
+    connectors::{base::TaprootConnector, connector_c::get_commit_from_assert_commit_tx},
+    graphs::base::DUST_AMOUNT,
+    scripts::generate_pay_to_pubkey_script_address,
+    transactions::{
+        assert_transactions::{
+            assert_commit_1::AssertCommit1Transaction, assert_commit_2::AssertCommit2Transaction,
+            assert_final::AssertFinalTransaction, utils::sign_assert_tx_with_groth16_proof,
         },
+        base::{
+            BaseTransaction, Input, MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2,
+            MIN_RELAY_FEE_ASSERT_FINAL, MIN_RELAY_FEE_ASSERT_INITIAL, MIN_RELAY_FEE_DISPROVE,
+            MIN_RELAY_FEE_KICK_OFF_2,
+        },
+        disprove::DisproveTransaction,
+        pre_signed::PreSignedTransaction,
+        pre_signed_musig2::PreSignedMusig2Transaction,
     },
-    chunker::disprove_execution::RawProof,
 };
 use num_traits::ToPrimitive;
 

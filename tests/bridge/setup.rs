@@ -175,6 +175,8 @@ pub async fn setup_test_full() -> SetupConfigFull {
         depositor_evm_address: config.depositor_evm_address,
         withdrawer_evm_address: config.withdrawer_evm_address,
         commitment_secrets: config.commitment_secrets,
+        correct_proof: get_correct_proof(),
+        incorrect_proof: get_incorrect_proof(),
     }
 }
 
@@ -325,8 +327,6 @@ pub async fn setup_test() -> SetupConfig {
         depositor_evm_address: DEPOSITOR_EVM_ADDRESS.to_string(),
         withdrawer_evm_address: WITHDRAWER_EVM_ADDRESS.to_string(),
         commitment_secrets,
-        correct_proof: get_correct_proof(),
-        incorrect_proof: get_incorrect_proof(),
     }
 }
 

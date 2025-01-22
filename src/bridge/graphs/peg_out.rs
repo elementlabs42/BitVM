@@ -51,7 +51,7 @@ use crate::{
             signing_winternitz::WinternitzSigningInputs,
         },
     },
-    chunker::assigner::BridgeAssigner,
+    chunker::{assigner::BridgeAssigner, disprove_execution::RawProof},
 };
 
 use super::{
