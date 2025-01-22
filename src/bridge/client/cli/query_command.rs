@@ -100,7 +100,7 @@ impl QueryCommand {
         let recipient_address = sub_matches.get_one::<String>("RECIPIENT_ADDRESS").unwrap();
         let depositor_taproot_key = XOnlyPublicKey::from(*depositor_public_key);
         let amount: Amount = Amount::from_sat(amount.parse::<u64>().unwrap());
-        let taproot_address = self.client.generate_pegin_confirm_taproot_address(
+        let taproot_address = self.client.generate_pegin_taproot_address(
             self.network,
             recipient_address,
             &depositor_taproot_key,
@@ -155,6 +155,7 @@ impl QueryCommand {
             .arg(arg!(<DEPOSITOR_PUBLIC_KEY> "Depositor public key").required(true))
             .subcommand(Self::pegin_deposit_tx_command())
             .subcommand(Self::pegin_confirm_tx_command())
+            .subcommand(Self::pegin_refund_tx_command())
     }
 
     pub async fn handle_pegin_confirm_tx_command(
@@ -166,7 +167,7 @@ impl QueryCommand {
         let recipient_address = sub_matches.get_one::<String>("RECIPIENT_ADDRESS").unwrap();
         let depositor_taproot_key = XOnlyPublicKey::from(*depositor_public_key);
         let amount: Amount = Amount::from_sat(amount.parse::<u64>().unwrap());
-        let taproot_address = self.client.generate_pegin_confirm_taproot_address(
+        let taproot_address = self.client.generate_pegin_taproot_address(
             self.network,
             recipient_address,
             &depositor_taproot_key,
@@ -211,6 +212,14 @@ impl QueryCommand {
                 .handle_pegin_confirm_tx_command(
                     &pubkey.unwrap(),
                     matches.subcommand_matches("pegin_confirm_tx").unwrap(),
+                )
+                .await;
+        }
+        if matches.subcommand_matches("pegin_refund_tx").is_some() {
+            return self
+                .handle_pegin_refund_tx_command(
+                    &pubkey.unwrap(),
+                    matches.subcommand_matches("pegin_refund_tx").unwrap(),
                 )
                 .await;
         }
