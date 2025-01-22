@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use bitcoin::{
-    block::Header,
     key::Secp256k1,
-    opcodes::all::{OP_ADD, OP_FROMALTSTACK, OP_LESSTHAN, OP_TOALTSTACK},
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
@@ -12,15 +10,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     bridge::{
+        commitments::CommitmentMessageId,
         constants::START_TIME_MESSAGE_LENGTH,
-        graphs::peg_out::CommitmentMessageId,
-        superblock::{
-            extract_superblock_ts_from_header, SUPERBLOCK_HASH_MESSAGE_LENGTH,
-            SUPERBLOCK_MESSAGE_LENGTH,
-        },
+        superblock::{extract_superblock_ts_from_header, SUPERBLOCK_MESSAGE_LENGTH},
         transactions::signing_winternitz::{
-            winternitz_message_checksig, winternitz_message_checksig_verify, WinternitzPublicKey,
-            LOG_D,
+            winternitz_message_checksig, WinternitzPublicKey, LOG_D,
         },
         utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
     },
@@ -53,6 +47,7 @@ impl ConnectorB {
         ConnectorB {
             network,
             n_of_n_taproot_public_key: *n_of_n_taproot_public_key,
+            commitment_public_keys: commitment_public_keys.clone(),
             num_blocks_timelock_1: num_blocks_per_network(network, NUM_BLOCKS_PER_3_DAYS),
         }
     }
@@ -176,13 +171,13 @@ mod tests {
 
     use bitcoin::{
         block::{Header, Version},
-        opcodes::all::OP_TOALTSTACK,
-        BlockHash, CompactTarget, TxMerkleNode,
+        BlockHash, CompactTarget,
+        Network::Regtest,
+        TxMerkleNode,
     };
-    use bitcoin_script::{script, Script};
+    use bitcoin_script::script;
 
     use crate::{
-        bigint::BigIntImpl,
         bridge::{
             constants::START_TIME_MESSAGE_LENGTH,
             superblock::{
@@ -198,7 +193,6 @@ mod tests {
         },
         execute_script,
         hash::sha256::{sha256, sha256_32bytes},
-        pseudo::NMUL,
         signatures::utils::digits_to_number,
     };
 
@@ -227,7 +221,7 @@ mod tests {
         // TODO: setup the test headers appropriately for the verification in the script to pass
         let committed_sb = get_superblock_header();
         let mut disprove_sb = get_superblock_header();
-        disprove_sb.time = get_start_time_block_number() + 1;
+        disprove_sb.time = get_start_time_block_number(Regtest) + 1;
         let mut disprove_sb_message =
             crate::bridge::superblock::get_superblock_message(&disprove_sb);
         disprove_sb_message.reverse();
@@ -239,7 +233,7 @@ mod tests {
             signing_key: &committed_sb_hash_secret,
         };
 
-        let start_time_message = get_start_time_block_number().to_le_bytes();
+        let start_time_message = get_start_time_block_number(Regtest).to_le_bytes();
         assert!(start_time_message.len() == START_TIME_MESSAGE_LENGTH);
         let start_time_secret = WinternitzSecret::new(START_TIME_MESSAGE_LENGTH);
         let start_time_public_key = WinternitzPublicKey::from(&start_time_secret);

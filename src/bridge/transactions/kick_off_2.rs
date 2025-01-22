@@ -1,6 +1,5 @@
 use bitcoin::{
     absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
-    XOnlyPublicKey,
 };
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +48,6 @@ impl KickOff2Transaction {
         Self::new_for_validation(
             context.network,
             &context.operator_public_key,
-            &context.n_of_n_taproot_public_key,
             connector_1,
             connector_b,
             input_0,
@@ -59,7 +57,6 @@ impl KickOff2Transaction {
     pub fn new_for_validation(
         network: Network,
         operator_public_key: &PublicKey,
-        n_of_n_taproot_public_key: &XOnlyPublicKey,
         connector_1: &Connector1,
         connector_b: &ConnectorB,
         input_0: Input,

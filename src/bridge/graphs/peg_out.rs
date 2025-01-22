@@ -450,9 +450,6 @@ impl PegOutGraph {
         let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) =
             groth16_commitment_secrets_to_public_keys(commitment_secrets);
 
-        let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) =
-            groth16_commitment_secrets_to_public_keys(commitment_secrets);
-
         let connectors = Self::create_new_connectors(
             context.network,
             &context.n_of_n_taproot_public_key,
@@ -899,7 +896,6 @@ impl PegOutGraph {
         let kick_off_2_transaction = KickOff2Transaction::new_for_validation(
             self.network,
             &self.operator_public_key,
-            &self.n_of_n_taproot_public_key,
             &connectors.connector_1,
             &connectors.connector_b,
             Input {

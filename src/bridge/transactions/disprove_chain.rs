@@ -6,20 +6,18 @@ use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::bridge::superblock::get_superblock_message;
+use crate::bridge::{connectors::base::TaprootConnector, superblock::get_superblock_message};
 
 use super::{
     super::{
-        connectors::{base::*, connector_b::ConnectorB},
+        connectors::connector_b::ConnectorB,
         contexts::{base::BaseContext, operator::OperatorContext, verifier::VerifierContext},
         scripts::*,
     },
     base::*,
-    disprove,
     pre_signed::*,
     pre_signed_musig2::*,
     signing::push_taproot_leaf_unlock_data_to_witness,
-    signing_winternitz::generate_winternitz_witness,
 };
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
