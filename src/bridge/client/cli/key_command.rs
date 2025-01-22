@@ -48,7 +48,7 @@ impl KeysCommand {
         Command::new("keys")
             .short_flag('k')
             .about("Manage secret keys for different contexts")
-            .after_help("The depositor, operator, verifier, and withdrawer contexts are optional and can be specified using the -d, -o, -v, and -w flags respectively. If a context is not specified, the default key for that context will be used.")
+            .after_help("The depositor, operator, verifier, and withdrawer contexts are optional and can be specified using the -d, -o, -v, and -w flags respectively. If a context is not specified, the default key for that context will be used. The verifying key for the zero-knowledge proof is optional and must be specified when running scenarios that require it.")
             .arg(arg!(-d --depositor <SECRET_KEY> "Secret key for depositor").required(false))
             .arg(arg!(-o --operator <SECRET_KEY> "Secret key for operator").required(false))
             .arg(arg!(-v --verifier <SECRET_KEY> "Secret key for verifier").required(false))
