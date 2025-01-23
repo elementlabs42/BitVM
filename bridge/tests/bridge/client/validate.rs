@@ -9,10 +9,7 @@ use bridge::{
     transactions::{base::Input, pre_signed::PreSignedTransaction},
 };
 
-use crate::bridge::{
-    helper::get_lock_scripts_cached,
-    setup::{setup_test, INITIAL_AMOUNT},
-};
+use crate::bridge::setup::{setup_test, INITIAL_AMOUNT};
 
 #[tokio::test]
 async fn test_validate_success() {
@@ -130,7 +127,6 @@ async fn setup_and_create_graphs() -> (BitVMClientPublicData, OutPoint) {
             amount: amount_0,
         },
         &config.commitment_secrets,
-        get_lock_scripts_cached,
     );
 
     let data = BitVMClientPublicData {

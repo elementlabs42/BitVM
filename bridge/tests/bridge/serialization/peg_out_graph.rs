@@ -1,11 +1,7 @@
 use bitcoin::{Address, Amount};
 
 use bridge::{
-    graphs::{
-        base::PEG_OUT_FEE_FOR_TAKE_1,
-        peg_in::PegInGraph,
-        peg_out::{LockScriptsGeneratorWrapper, PegOutGraph},
-    },
+    graphs::{base::PEG_OUT_FEE_FOR_TAKE_1, peg_in::PegInGraph, peg_out::PegOutGraph},
     scripts::generate_pay_to_pubkey_script_address,
     serialization::{deserialize, serialize},
     transactions::base::{Input, MIN_RELAY_FEE_PEG_IN_CONFIRM},
@@ -13,7 +9,7 @@ use bridge::{
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{generate_stub_outpoint, get_lock_scripts_cached, get_reward_amount},
+    helper::{generate_stub_outpoint, get_reward_amount},
     setup::{setup_test, ONE_HUNDRED},
 };
 
@@ -61,13 +57,10 @@ async fn test_peg_out_graph_serialization() {
             amount: kick_off_amount,
         },
         &config.commitment_secrets,
-        get_lock_scripts_cached,
     );
 
     let json = serialize(&peg_out_graph);
     assert!(!json.is_empty());
-    let mut deserialized_peg_out_graph = deserialize::<PegOutGraph>(&json);
-    deserialized_peg_out_graph.lock_scripts_generator_wrapper =
-        LockScriptsGeneratorWrapper(get_lock_scripts_cached);
+    let deserialized_peg_out_graph = deserialize::<PegOutGraph>(&json);
     assert!(peg_out_graph == deserialized_peg_out_graph);
 }

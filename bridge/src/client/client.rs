@@ -16,10 +16,9 @@ use std::{
 use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
-    connectors::{
-        base::TaprootConnector, connector_0::Connector0, connector_c::LockScriptsGenerator,
-        connector_z::ConnectorZ,
-    },
+    connectors::{base::TaprootConnector, connector_0::Connector0, connector_z::ConnectorZ},
+};
+use crate::{
     constants::DestinationNetwork,
     contexts::base::generate_n_of_n_public_key,
     error::{ClientError, Error},
@@ -760,7 +759,6 @@ impl BitVMClient {
                         peg_in_graph_id,
                         input,
                         CommitmentMessageId::generate_commitment_secrets(),
-                        crate::connectors::connector_c::generate_assert_leaves,
                     )
                     .await;
                 }
@@ -897,7 +895,6 @@ impl BitVMClient {
         peg_in_graph_id: &str,
         peg_out_confirm_input: Input,
         commitment_secrets: HashMap<CommitmentMessageId, WinternitzSecret>,
-        lock_scripts_generator: LockScriptsGenerator,
     ) -> String {
         if self.operator_context.is_none() {
             panic!("Operator context must be initialized");
@@ -926,7 +923,6 @@ impl BitVMClient {
             peg_in_graph,
             peg_out_confirm_input,
             &commitment_secrets,
-            lock_scripts_generator,
         );
 
         self.private_data.commitment_secrets = HashMap::from([(

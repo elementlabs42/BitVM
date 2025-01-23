@@ -1,10 +1,28 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fmt::{Formatter, Result as FmtResult},
+    path::Path,
+};
 
 use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
-    error::{ChunkerError, Error},
-    utils::remove_script_and_control_block_from_witness,
+    connectors::base::*,
+    error::{ChunkerError, Error, GraphError},
+    transactions::base::Input,
+    utils::{read_cache, remove_script_and_control_block_from_witness, write_cache},
+};
+use bitcoin::{
+    hashes::{hash160, Hash},
+    taproot::{TaprootBuilder, TaprootSpendInfo},
+    Address, Network, ScriptBuf, Transaction, TxIn, XOnlyPublicKey,
+};
+use num_traits::ToPrimitive;
+use secp256k1::SECP256K1;
+use serde::{
+    de,
+    ser::{Error as SerError, SerializeStruct},
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use bitvm::{
@@ -17,16 +35,6 @@ use bitvm::{
     signatures::signing_winternitz::WinternitzPublicKey,
 };
 
-use bitcoin::{
-    taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, Transaction, TxIn, XOnlyPublicKey,
-};
-use num_traits::ToPrimitive;
-use secp256k1::SECP256K1;
-use serde::{Deserialize, Serialize};
-
-use super::{super::transactions::base::Input, base::*};
-
 // Specialized for assert leaves currently.
 pub type LockScript = fn(index: u32) -> ScriptBuf;
 pub type UnlockWitnessData = Vec<u8>;
@@ -37,10 +45,9 @@ pub struct DisproveLeaf {
     pub unlock: UnlockWitness,
 }
 
-pub type LockScriptsGenerator =
-    fn(&BTreeMap<CommitmentMessageId, WinternitzPublicKey>) -> Vec<ScriptBuf>;
+const CACHE_LOCATION: &str = "bridge_data/cache/";
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct ConnectorC {
     pub network: Network,
     pub operator_taproot_public_key: XOnlyPublicKey,
@@ -48,20 +55,118 @@ pub struct ConnectorC {
     commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 }
 
+impl Serialize for ConnectorC {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut c = s.serialize_struct("ConnectorC", 4)?;
+        c.serialize_field("network", &self.network.to_string())?;
+        c.serialize_field(
+            "operator_taproot_public_key",
+            &self.operator_taproot_public_key.to_string(),
+        )?;
+        c.serialize_field(
+            "commitment_public_keys",
+            &self.commitment_public_keys.clone(),
+        )?;
+
+        let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
+        c.serialize_field("lock_scripts", &cache_id)?;
+
+        let lock_script_cache_file_path =
+            &format!("{}lock-script-{}.json", CACHE_LOCATION, &cache_id);
+        let lock_script_cache_path = Path::new(&lock_script_cache_file_path);
+        write_cache(lock_script_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
+
+        c.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for ConnectorC {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct JsonConnectorCVisitor;
+        impl<'de> de::Visitor<'de> for JsonConnectorCVisitor {
+            type Value = ConnectorC;
+
+            fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
+                formatter.write_str("a string containing ConnectorC data")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::MapAccess<'de>,
+            {
+                let mut operator_taproot_public_key = None;
+                let mut commitment_public_keys = None;
+                let mut network = None;
+                let mut lock_scripts_cache_id = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "network" => network = Some(map.next_value()?),
+                        "operator_taproot_public_key" => {
+                            operator_taproot_public_key = Some(map.next_value()?)
+                        }
+                        "commitment_public_keys" => {
+                            commitment_public_keys = Some(map.next_value()?)
+                        }
+                        "lock_scripts" => lock_scripts_cache_id = Some(map.next_value()?),
+                        _ => (),
+                    }
+                }
+
+                match (network, operator_taproot_public_key, commitment_public_keys) {
+                    (
+                        Some(network),
+                        Some(operator_taproot_public_key),
+                        Some(commitment_public_keys),
+                    ) => Ok(ConnectorC::new(
+                        network,
+                        &operator_taproot_public_key,
+                        &commitment_public_keys,
+                        lock_scripts_cache_id,
+                    )),
+                    _ => Err(de::Error::custom("Invalid ConnectorC data")),
+                }
+            }
+        }
+
+        d.deserialize_struct(
+            "ConnectorC",
+            &[
+                "network",
+                "operator_taproot_public_key",
+                "commitment_public_keys",
+                "lock_scripts",
+            ],
+            JsonConnectorCVisitor,
+        )
+    }
+}
+
 impl ConnectorC {
     pub fn new(
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-        lock_scripts_generator: LockScriptsGenerator,
-        lock_scripts_cache: Option<Vec<ScriptBuf>>,
+        lock_scripts_cache_id: Option<String>,
     ) -> Self {
+        let mut lock_scripts_cache = None;
+        if let Some(cache_id) = lock_scripts_cache_id {
+            let file = &format!("{}lock-script-{}.json", CACHE_LOCATION, &cache_id);
+            lock_scripts_cache = read_cache::<Vec<ScriptBuf>>(Path::new(&file)).ok();
+        }
+
         ConnectorC {
             network,
             operator_taproot_public_key: *operator_taproot_public_key,
             lock_scripts: match lock_scripts_cache {
                 Some(lock_scripts) => lock_scripts,
-                None => lock_scripts_generator(commitment_public_keys),
+                None => generate_assert_leaves(commitment_public_keys),
             },
             commitment_public_keys: commitment_public_keys.clone(),
         }
@@ -95,6 +200,18 @@ impl ConnectorC {
             vk.clone(),
         )
         .ok_or(Error::Chunker(ChunkerError::InvalidProof))
+    }
+
+    pub fn cache_id(
+        commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
+    ) -> Result<String, Error> {
+        let first_winternitz_public_key = commitment_public_keys
+            .iter()
+            .next()
+            .ok_or(Error::Graph(GraphError::ConnectorCCommitsPublicKeyEmpty))?
+            .1;
+        let hash = hash160::Hash::hash(&first_winternitz_public_key.public_key.as_flattened());
+        Ok(hex::encode(hash))
     }
 }
 

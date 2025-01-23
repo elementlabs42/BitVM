@@ -7,10 +7,7 @@ use bridge::{
     transactions::base::Input,
 };
 
-use crate::bridge::{
-    helper::get_lock_scripts_cached,
-    setup::{setup_test, INITIAL_AMOUNT},
-};
+use crate::bridge::setup::{setup_test, INITIAL_AMOUNT};
 
 #[tokio::test]
 // TODO: test merging signatures after Musig2 feature is ready
@@ -79,7 +76,6 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
                 amount,
             },
             config.commitment_secrets.clone(),
-            get_lock_scripts_cached,
         )
         .await;
 
@@ -100,7 +96,6 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
             amount,
         },
         &config.commitment_secrets,
-        get_lock_scripts_cached,
     );
 
     (config.client_0, new_peg_in_graph, new_peg_out_graph)
