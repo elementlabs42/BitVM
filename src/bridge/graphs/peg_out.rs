@@ -1945,16 +1945,20 @@ impl PegOutGraph {
                     // TODO: This must be a heavier superblock than the one the Operator committed in the KickOff2 tx.
                     let disprove_sb = find_superblock();
 
-                    // TODO: Extract the message + signature combo from the full input witness.
-                    let start_time_witness =
-                        self.start_time_transaction.tx().input[0].witness.clone();
-                    let superblock_hash_witness =
-                        self.kick_off_2_transaction.tx().input[0].witness.clone();
-
                     self.disprove_chain_transaction.sign(
                         &disprove_sb,
-                        &start_time_witness,
-                        &superblock_hash_witness,
+                        self.start_time_transaction
+                            .start_time_witness
+                            .as_ref()
+                            .ok_or(Error::Graph(GraphError::WitnessNotGenerated(
+                                CommitmentMessageId::StartTime,
+                            )))?,
+                        self.kick_off_2_transaction
+                            .superblock_hash_witness
+                            .as_ref()
+                            .ok_or(Error::Graph(GraphError::WitnessNotGenerated(
+                                CommitmentMessageId::SuperblockHash,
+                            )))?,
                     );
 
                     Ok(self.disprove_chain_transaction.finalize())

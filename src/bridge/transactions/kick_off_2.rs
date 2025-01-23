@@ -1,5 +1,6 @@
 use bitcoin::{
     absolute, consensus, Amount, Network, PublicKey, ScriptBuf, TapSighashType, Transaction, TxOut,
+    Witness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +27,8 @@ pub struct KickOff2Transaction {
     #[serde(with = "consensus::serde::With::<consensus::serde::Hex>")]
     prev_outs: Vec<TxOut>,
     prev_scripts: Vec<ScriptBuf>,
+
+    pub superblock_hash_witness: Option<Witness>,
 }
 
 impl PreSignedTransaction for KickOff2Transaction {
@@ -90,6 +93,7 @@ impl KickOff2Transaction {
                 script_pubkey: connector_1.generate_taproot_address().script_pubkey(),
             }],
             prev_scripts: vec![connector_1.generate_taproot_leaf_script(input_0_leaf)],
+            superblock_hash_witness: None,
         }
     }
 
@@ -116,8 +120,12 @@ impl KickOff2Transaction {
             &context.operator_keypair,
         );
         unlock_data.push(schnorr_signature.to_vec());
+
         unlock_data.extend(generate_winternitz_witness(superblock_signing_inputs).to_vec());
-        unlock_data.extend(generate_winternitz_witness(superblock_hash_signing_inputs).to_vec());
+
+        self.superblock_hash_witness =
+            Some(generate_winternitz_witness(superblock_hash_signing_inputs));
+        unlock_data.extend(self.superblock_hash_witness.as_ref().unwrap().to_vec());
 
         populate_taproot_input_witness(
             self.tx_mut(),
