@@ -36,6 +36,7 @@ pub enum GraphError {
     PrecedingTxNotConfirmed(Vec<NamedTx>),
     PrecedingTxTimelockNotMet(NamedTx),
     WitnessNotGenerated(CommitmentMessageId),
+    ConnectorCCommitsPublicKeyEmpty,
 }
 
 #[derive(Debug)]

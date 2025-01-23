@@ -4,7 +4,6 @@ use bitcoin::{Network, PublicKey};
 
 use crate::bridge::helper::{
     get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached,
-    get_lock_scripts_cached,
 };
 use bitvm::{
     chunker::disprove_execution::RawProof,
@@ -138,12 +137,16 @@ pub async fn setup_test_full() -> SetupConfigFull {
         &connector_e2_commitment_public_keys,
     );
 
+    // TODO: investigate why mock-up winternitz public key is not the same
+    let winternitz = commitment_public_keys.iter().next().unwrap().1;
+    let cache_id = hex::encode(winternitz.public_key.as_flattened());
+    println!("lock script cache id: {}", cache_id);
+
     let connector_c = ConnectorC::new(
         config.network,
         &config.operator_context.operator_taproot_public_key,
         &commitment_public_keys,
-        get_lock_scripts_cached,
-        None,
+        Some(cache_id),
     );
 
     SetupConfigFull {
