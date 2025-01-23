@@ -80,11 +80,11 @@ async fn test_disprove_chain_tx_success() {
 
     disprove_chain_tx.sign(&disprove_sb, &start_time_witness, &superblock_hash_witness);
     let tx = disprove_chain_tx.finalize();
+    check_tx_output_sum(INITIAL_AMOUNT, &tx);
 
     let result = config.client_0.esplora.broadcast(&tx).await;
     println!("Txid: {:?}", tx.compute_txid());
-    println!("Broadcast result: {:?}\n", result);
-    // println!("Transaction hex: \n{}", serialize_hex(&tx));
+    println!("Disprove Chain tx result: {:?}\n", result);
     assert!(result.is_ok());
 }
 
