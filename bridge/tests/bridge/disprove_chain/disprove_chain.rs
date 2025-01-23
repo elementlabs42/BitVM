@@ -1,8 +1,11 @@
-use bitcoin::{key::Keypair, Amount, PrivateKey, PublicKey, TxOut};
+use bitcoin::{key::Keypair, Amount, Network::Regtest, PrivateKey, PublicKey, TxOut};
 
+use bitvm::signatures::signing_winternitz::{generate_winternitz_witness, WinternitzSigningInputs};
 use bridge::{
+    commitments::CommitmentMessageId,
     connectors::base::TaprootConnector,
     scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address},
+    superblock::{get_start_time_block_number, get_superblock_hash_message},
     transactions::{
         base::{BaseTransaction, Input, MIN_RELAY_FEE_DISPROVE_CHAIN},
         disprove_chain::DisproveChainTransaction,
@@ -13,7 +16,7 @@ use secp256k1::SECP256K1;
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{check_tx_output_sum, generate_stub_outpoint},
+    helper::{check_tx_output_sum, generate_stub_outpoint, get_superblock_header},
     setup::{setup_test, INITIAL_AMOUNT},
 };
 
@@ -62,6 +65,21 @@ async fn test_disprove_chain_tx_success() {
     );
     disprove_chain_tx.add_output(reward_address.script_pubkey());
 
+    // TODO: setup the test headers appropriately for the verification in Disprove Chain to pass
+    let committed_sb = get_superblock_header();
+    let disprove_sb = get_superblock_header();
+
+    let start_time_witness = generate_winternitz_witness(&WinternitzSigningInputs {
+        message: &get_start_time_block_number(Regtest).to_le_bytes(),
+        signing_key: &config.commitment_secrets[&CommitmentMessageId::StartTime],
+    });
+
+    let superblock_hash_witness = generate_winternitz_witness(&WinternitzSigningInputs {
+        message: &get_superblock_hash_message(&committed_sb),
+        signing_key: &config.commitment_secrets[&CommitmentMessageId::SuperblockHash],
+    });
+
+    disprove_chain_tx.sign(&disprove_sb, &start_time_witness, &superblock_hash_witness);
     let tx = disprove_chain_tx.finalize();
     check_tx_output_sum(INITIAL_AMOUNT, &tx);
 
