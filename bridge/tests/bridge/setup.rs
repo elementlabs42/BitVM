@@ -137,11 +137,7 @@ pub async fn setup_test_full() -> SetupConfigFull {
         &connector_e2_commitment_public_keys,
     );
 
-    // TODO: investigate why mock-up winternitz public key is not the same
-    let winternitz = commitment_public_keys.iter().next().unwrap().1;
-    let cache_id = hex::encode(winternitz.public_key.as_flattened());
-    println!("lock script cache id: {}", cache_id);
-
+    let cache_id = ConnectorC::cache_id(&commitment_public_keys).unwrap();
     let connector_c = ConnectorC::new(
         config.network,
         &config.operator_context.operator_taproot_public_key,
