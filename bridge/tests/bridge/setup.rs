@@ -375,7 +375,7 @@ fn get_test_commitment_secrets() -> HashMap<CommitmentMessageId, WinternitzSecre
     for (v, size) in all_variables {
         commitment_map.insert(
             CommitmentMessageId::Groth16IntermediateValues((v, size)),
-            WinternitzSecret::new(size),
+            generate_test_winternitz_secret(5, size),
         );
     }
     commitment_map
