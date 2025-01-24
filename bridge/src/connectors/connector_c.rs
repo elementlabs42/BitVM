@@ -45,6 +45,7 @@ pub struct DisproveLeaf {
     pub unlock: UnlockWitness,
 }
 
+// TODO: use the same cache location as in client
 const CACHE_LOCATION: &str = "bridge_data/cache/";
 
 #[derive(Eq, PartialEq, Clone)]
@@ -75,9 +76,13 @@ impl Serialize for ConnectorC {
         c.serialize_field("lock_scripts", &cache_id)?;
 
         let lock_script_cache_file_path =
-            &format!("{}lock-script-{}.json", CACHE_LOCATION, &cache_id);
+            &format!("{}lock-scripts-{}.json", CACHE_LOCATION, &cache_id);
         let lock_script_cache_path = Path::new(&lock_script_cache_file_path);
-        write_cache(lock_script_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
+        if lock_script_cache_path.exists() {
+            println!("Lock script cache exists: {}", &cache_id);
+        } else {
+            write_cache(lock_script_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
+        }
 
         c.end()
     }
@@ -157,7 +162,7 @@ impl ConnectorC {
     ) -> Self {
         let mut lock_scripts_cache = None;
         if let Some(cache_id) = lock_scripts_cache_id {
-            let file = &format!("{}lock-script-{}.json", CACHE_LOCATION, &cache_id);
+            let file = &format!("{}lock-scripts-{}.json", CACHE_LOCATION, &cache_id);
             lock_scripts_cache = read_cache::<Vec<ScriptBuf>>(Path::new(&file)).ok();
         }
 
