@@ -1614,7 +1614,6 @@ impl PegOutGraph {
             Ok(status) => match status.confirmed {
                 true => {
                     self.challenge_transaction.add_inputs_and_output(
-                        context,
                         crowdfundng_inputs,
                         keypair,
                         output_script_pubkey,

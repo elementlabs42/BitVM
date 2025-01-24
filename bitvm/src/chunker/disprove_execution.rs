@@ -2,7 +2,7 @@ use super::{
     assigner::BCAssigner, chunk_groth16_verifier::groth16_verify_to_segments, common::RawWitness,
     elements::dummy_element,
 };
-use crate::bridge::error::{ChunkerError, Error};
+use bridge::error::{ChunkerError, Error};
 use crate::chunker::common;
 use crate::groth16::{constants::LAMBDA, offchain_checker::compute_c_wi};
 use ark_bn254::{Bn254, G1Projective};
