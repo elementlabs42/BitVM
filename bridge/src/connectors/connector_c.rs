@@ -96,7 +96,7 @@ impl ConnectorC {
             &mut assigner,
             vec![commit_1_witness, commit_2_witness],
             vk.clone(),
-        )
+        ).ok_or(Error::Chunker(ChunkerError::InvalidProof))
     }
 }
 
