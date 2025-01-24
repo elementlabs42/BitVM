@@ -13,7 +13,7 @@ pub const MIN_RELAY_FEE_START_TIME: u64 = relay_fee(407);
 pub const MIN_RELAY_FEE_START_TIME_TIMEOUT: u64 = relay_fee(264);
 pub const MIN_RELAY_FEE_KICK_OFF_2: u64 = relay_fee(5461);
 pub const MIN_RELAY_FEE_KICK_OFF_TIMEOUT: u64 = relay_fee(181);
-pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(372);
+pub const MIN_RELAY_FEE_TAKE_1: u64 = relay_fee(380);
 pub const MIN_RELAY_FEE_TAKE_2: u64 = relay_fee(347);
 pub const MIN_RELAY_FEE_PEG_IN_DEPOSIT: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_PEG_IN_CONFIRM: u64 = relay_fee(173);
@@ -21,13 +21,13 @@ pub const MIN_RELAY_FEE_PEG_IN_REFUND: u64 = relay_fee(138);
 pub const MIN_RELAY_FEE_PEG_OUT: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_PEG_OUT_CONFIRM: u64 = relay_fee(122);
 pub const MIN_RELAY_FEE_ASSERT: u64 = relay_fee(232);
-pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(45212);
+pub const MIN_RELAY_FEE_ASSERT_INITIAL: u64 = relay_fee(48953);
 pub const MIN_RELAY_FEE_ASSERT_COMMIT1: u64 = relay_fee(739137);
-pub const MIN_RELAY_FEE_ASSERT_COMMIT2: u64 = relay_fee(378584);
+pub const MIN_RELAY_FEE_ASSERT_COMMIT2: u64 = relay_fee(470440);
 pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(352);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
 pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(194415);
-pub const MIN_RELAY_FEE_DISPROVE_CHAIN: u64 = relay_fee(224);
+pub const MIN_RELAY_FEE_DISPROVE_CHAIN: u64 = relay_fee(389369);
 
 pub struct Input {
     pub outpoint: OutPoint,
