@@ -19,7 +19,7 @@ use bridge::{
     transactions::{
         base::{
             Input, InputWithScript, MIN_RELAY_FEE_CHALLENGE, MIN_RELAY_FEE_KICK_OFF_1,
-            MIN_RELAY_FEE_KICK_OFF_TIMEOUT, MIN_RELAY_FEE_PEG_IN_CONFIRM,
+            MIN_RELAY_FEE_KICK_OFF_2, MIN_RELAY_FEE_KICK_OFF_TIMEOUT, MIN_RELAY_FEE_PEG_IN_CONFIRM,
             MIN_RELAY_FEE_PEG_IN_REFUND, MIN_RELAY_FEE_PEG_OUT, MIN_RELAY_FEE_PEG_OUT_CONFIRM,
             MIN_RELAY_FEE_START_TIME, MIN_RELAY_FEE_START_TIME_TIMEOUT,
         },
@@ -153,7 +153,7 @@ async fn test_peg_out_fees() {
                 outpoint: peg_out_confirm_outpoint,
                 amount: peg_out_confirm_input_amount,
             },
-            config.commitment_secrets,
+            config.commitment_secrets.clone(),
         )
         .await;
 
@@ -292,6 +292,7 @@ async fn test_peg_out_fees() {
         &start_time_timeout_tx,
     );
 
+    println!("Funding crowdfunding input ...");
     let challenge_input_amount = Amount::from_sat(peg_out_graph.min_crowdfunding_amount() + 1);
     let challenge_funding_utxo_address = generate_pay_to_pubkey_script_address(
         config.network,
@@ -349,6 +350,25 @@ async fn test_peg_out_fees() {
             - DUST_AMOUNT * 2
             - MIN_RELAY_FEE_START_TIME,
         &kick_off_timeout_tx,
+    );
+
+    let kick_off_2_tx = peg_out_graph
+        .kick_off_2(
+            &esplora_client,
+            &config.operator_context,
+            &config.commitment_secrets[&CommitmentMessageId::Superblock],
+            &config.commitment_secrets[&CommitmentMessageId::SuperblockHash],
+        )
+        .await
+        .unwrap();
+    check_tx_output_sum(
+        reward_amount + PEG_OUT_FEE_FOR_TAKE_1
+            - MIN_RELAY_FEE_PEG_OUT_CONFIRM
+            - MIN_RELAY_FEE_KICK_OFF_1
+            - MIN_RELAY_FEE_KICK_OFF_2
+            - DUST_AMOUNT * 2
+            - MIN_RELAY_FEE_START_TIME,
+        &kick_off_2_tx,
     );
 
     //TODO: kick off 2 and subsequent txns
