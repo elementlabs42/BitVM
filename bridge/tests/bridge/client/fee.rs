@@ -32,7 +32,8 @@ use crate::bridge::{
     faucet::{Faucet, FaucetType},
     helper::{
         check_tx_output_sum, find_peg_in_graph_by_peg_out, generate_stub_outpoint,
-        get_reward_amount, random_hex, wait_for_confirmation, wait_timelock_expiry,
+        get_correct_proof, get_reward_amount, random_hex, wait_for_confirmation,
+        wait_timelock_expiry,
     },
     mock::chain::mock::MockAdaptor,
     setup::{setup_test, INITIAL_AMOUNT, ONE_HUNDRED},
@@ -370,8 +371,83 @@ async fn test_peg_out_fees() {
             - MIN_RELAY_FEE_START_TIME,
         &kick_off_2_tx,
     );
+    let kick_off_2_result = esplora_client.broadcast(&kick_off_2_tx).await;
+    wait_for_confirmation().await;
+    println!(
+        "kick off 2 tx result: {:?}, {:?}\n",
+        kick_off_2_result,
+        kick_off_2_tx.compute_txid()
+    );
 
-    //TODO: kick off 2 and subsequent txns
+    let take_1_tx = peg_out_graph.take_1(&esplora_client).await.unwrap();
+    check_tx_output_sum(INITIAL_AMOUNT + reward_amount, &take_1_tx);
+
+    let verifier_pubkey_script =
+        generate_pay_to_pubkey_script(&config.verifier_0_context.verifier_public_key);
+    let disprove_chain_tx = peg_out_graph
+        .disprove_chain(&esplora_client, verifier_pubkey_script.clone())
+        .await
+        .unwrap();
+    check_tx_output_sum(reward_amount, &disprove_chain_tx);
+
+    let assert_initial_tx = peg_out_graph.assert_initial(&esplora_client).await.unwrap();
+    check_tx_output_sum(reward_amount, &assert_initial_tx);
+    let assert_initial_result = esplora_client.broadcast(&assert_initial_tx).await;
+    println!(
+        "assert initial tx result: {:?}, {:?}\n",
+        assert_initial_result,
+        assert_initial_tx.compute_txid()
+    );
+
+    let assert_commit1_tx = peg_out_graph
+        .assert_commit_1(&esplora_client, &config.commitment_secrets)
+        .await
+        .unwrap();
+    check_tx_output_sum(reward_amount, &assert_commit1_tx);
+    let assert_commit1_result = esplora_client.broadcast(&assert_commit1_tx).await;
+    println!(
+        "assert commit 1 tx result: {:?}, {:?}\n",
+        assert_commit1_result,
+        assert_commit1_tx.compute_txid()
+    );
+
+    let assert_commit2_tx = peg_out_graph
+        .assert_commit_2(&esplora_client, &config.commitment_secrets)
+        .await
+        .unwrap();
+    check_tx_output_sum(reward_amount, &assert_commit2_tx);
+    let assert_commit2_result = esplora_client.broadcast(&assert_commit2_tx).await;
+    println!(
+        "assert commit 2 tx result: {:?}, {:?}\n",
+        assert_commit2_result,
+        assert_commit2_tx.compute_txid()
+    );
+
+    let assert_final_tx = peg_out_graph.assert_final(&esplora_client).await.unwrap();
+    check_tx_output_sum(reward_amount, &assert_final_tx);
+    let assert_final_result = esplora_client.broadcast(&assert_final_tx).await;
+    println!(
+        "assert final tx result: {:?}, {:?}\n",
+        assert_final_result,
+        assert_final_tx.compute_txid()
+    );
+
+    let take_2_tx = peg_out_graph
+        .take_2(&esplora_client, &config.operator_context)
+        .await
+        .unwrap();
+    check_tx_output_sum(reward_amount, &take_2_tx);
+
+    let zk_verifying_key = get_correct_proof().vk;
+    let disprove_tx = peg_out_graph
+        .disprove(
+            &esplora_client,
+            verifier_pubkey_script.clone(),
+            &zk_verifying_key,
+        )
+        .await
+        .unwrap();
+    check_tx_output_sum(reward_amount, &disprove_tx);
 }
 
 // TODO: consider making the graph getter in client public after refactor
