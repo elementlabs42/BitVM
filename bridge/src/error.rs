@@ -50,7 +50,6 @@ pub enum L2Error {
 
 #[derive(Debug)]
 pub enum ChunkerError {
-    NotWrongProof,
     InvalidProof,
 }
 
