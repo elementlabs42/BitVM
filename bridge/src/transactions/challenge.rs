@@ -5,14 +5,10 @@ use bitcoin::{
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
-use crate::bridge::graphs::base::DUST_AMOUNT;
+use crate::{connectors::base::TaprootConnector, graphs::base::DUST_AMOUNT};
 
 use super::{
-    super::{
-        connectors::{base::*, connector_a::ConnectorA},
-        contexts::{base::BaseContext, operator::OperatorContext},
-        scripts::*,
-    },
+    super::{connectors::connector_a::ConnectorA, contexts::operator::OperatorContext, scripts::*},
     base::*,
     pre_signed::*,
     signing::populate_p2wsh_witness,

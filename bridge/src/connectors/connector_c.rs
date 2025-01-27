@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
-use crate::bridge::{
-        commitments::CommitmentMessageId, common::ZkProofVerifyingKey, error::Error,
-        transactions::signing_winternitz::WinternitzPublicKey,
-        utils::remove_script_and_control_block_from_witness,
-    };
+use crate::{
+    commitments::CommitmentMessageId,
+    common::ZkProofVerifyingKey,
+    error::{ChunkerError, Error},
+    utils::remove_script_and_control_block_from_witness,
+};
 
 use bitvm::{
     chunker::{
@@ -14,13 +15,9 @@ use bitvm::{
         disprove_execution::{disprove_exec, RawProof},
     },
     signatures::signing_winternitz::WinternitzPublicKey,
-    treepp::script,
 };
 
-use ark_groth16::VerifyingKey;
 use bitcoin::{
-    hashes::{ripemd160, Hash},
-    key::Secp256k1,
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, ScriptBuf, Transaction, TxIn, XOnlyPublicKey,
 };
@@ -96,7 +93,8 @@ impl ConnectorC {
             &mut assigner,
             vec![commit_1_witness, commit_2_witness],
             vk.clone(),
-        ).ok_or(Error::Chunker(ChunkerError::InvalidProof))
+        )
+        .ok_or(Error::Chunker(ChunkerError::InvalidProof))
     }
 }
 

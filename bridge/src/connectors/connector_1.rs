@@ -8,7 +8,7 @@ use bitcoin_script::script;
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
 
-use crate::bridge::{
+use crate::{
     commitments::CommitmentMessageId,
     superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
 };

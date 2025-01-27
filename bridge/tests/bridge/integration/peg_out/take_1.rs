@@ -1,4 +1,5 @@
 use bitcoin::{Address, Amount, OutPoint};
+use bitvm::signatures::signing_winternitz::WinternitzSigningInputs;
 use bridge::{
     commitments::CommitmentMessageId,
     connectors::base::TaprootConnector,
@@ -12,7 +13,6 @@ use bridge::{
         take_1::Take1Transaction,
     },
 };
-use bitvm::signatures::signing_winternitz::WinternitzSigningInputs;
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},

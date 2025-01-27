@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use bitcoin::{Address, Amount, OutPoint, Txid};
-use bitvm::bridge::{
+use bridge::{
     client::{
         chain::chain::{Chain, PegOutEvent},
         client::BitVMClient,
@@ -323,7 +323,6 @@ async fn test_peg_out_fees() {
     let challenge_tx = peg_out_graph
         .challenge(
             &esplora_client,
-            &config.depositor_context,
             &challenge_crowdfunding_inputs,
             &config.depositor_context.depositor_keypair,
             depositor_pubkey_script.clone(),

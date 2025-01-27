@@ -14,47 +14,41 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
 };
 
-use crate::bridge::{
-        commitments::CommitmentMessageId,
-        common::ZkProofVerifyingKey,
-        connectors::{
-            connector_c::{
-                generate_assert_leaves, get_commit_from_assert_commit_tx, LockScriptsGenerator,
+use crate::{
+    commitments::CommitmentMessageId,
+    common::ZkProofVerifyingKey,
+    connectors::{
+        connector_c::{
+            generate_assert_leaves, get_commit_from_assert_commit_tx, LockScriptsGenerator,
+        },
+        connector_d::ConnectorD,
+        connector_e::ConnectorE,
+        connector_f_1::ConnectorF1,
+        connector_f_2::ConnectorF2,
+    },
+    error::{Error, GraphError, L2Error, NamedTx},
+    superblock::{
+        find_superblock, get_start_time_block_number, get_superblock_hash_message,
+        get_superblock_message,
+    },
+    transactions::{
+        assert_transactions::{
+            assert_commit_1::AssertCommit1Transaction,
+            assert_commit_2::AssertCommit2Transaction,
+            assert_final::AssertFinalTransaction,
+            assert_initial::AssertInitialTransaction,
+            utils::{
+                groth16_commitment_secrets_to_public_keys, merge_to_connector_c_commits_public_key,
+                sign_assert_tx_with_groth16_proof, AssertCommit1ConnectorsE,
+                AssertCommit2ConnectorsE, AssertCommitConnectorsF,
             },
-            connector_d::ConnectorD,
-            connector_e::ConnectorE,
-            connector_f_1::ConnectorF1,
-            connector_f_2::ConnectorF2,
         },
-        error::{Error, GraphError, L2Error, NamedTx},
-        superblock::{
-            find_superblock, get_start_time_block_number, get_superblock_hash_message,
-            get_superblock_message,
-        },
-        transactions::{
-            assert_transactions::{
-                assert_commit_1::AssertCommit1Transaction,
-                assert_commit_2::AssertCommit2Transaction,
-                assert_final::AssertFinalTransaction,
-                assert_initial::AssertInitialTransaction,
-                utils::{
-                    groth16_commitment_secrets_to_public_keys,
-                    merge_to_connector_c_commits_public_key, sign_assert_tx_with_groth16_proof,
-                    AssertCommit1ConnectorsE, AssertCommit2ConnectorsE, AssertCommitConnectorsF,
-                },
-            },
-            peg_in_confirm::PEG_IN_CONFIRM_TX_NAME,
-            pre_signed_musig2::PreSignedMusig2Transaction,
-            signing_winternitz::WinternitzSigningInputs,
-        },
+        peg_in_confirm::PEG_IN_CONFIRM_TX_NAME,
         pre_signed_musig2::PreSignedMusig2Transaction,
-    };
-
-use bitvm::chunker::{
-    assigner::BridgeAssigner,
-    chunker::disprove_execution::RawProof,
-    common::BLAKE3_HASH_LENGTH,
+    },
 };
+
+use bitvm::chunker::disprove_execution::RawProof;
 use bitvm::signatures::signing_winternitz::{
     WinternitzPublicKey, WinternitzSecret, WinternitzSigningInputs,
 };

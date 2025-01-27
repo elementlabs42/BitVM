@@ -1,8 +1,7 @@
 use bitcoin::{Address, Amount, OutPoint};
-use bitvm::chunker::disprove_execution::{disprove_exec, RawProof};
 use bridge::{
-    connectors::base::TaprootConnector,
-    graphs::base::{DUST_AMOUNT, FEE_AMOUNT, INITIAL_AMOUNT},
+    connectors::{base::TaprootConnector, connector_c::get_commit_from_assert_commit_tx},
+    graphs::base::DUST_AMOUNT,
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         assert_transactions::{

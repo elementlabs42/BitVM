@@ -3,14 +3,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 
-use crate::chunker::assigner::BridgeAssigner;
+use bitvm::{chunker::assigner::BridgeAssigner, signatures::signing_winternitz::WinternitzSecret};
 
 use super::{
     constants::{
         DESTINATION_NETWORK_TXID_LENGTH, SOURCE_NETWORK_TXID_LENGTH, START_TIME_MESSAGE_LENGTH,
     },
     superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
-    transactions::signing_winternitz::WinternitzSecret,
 };
 
 #[derive(
@@ -116,7 +115,7 @@ impl CommitmentMessageId {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::bridge::serialization::{deserialize, serialize};
+    use crate::serialization::{deserialize, serialize};
 
     use super::CommitmentMessageId;
 

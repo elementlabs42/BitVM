@@ -1,15 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    bridge::{
-        commitments::CommitmentMessageId,
-        constants::{N_SEQUENCE_FOR_LOCK_TIME, START_TIME_MESSAGE_LENGTH},
-        transactions::signing_winternitz::{
-            winternitz_message_checksig, WinternitzPublicKey, LOG_D,
-        },
-    },
-    signatures::utils::digits_to_number,
-    treepp::script,
+    commitments::CommitmentMessageId,
+    constants::{N_SEQUENCE_FOR_LOCK_TIME, START_TIME_MESSAGE_LENGTH},
 };
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},

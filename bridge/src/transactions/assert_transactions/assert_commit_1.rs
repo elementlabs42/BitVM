@@ -1,13 +1,7 @@
 use bitcoin::{absolute, consensus, Amount, ScriptBuf, Transaction, TxOut};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    graphs::peg_out::CommitmentMessageId,
-    transactions::signing::{
-        populate_p2wsh_witness_with_signatures, populate_taproot_input_witness,
-        push_p2wsh_script_to_witness, push_taproot_leaf_unlock_data_to_witness,
-    },
-};
+use crate::transactions::signing::populate_taproot_input_witness;
 
 use super::{
     super::{
@@ -17,9 +11,7 @@ use super::{
     },
     utils::AssertCommit1ConnectorsE,
 };
-use bitvm::{
-    chunker::common::RawWitness, execute_raw_script_with_inputs, execute_script_with_inputs,
-};
+use bitvm::{chunker::common::RawWitness, execute_raw_script_with_inputs};
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct AssertCommit1Transaction {

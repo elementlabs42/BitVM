@@ -1,7 +1,6 @@
 use bitcoin::Network;
 use bitcoin_script::{script, Script};
-
-use crate::{bigint::BigIntImpl, pseudo::NMUL};
+use bitvm::{bigint::BigIntImpl, pseudo::NMUL};
 
 const NUM_BLOCKS_REGTEST: u32 = 3;
 const NUM_BLOCKS_TESTNET: u32 = 3;

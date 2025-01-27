@@ -1,5 +1,5 @@
 use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
-use crate::bridge::graphs::base::MIN_RELAY_FEE_RATE;
+use crate::graphs::base::MIN_RELAY_FEE_RATE;
 use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use core::cmp;
 use itertools::Itertools;

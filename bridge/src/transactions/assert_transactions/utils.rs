@@ -2,10 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
-        commitments::CommitmentMessageId,
-        connectors::{
-            connector_e::ConnectorE, connector_f_1::ConnectorF1, connector_f_2::ConnectorF2,
-        },
+    commitments::CommitmentMessageId,
+    connectors::{connector_e::ConnectorE, connector_f_1::ConnectorF1, connector_f_2::ConnectorF2},
 };
 
 use bitvm::{

@@ -6,7 +6,7 @@ use musig2::{secp256k1::schnorr::Signature, PartialSignature, PubNonce, SecNonce
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::bridge::{connectors::base::TaprootConnector, superblock::get_superblock_message};
+use crate::{connectors::base::TaprootConnector, superblock::get_superblock_message};
 
 use super::{
     super::{

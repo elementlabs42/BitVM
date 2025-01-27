@@ -3,7 +3,7 @@ use std::mem::size_of;
 use bitcoin::{block::Header, consensus::encode::serialize, hashes::Hash, BlockHash, Network};
 use bitcoin_script::{script, Script};
 
-use crate::pseudo::NMUL;
+use bitvm::pseudo::NMUL;
 
 /*
   TODO: Implement selecting a block that marks the start of a superblock measurement period

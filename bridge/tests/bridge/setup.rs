@@ -6,42 +6,41 @@ use super::helper::{
     get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached,
     get_lock_scripts_cached,
 };
-use crate::{
-        client::client::BitVMClient,
-        commitments::CommitmentMessageId,
-        connectors::{
-            connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
-            connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
-            connector_6::Connector6, connector_a::ConnectorA, connector_b::ConnectorB,
-            connector_c::ConnectorC, connector_d::ConnectorD, connector_e::ConnectorE,
-            connector_f_1::ConnectorF1, connector_f_2::ConnectorF2, connector_z::ConnectorZ,
-        },
-        constants::{
-            DestinationNetwork, DESTINATION_NETWORK_TXID_LENGTH, SOURCE_NETWORK_TXID_LENGTH,
-            START_TIME_MESSAGE_LENGTH,
-        },
-        contexts::{
-            base::generate_keys_from_secret, depositor::DepositorContext,
-            operator::OperatorContext, verifier::VerifierContext, withdrawer::WithdrawerContext,
-        },
-        graphs::base::{
-            DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
-            VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET,
-        },
-        superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
-        transactions::{
-            assert_transactions::utils::{
-                groth16_commitment_secrets_to_public_keys, merge_to_connector_c_commits_public_key,
-                AssertCommit1ConnectorsE, AssertCommit2ConnectorsE, AssertCommitConnectorsF,
-            },
-            signing_winternitz::{WinternitzPublicKey, WinternitzSecret},
-        },
+use bridge::{
+    client::client::BitVMClient,
+    commitments::CommitmentMessageId,
+    connectors::{
+        connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
+        connector_3::Connector3, connector_4::Connector4, connector_5::Connector5,
+        connector_6::Connector6, connector_a::ConnectorA, connector_b::ConnectorB,
+        connector_c::ConnectorC, connector_d::ConnectorD, connector_e::ConnectorE,
+        connector_f_1::ConnectorF1, connector_f_2::ConnectorF2, connector_z::ConnectorZ,
+    },
+    constants::{
+        DestinationNetwork, DESTINATION_NETWORK_TXID_LENGTH, SOURCE_NETWORK_TXID_LENGTH,
+        START_TIME_MESSAGE_LENGTH,
+    },
+    contexts::{
+        base::generate_keys_from_secret, depositor::DepositorContext, operator::OperatorContext,
+        verifier::VerifierContext, withdrawer::WithdrawerContext,
+    },
+    graphs::base::{
+        DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
+        VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET,
+    },
+    superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
+    transactions::assert_transactions::utils::{
+        groth16_commitment_secrets_to_public_keys, merge_to_connector_c_commits_public_key,
+        AssertCommit1ConnectorsE, AssertCommit2ConnectorsE, AssertCommitConnectorsF,
+    },
 };
 
 use bitvm::{
     chunker::disprove_execution::RawProof,
-    signatures::winternitz::Parameters,
-    chunker::assigner::BridgeAssigner,
+    signatures::{
+        signing_winternitz::{WinternitzPublicKey, WinternitzSecret},
+        winternitz::Parameters,
+    },
 };
 
 pub const INITIAL_AMOUNT: u64 = 2 << 20; // 2097152

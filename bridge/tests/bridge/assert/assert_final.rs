@@ -1,6 +1,6 @@
 use bitcoin::{consensus::encode::serialize_hex, Address, Amount};
 
-use bitvm::bridge::{
+use bridge::{
     connectors::base::{P2wshConnector, TaprootConnector},
     graphs::base::DUST_AMOUNT,
     transactions::{

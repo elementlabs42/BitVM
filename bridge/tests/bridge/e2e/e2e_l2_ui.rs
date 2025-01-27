@@ -1,4 +1,3 @@
-use futures::StreamExt;
 use std::time::Duration;
 
 use crate::bridge::{
@@ -7,18 +6,19 @@ use crate::bridge::{
     setup::{setup_test, INITIAL_AMOUNT},
 };
 use bitcoin::{Address, Amount};
-use bridge::{client::chain::chain::Chain, transactions::pre_signed::PreSignedTransaction};
+use bridge::{
+    client::chain::chain::Chain, graphs::base::BaseGraph,
+    transactions::pre_signed::PreSignedTransaction,
+};
 use bridge::{
     client::client::BitVMClient,
     contexts::{depositor::DepositorContext, operator::OperatorContext},
-    graphs::{
-        base::{BaseGraph, FEE_AMOUNT},
-        peg_out::PegOutOperatorStatus,
-    },
+    graphs::{base::FEE_AMOUNT, peg_out::PegOutOperatorStatus},
     scripts::generate_pay_to_pubkey_script_address,
     transactions::base::Input,
 };
 use esplora_client::Builder;
+use futures::StreamExt;
 use serial_test::serial;
 use tokio::time::sleep;
 

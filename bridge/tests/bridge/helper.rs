@@ -10,7 +10,7 @@ use bitcoin::{
     TxMerkleNode,
 };
 
-use crate::{
+use bridge::{
     client::client::BitVMClient,
     commitments::CommitmentMessageId,
     connectors::connector_c::generate_assert_leaves,
@@ -19,12 +19,13 @@ use crate::{
         peg_in::PegInGraph,
         peg_out::PegOutGraph,
     },
-    transactions::signing_winternitz::WinternitzPublicKey,
     utils::num_blocks_per_network,
 };
 
-
-use bitvm::chunker::{assigner::BridgeAssigner, disprove_execution::RawProof};
+use bitvm::{
+    chunker::{assigner::BridgeAssigner, disprove_execution::RawProof},
+    signatures::signing_winternitz::WinternitzPublicKey,
+};
 use rand::{RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;

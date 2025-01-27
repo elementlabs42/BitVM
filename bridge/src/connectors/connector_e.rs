@@ -1,8 +1,5 @@
 use super::{super::transactions::base::Input, base::*};
-use crate::{
-    commitments::CommitmentMessageId,
-    transactions::signing_winternitz::{winternitz_message_checksig_verify, WinternitzPublicKey},
-};
+use crate::commitments::CommitmentMessageId;
 use bitcoin::{
     taproot::{TaprootBuilder, TaprootSpendInfo},
     Address, Network, PublicKey, ScriptBuf, TxIn,

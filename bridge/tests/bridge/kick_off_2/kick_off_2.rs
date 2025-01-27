@@ -12,17 +12,17 @@ use bridge::{
 };
 
 use crate::{
-    faucet::{Faucet, FaucetType},
-    helper::generate_stub_outpoint,
-    setup::setup_test,
+    bridge::faucet::{Faucet, FaucetType},
+    bridge::helper::generate_stub_outpoint,
+    bridge::setup::setup_test,
 };
 use crate::{
-    helper::{check_tx_output_sum, get_reward_amount, get_superblock_header, wait_timelock_expiry},
-    setup::ONE_HUNDRED,
+    bridge::helper::{
+        check_tx_output_sum, get_reward_amount, get_superblock_header, wait_timelock_expiry,
+    },
+    bridge::setup::ONE_HUNDRED,
 };
 use bitvm::signatures::signing_winternitz::WinternitzSigningInputs;
-
-use super::super::{helper::generate_stub_outpoint, setup::setup_test};
 
 #[tokio::test]
 async fn test_kick_off_2_tx_success() {

@@ -3,8 +3,7 @@ use std::time::Duration;
 use bitcoin::Amount;
 
 use bridge::{
-    graphs::base::{FEE_AMOUNT, INITIAL_AMOUNT},
-    scripts::generate_pay_to_pubkey_script_address,
+    graphs::base::FEE_AMOUNT, scripts::generate_pay_to_pubkey_script_address,
     transactions::base::Input,
 };
 

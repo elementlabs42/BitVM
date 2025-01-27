@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    constants::{DESTINATION_NETWORK_TXID_LENGTH, SOURCE_NETWORK_TXID_LENGTH},
     commitments::CommitmentMessageId,
+    constants::{DESTINATION_NETWORK_TXID_LENGTH, SOURCE_NETWORK_TXID_LENGTH},
     transactions::base::Input,
 };
 

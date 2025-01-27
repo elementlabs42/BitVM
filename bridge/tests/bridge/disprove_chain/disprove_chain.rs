@@ -1,5 +1,6 @@
 use bitcoin::{key::Keypair, Amount, Network::Regtest, PrivateKey, PublicKey, TxOut};
 
+use bitvm::signatures::signing_winternitz::{generate_winternitz_witness, WinternitzSigningInputs};
 use bridge::{
     commitments::CommitmentMessageId,
     connectors::base::TaprootConnector,
@@ -9,7 +10,6 @@ use bridge::{
         base::{BaseTransaction, Input, MIN_RELAY_FEE_DISPROVE_CHAIN},
         disprove_chain::DisproveChainTransaction,
         pre_signed_musig2::PreSignedMusig2Transaction,
-        signing_winternitz::{generate_winternitz_witness, WinternitzSigningInputs},
     },
 };
 use secp256k1::SECP256K1;

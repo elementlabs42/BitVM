@@ -1,6 +1,6 @@
 use bitcoin::{Amount, OutPoint};
 
-use bitvm::bridge::{
+use bridge::{
     graphs::base::DUST_AMOUNT,
     transactions::{
         assert_transactions::{

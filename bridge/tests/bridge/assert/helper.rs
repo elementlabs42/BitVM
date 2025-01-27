@@ -1,5 +1,5 @@
 use bitcoin::{Amount, Network, Transaction, Txid};
-use bitvm::bridge::{
+use bridge::{
     connectors::{base::TaprootConnector, connector_b::ConnectorB, connector_d::ConnectorD},
     contexts::verifier::VerifierContext,
     transactions::{

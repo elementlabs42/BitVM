@@ -1,6 +1,6 @@
 use bitcoin::Amount;
 
-use bitvm::bridge::{
+use bridge::{
     graphs::base::DUST_AMOUNT,
     transactions::base::{
         MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2, MIN_RELAY_FEE_ASSERT_FINAL,

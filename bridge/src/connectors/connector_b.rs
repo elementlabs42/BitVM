@@ -5,21 +5,21 @@ use bitcoin::{
     Address, Network, ScriptBuf, TxIn, XOnlyPublicKey,
 };
 use bitcoin_script::script;
+use bitvm::{
+    hash::sha256::{sha256, sha256_32bytes},
+    signatures::{
+        signing_winternitz::{winternitz_message_checksig, WinternitzPublicKey, LOG_D},
+        utils::digits_to_number,
+    },
+};
 use secp256k1::SECP256K1;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    bridge::{
-        commitments::CommitmentMessageId,
-        constants::START_TIME_MESSAGE_LENGTH,
-        superblock::{extract_superblock_ts_from_header, SUPERBLOCK_MESSAGE_LENGTH},
-        transactions::signing_winternitz::{
-            winternitz_message_checksig, WinternitzPublicKey, LOG_D,
-        },
-        utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
-    },
-    hash::sha256::{sha256, sha256_32bytes},
-    signatures::utils::digits_to_number,
+    commitments::CommitmentMessageId,
+    constants::START_TIME_MESSAGE_LENGTH,
+    superblock::{extract_superblock_ts_from_header, SUPERBLOCK_MESSAGE_LENGTH},
+    utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
 };
 
 use super::{
@@ -176,24 +176,25 @@ mod tests {
         TxMerkleNode,
     };
     use bitcoin_script::script;
-
-    use crate::{
-        bridge::{
-            constants::START_TIME_MESSAGE_LENGTH,
-            superblock::{
-                extract_superblock_ts_from_header, get_start_time_block_number,
-                get_superblock_hash_message, SUPERBLOCK_HASH_MESSAGE_LENGTH,
-                SUPERBLOCK_MESSAGE_LENGTH,
-            },
-            transactions::signing_winternitz::{
+    use bitvm::{
+        execute_script,
+        hash::sha256::{sha256, sha256_32bytes},
+        signatures::{
+            signing_winternitz::{
                 generate_winternitz_witness, winternitz_message_checksig, WinternitzPublicKey,
                 WinternitzSecret, WinternitzSigningInputs, LOG_D,
             },
-            utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
+            utils::digits_to_number,
         },
-        execute_script,
-        hash::sha256::{sha256, sha256_32bytes},
-        signatures::utils::digits_to_number,
+    };
+
+    use crate::{
+        constants::START_TIME_MESSAGE_LENGTH,
+        superblock::{
+            extract_superblock_ts_from_header, get_start_time_block_number,
+            get_superblock_hash_message, SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH,
+        },
+        utils::{sb_hash_from_bytes, sb_hash_from_nibbles, H256},
     };
 
     // Copied from tests/bridge/helper.rs
@@ -222,8 +223,7 @@ mod tests {
         let committed_sb = get_superblock_header();
         let mut disprove_sb = get_superblock_header();
         disprove_sb.time = get_start_time_block_number(Regtest) + 1;
-        let mut disprove_sb_message =
-            crate::bridge::superblock::get_superblock_message(&disprove_sb);
+        let mut disprove_sb_message = crate::superblock::get_superblock_message(&disprove_sb);
         disprove_sb_message.reverse();
 
         let committed_sb_hash_secret = WinternitzSecret::new(SUPERBLOCK_HASH_MESSAGE_LENGTH);

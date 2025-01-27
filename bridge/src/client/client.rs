@@ -13,13 +13,13 @@ use std::{
     path::Path,
 };
 
-use bitcoin::{
-    absolute::Height, consensus::encode::serialize_hex, Address, Amount, Network, OutPoint,
-    PublicKey, ScriptBuf, Txid, XOnlyPublicKey,
-};
-use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
-
 use crate::{
+    commitments::CommitmentMessageId,
+    common::ZkProofVerifyingKey,
+    connectors::{
+        base::TaprootConnector, connector_0::Connector0, connector_c::LockScriptsGenerator,
+        connector_z::ConnectorZ,
+    },
     constants::DestinationNetwork,
     contexts::base::generate_n_of_n_public_key,
     error::{ClientError, Error},
@@ -35,7 +35,6 @@ use crate::{
     transactions::{
         peg_in_confirm::PegInConfirmTransaction, peg_in_deposit::PegInDepositTransaction,
         peg_in_refund::PegInRefundTransaction, pre_signed_musig2::PreSignedMusig2Transaction,
-        signing_winternitz::WinternitzSecret,
     },
 };
 
@@ -761,7 +760,7 @@ impl BitVMClient {
                         peg_in_graph_id,
                         input,
                         CommitmentMessageId::generate_commitment_secrets(),
-                        generate_assert_leaves,
+                        crate::connectors::connector_c::generate_assert_leaves,
                     )
                     .await;
                 }
