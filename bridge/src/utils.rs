@@ -1,6 +1,12 @@
+use std::{
+    io::{Read, Write},
+    path::PathBuf,
+};
+
 use bitcoin::Network;
 use bitcoin_script::{script, Script};
 use bitvm::{bigint::BigIntImpl, pseudo::NMUL};
+use lz4_flex::block::{compress_prepend_size, decompress_size_prepended};
 use serde::{Deserialize, Serialize};
 
 const NUM_BLOCKS_REGTEST: u32 = 3;
@@ -101,6 +107,28 @@ pub fn sb_hash_from_bytes() -> Script {
     }
 }
 
+pub fn cleanup_cache_files(prefix: &str, cache_location: &str, max_cache_files: u32) {
+    let mut paths: Vec<PathBuf> = std::fs::read_dir(cache_location)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_str().unwrap_or("").starts_with(prefix))
+        .map(|entry| entry.path())
+        .collect();
+
+    paths.sort_by_key(|path| {
+        std::fs::metadata(path)
+            .and_then(|m| m.modified())
+            .unwrap_or_else(|_| std::time::SystemTime::now())
+    });
+
+    if paths.len() >= max_cache_files as usize {
+        if let Some(oldest) = paths.first() {
+            std::fs::remove_file(oldest).expect("Failed to delete the oldest cache file");
+            println!("Deleted oldest cache file: {:?}", oldest);
+        }
+    }
+}
+
 pub fn write_cache(file_path: &std::path::Path, data: &impl Serialize) -> std::io::Result<()> {
     println!("Writing cache to {}...", file_path.to_str().unwrap());
     let path_only = file_path
@@ -111,9 +139,13 @@ pub fn write_cache(file_path: &std::path::Path, data: &impl Serialize) -> std::i
         std::fs::create_dir_all(path_only)?;
     }
     let file = std::fs::File::create(file_path)?;
-    let file = std::io::BufWriter::new(file);
+    let mut file = std::io::BufWriter::new(file);
 
-    serde_json::to_writer(file, data).map_err(std::io::Error::from)
+    let compressed = compress_prepend_size(&serde_json::to_vec(data).unwrap());
+
+    file.write_all(&compressed)?;
+
+    Ok(())
 }
 
 pub fn read_cache<T>(file_path: &std::path::Path) -> std::io::Result<T>
@@ -122,7 +154,16 @@ where
 {
     println!("Reading cache from {}...", file_path.to_str().unwrap());
     let file = std::fs::File::open(file_path)?;
-    let file = std::io::BufReader::new(file);
+    let mut file = std::io::BufReader::new(file);
 
-    serde_json::from_reader(file).map_err(std::io::Error::from)
+    let mut compressed_data = Vec::new();
+    file.read_to_end(&mut compressed_data)?;
+
+    let decompressed_data = decompress_size_prepended(&compressed_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+    let deserialized: T = serde_json::from_slice(&decompressed_data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+    Ok(deserialized)
 }

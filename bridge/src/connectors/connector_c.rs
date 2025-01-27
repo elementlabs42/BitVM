@@ -10,7 +10,9 @@ use crate::{
     connectors::base::*,
     error::{ChunkerError, Error, GraphError},
     transactions::base::Input,
-    utils::{read_cache, remove_script_and_control_block_from_witness, write_cache},
+    utils::{
+        cleanup_cache_files, read_cache, remove_script_and_control_block_from_witness, write_cache,
+    },
 };
 use bitcoin::{
     hashes::{hash160, Hash},
@@ -47,6 +49,7 @@ pub struct DisproveLeaf {
 
 // TODO: use the same cache location as in client
 const CACHE_LOCATION: &str = "bridge_data/cache/";
+const MAX_CACHE_FILES: u32 = 20;
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct ConnectorC {
@@ -83,6 +86,8 @@ impl Serialize for ConnectorC {
         } else {
             write_cache(lock_script_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
         }
+
+        cleanup_cache_files("lock-scripts-", CACHE_LOCATION, MAX_CACHE_FILES);
 
         c.end()
     }
