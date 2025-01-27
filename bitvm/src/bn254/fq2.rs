@@ -223,7 +223,7 @@ impl Fq2 {
         for h in [a1_sq_hint, a0_sq_hint, idmul_hint, t1a0_hint, t1a1_hint].iter() {
             all_hints.extend_from_slice(h);
         }
-        (scr, all_hints)
+        return (scr, all_hints);
     }
 
     pub fn div2() -> Script {
