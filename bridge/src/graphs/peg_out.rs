@@ -18,11 +18,8 @@ use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::{
-        connector_c::get_commit_from_assert_commit_tx,
-        connector_d::ConnectorD,
-        connector_e::ConnectorE,
-        connector_f_1::ConnectorF1,
-        connector_f_2::ConnectorF2,
+        connector_c::get_commit_from_assert_commit_tx, connector_d::ConnectorD,
+        connector_e::ConnectorE, connector_f_1::ConnectorF1, connector_f_2::ConnectorF2,
     },
     error::{Error, GraphError, L2Error, NamedTx},
     superblock::{

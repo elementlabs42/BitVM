@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use bitcoin::{Address, Amount, OutPoint, Txid};
+use bitcoin::{Address, Amount, OutPoint};
 use bridge::{
     client::{
         chain::chain::{Chain, PegOutEvent},
@@ -8,7 +6,7 @@ use bridge::{
     },
     commitments::CommitmentMessageId,
     graphs::{
-        base::{max, BaseGraph, DUST_AMOUNT, PEG_IN_FEE, PEG_OUT_FEE_FOR_TAKE_1},
+        base::{max, BaseGraph, DUST_AMOUNT, MIN_RELAY_FEE_ASSERT_SET, PEG_IN_FEE, PEG_OUT_FEE},
         peg_in::PegInGraph,
         peg_out::PegOutGraph,
     },
@@ -18,10 +16,12 @@ use bridge::{
     },
     transactions::{
         base::{
-            Input, InputWithScript, MIN_RELAY_FEE_CHALLENGE, MIN_RELAY_FEE_KICK_OFF_1,
+            Input, InputWithScript, MIN_RELAY_FEE_ASSERT_INITIAL, MIN_RELAY_FEE_CHALLENGE,
+            MIN_RELAY_FEE_DISPROVE, MIN_RELAY_FEE_DISPROVE_CHAIN, MIN_RELAY_FEE_KICK_OFF_1,
             MIN_RELAY_FEE_KICK_OFF_2, MIN_RELAY_FEE_KICK_OFF_TIMEOUT, MIN_RELAY_FEE_PEG_IN_CONFIRM,
             MIN_RELAY_FEE_PEG_IN_REFUND, MIN_RELAY_FEE_PEG_OUT, MIN_RELAY_FEE_PEG_OUT_CONFIRM,
-            MIN_RELAY_FEE_START_TIME, MIN_RELAY_FEE_START_TIME_TIMEOUT,
+            MIN_RELAY_FEE_START_TIME, MIN_RELAY_FEE_START_TIME_TIMEOUT, MIN_RELAY_FEE_TAKE_1,
+            MIN_RELAY_FEE_TAKE_2,
         },
         pre_signed::PreSignedTransaction,
     },
@@ -32,8 +32,7 @@ use crate::bridge::{
     faucet::{Faucet, FaucetType},
     helper::{
         check_tx_output_sum, find_peg_in_graph_by_peg_out, generate_stub_outpoint,
-        get_correct_proof, get_reward_amount, random_hex, wait_for_confirmation,
-        wait_timelock_expiry,
+        get_incorrect_proof, get_reward_amount, wait_for_confirmation, wait_timelock_expiry,
     },
     mock::chain::mock::MockAdaptor,
     setup::{setup_test, INITIAL_AMOUNT, ONE_HUNDRED},
@@ -104,48 +103,53 @@ async fn test_peg_in_fees() {
 #[tokio::test]
 async fn test_peg_out_fees() {
     let mut config = setup_test().await;
+    let faucet = Faucet::new(FaucetType::EsploraRegtest);
 
-    let peg_in_amount = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE_FOR_TAKE_1);
-    let peg_in_outpoint = OutPoint {
-        txid: Txid::from_str(&random_hex(32)).unwrap(),
-        vout: 0,
-    };
-    let input = Input {
-        outpoint: peg_in_outpoint,
-        amount: peg_in_amount,
-    };
-    let peg_in_graph_id = config
-        .client_0
-        .create_peg_in_graph(input, &config.depositor_evm_address)
-        .await;
+    let peg_in_amount = Amount::from_sat(INITIAL_AMOUNT + PEG_IN_FEE);
+    let peg_in_funding_address = generate_pay_to_pubkey_script_address(
+        config.depositor_context.network,
+        &config.depositor_context.depositor_public_key,
+    );
 
     let peg_out_amount = Amount::from_sat(ONE_HUNDRED + MIN_RELAY_FEE_PEG_OUT);
     let reward_amount = get_reward_amount(ONE_HUNDRED);
-    let peg_out_confirm_input_amount = Amount::from_sat(reward_amount + PEG_OUT_FEE_FOR_TAKE_1);
-    let faucet = Faucet::new(FaucetType::EsploraRegtest);
-    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
-    let address = generate_pay_to_pubkey_script_address(
+    let peg_out_confirm_input_amount = Amount::from_sat(reward_amount + PEG_OUT_FEE);
+    let peg_out_funding_address = generate_pay_to_pubkey_script_address(
         config.operator_context.network,
         &config.operator_context.operator_public_key,
     );
-    funding_inputs.push((&address, peg_out_amount));
-    funding_inputs.push((&address, peg_out_confirm_input_amount));
+
+    let mut funding_inputs: Vec<(&Address, Amount)> = vec![];
+    funding_inputs.push((&peg_in_funding_address, peg_in_amount));
+    funding_inputs.push((&peg_out_funding_address, peg_out_amount));
+    funding_inputs.push((&peg_out_funding_address, peg_out_confirm_input_amount));
     faucet
         .fund_inputs(&config.client_0, &funding_inputs)
         .await
         .wait()
         .await;
 
-    let peg_out_outpoint = generate_stub_outpoint(&config.client_0, &address, peg_out_amount).await;
-    let peg_out_confirm_outpoint =
-        generate_stub_outpoint(&config.client_0, &address, peg_out_confirm_input_amount).await;
+    let peg_in_outpoint =
+        generate_stub_outpoint(&config.client_0, &peg_in_funding_address, peg_in_amount).await;
+    let peg_out_outpoint =
+        generate_stub_outpoint(&config.client_0, &peg_out_funding_address, peg_out_amount).await;
+    let peg_out_confirm_outpoint = generate_stub_outpoint(
+        &config.client_0,
+        &peg_out_funding_address,
+        peg_out_confirm_input_amount,
+    )
+    .await;
 
-    let peg_out_input = Input {
-        outpoint: peg_out_outpoint,
-        amount: peg_out_amount,
-    };
-
-    config.client_0.sync().await;
+    let peg_in_graph_id = config
+        .client_0
+        .create_peg_in_graph(
+            Input {
+                outpoint: peg_in_outpoint,
+                amount: peg_in_amount,
+            },
+            &config.depositor_evm_address,
+        )
+        .await;
     let peg_out_graph_id = config
         .client_0
         .create_peg_out_graph(
@@ -158,22 +162,50 @@ async fn test_peg_out_fees() {
         )
         .await;
 
-    config.client_0.push_verifier_nonces(&peg_out_graph_id);
+    let esplora_client = config.client_0.esplora.clone();
+    config
+        .client_0
+        .broadcast_peg_in_deposit(&peg_in_graph_id)
+        .await
+        .expect("Failed to broadcast peg-in deposit");
+    wait_timelock_expiry(config.network, Some("peg-in deposit connector z")).await;
+
+    println!(
+        "musig2 signing for peg-in: {} and its related peg-out: {}",
+        peg_in_graph_id, peg_out_graph_id
+    );
+    config
+        .client_0
+        .process_peg_in_as_verifier(&peg_in_graph_id) // verifier 0 push nonces
+        .await;
     config.client_0.flush().await;
 
     config.client_1.sync().await;
-    config.client_1.push_verifier_nonces(&peg_out_graph_id);
+    config
+        .client_1
+        .process_peg_in_as_verifier(&peg_in_graph_id) // verifier 1 push nonces
+        .await;
     config.client_1.flush().await;
 
     config.client_0.sync().await;
-    config.client_0.push_verifier_signature(&peg_out_graph_id);
+    config
+        .client_0
+        .process_peg_in_as_verifier(&peg_in_graph_id) // verifier 0 push signature
+        .await;
     config.client_0.flush().await;
 
     config.client_1.sync().await;
-    config.client_1.push_verifier_signature(&peg_out_graph_id);
+    config
+        .client_1
+        .process_peg_in_as_verifier(&peg_in_graph_id) // verifier 1 push signature
+        .await;
     config.client_1.flush().await;
 
-    let esplora_client = config.client_0.esplora.clone();
+    config.client_0.sync().await;
+    config
+        .client_0
+        .process_peg_in_as_verifier(&peg_in_graph_id) // broadcast peg-in confirm
+        .await;
 
     let peg_in_graph = find_peg_in_graph_by_peg_out(&config.client_0, &peg_out_graph_id).unwrap();
     let peg_in_confirm_tx = peg_in_graph.peg_in_confirm_transaction_ref().tx();
@@ -207,7 +239,14 @@ async fn test_peg_out_fees() {
 
     let peg_out_graph = get_peg_out_graph_mut(&mut config.client_0, peg_out_graph_id.clone());
     let peg_out_tx = peg_out_graph
-        .peg_out(&esplora_client, &config.operator_context, peg_out_input)
+        .peg_out(
+            &esplora_client,
+            &config.operator_context,
+            Input {
+                outpoint: peg_out_outpoint,
+                amount: peg_out_amount,
+            },
+        )
         .await
         .unwrap();
     check_tx_output_sum(ONE_HUNDRED, &peg_out_tx);
@@ -221,7 +260,7 @@ async fn test_peg_out_fees() {
         .await
         .unwrap();
     check_tx_output_sum(
-        reward_amount + PEG_OUT_FEE_FOR_TAKE_1 - MIN_RELAY_FEE_PEG_OUT_CONFIRM,
+        reward_amount + PEG_OUT_FEE - MIN_RELAY_FEE_PEG_OUT_CONFIRM,
         &peg_out_confirm_tx,
     );
     let peg_out_confirm_result = esplora_client.broadcast(&peg_out_confirm_tx).await;
@@ -244,18 +283,8 @@ async fn test_peg_out_fees() {
         .await
         .unwrap();
     check_tx_output_sum(
-        reward_amount + PEG_OUT_FEE_FOR_TAKE_1
-            - MIN_RELAY_FEE_PEG_OUT_CONFIRM
-            - MIN_RELAY_FEE_KICK_OFF_1,
+        reward_amount + PEG_OUT_FEE - MIN_RELAY_FEE_PEG_OUT_CONFIRM - MIN_RELAY_FEE_KICK_OFF_1,
         &kick_off_1_tx,
-    );
-    println!(
-        "kick off 1 outputs: {:?}",
-        kick_off_1_tx
-            .output
-            .iter()
-            .map(|o| o.value.to_sat())
-            .collect::<Vec<u64>>()
     );
     let kick_off_1_result = esplora_client.broadcast(&kick_off_1_tx).await;
     wait_for_confirmation().await;
@@ -285,7 +314,7 @@ async fn test_peg_out_fees() {
         .await
         .unwrap();
     check_tx_output_sum(
-        reward_amount + PEG_OUT_FEE_FOR_TAKE_1
+        reward_amount + PEG_OUT_FEE
             - MIN_RELAY_FEE_PEG_OUT_CONFIRM
             - MIN_RELAY_FEE_KICK_OFF_1
             - MIN_RELAY_FEE_START_TIME_TIMEOUT
@@ -344,7 +373,7 @@ async fn test_peg_out_fees() {
         .await
         .unwrap();
     check_tx_output_sum(
-        reward_amount + PEG_OUT_FEE_FOR_TAKE_1
+        reward_amount + PEG_OUT_FEE
             - MIN_RELAY_FEE_PEG_OUT_CONFIRM
             - MIN_RELAY_FEE_KICK_OFF_1
             - MIN_RELAY_FEE_KICK_OFF_TIMEOUT
@@ -363,7 +392,7 @@ async fn test_peg_out_fees() {
         .await
         .unwrap();
     check_tx_output_sum(
-        reward_amount + PEG_OUT_FEE_FOR_TAKE_1
+        reward_amount + PEG_OUT_FEE
             - MIN_RELAY_FEE_PEG_OUT_CONFIRM
             - MIN_RELAY_FEE_KICK_OFF_1
             - MIN_RELAY_FEE_KICK_OFF_2
@@ -372,15 +401,22 @@ async fn test_peg_out_fees() {
         &kick_off_2_tx,
     );
     let kick_off_2_result = esplora_client.broadcast(&kick_off_2_tx).await;
-    wait_for_confirmation().await;
     println!(
         "kick off 2 tx result: {:?}, {:?}\n",
         kick_off_2_result,
         kick_off_2_tx.compute_txid()
     );
+    wait_for_confirmation().await;
+    wait_timelock_expiry(config.network, Some("kick off 2 connector 3")).await;
 
     let take_1_tx = peg_out_graph.take_1(&esplora_client).await.unwrap();
-    check_tx_output_sum(INITIAL_AMOUNT + reward_amount, &take_1_tx);
+    // minus 1 dust from kick off 1 connector 2
+    check_tx_output_sum(
+        INITIAL_AMOUNT + reward_amount + MIN_RELAY_FEE_ASSERT_SET - MIN_RELAY_FEE_TAKE_1
+            + MIN_RELAY_FEE_DISPROVE
+            - DUST_AMOUNT,
+        &take_1_tx,
+    );
 
     let verifier_pubkey_script =
         generate_pay_to_pubkey_script(&config.verifier_0_context.verifier_public_key);
@@ -388,57 +424,86 @@ async fn test_peg_out_fees() {
         .disprove_chain(&esplora_client, verifier_pubkey_script.clone())
         .await
         .unwrap();
-    check_tx_output_sum(reward_amount, &disprove_chain_tx);
+    // minus 2 dust from kick off 1, 1 dust from kick off 2
+    check_tx_output_sum(
+        reward_amount + MIN_RELAY_FEE_ASSERT_SET - MIN_RELAY_FEE_DISPROVE_CHAIN
+            + MIN_RELAY_FEE_DISPROVE
+            - DUST_AMOUNT * 3,
+        &disprove_chain_tx,
+    );
 
     let assert_initial_tx = peg_out_graph.assert_initial(&esplora_client).await.unwrap();
-    check_tx_output_sum(reward_amount, &assert_initial_tx);
+    // minus 2 dust from kick off 1, 1 dust from kick off 2
+    check_tx_output_sum(
+        reward_amount + MIN_RELAY_FEE_ASSERT_SET - MIN_RELAY_FEE_ASSERT_INITIAL
+            + MIN_RELAY_FEE_DISPROVE
+            - DUST_AMOUNT * 3,
+        &assert_initial_tx,
+    );
     let assert_initial_result = esplora_client.broadcast(&assert_initial_tx).await;
     println!(
         "assert initial tx result: {:?}, {:?}\n",
         assert_initial_result,
         assert_initial_tx.compute_txid()
     );
+    wait_for_confirmation().await;
 
     let assert_commit1_tx = peg_out_graph
         .assert_commit_1(&esplora_client, &config.commitment_secrets)
         .await
         .unwrap();
-    check_tx_output_sum(reward_amount, &assert_commit1_tx);
+    // checked in assert_commit_1 single tx test
+    // check_tx_output_sum(assert_commit1_dust_amount, &assert_commit1_tx);
     let assert_commit1_result = esplora_client.broadcast(&assert_commit1_tx).await;
     println!(
         "assert commit 1 tx result: {:?}, {:?}\n",
         assert_commit1_result,
         assert_commit1_tx.compute_txid()
     );
+    wait_for_confirmation().await;
 
     let assert_commit2_tx = peg_out_graph
         .assert_commit_2(&esplora_client, &config.commitment_secrets)
         .await
         .unwrap();
-    check_tx_output_sum(reward_amount, &assert_commit2_tx);
+    // checked in assert_commit_2 single tx test
+    // check_tx_output_sum(assert_commit2_dust_amount, &assert_commit2_tx);
     let assert_commit2_result = esplora_client.broadcast(&assert_commit2_tx).await;
     println!(
         "assert commit 2 tx result: {:?}, {:?}\n",
         assert_commit2_result,
         assert_commit2_tx.compute_txid()
     );
+    wait_for_confirmation().await;
 
     let assert_final_tx = peg_out_graph.assert_final(&esplora_client).await.unwrap();
-    check_tx_output_sum(reward_amount, &assert_final_tx);
+    // minus 2 dust from kick off 1, 1 dust from kick off 2
+    check_tx_output_sum(
+        reward_amount + MIN_RELAY_FEE_DISPROVE - DUST_AMOUNT * 3,
+        &assert_final_tx,
+    );
     let assert_final_result = esplora_client.broadcast(&assert_final_tx).await;
     println!(
         "assert final tx result: {:?}, {:?}\n",
         assert_final_result,
         assert_final_tx.compute_txid()
     );
+    wait_for_confirmation().await;
+    wait_timelock_expiry(config.network, Some("assert final connector 4")).await;
 
     let take_2_tx = peg_out_graph
         .take_2(&esplora_client, &config.operator_context)
         .await
         .unwrap();
-    check_tx_output_sum(reward_amount, &take_2_tx);
+    // minus 2 dust from kick off 1, 1 dust from kick off 2
+    check_tx_output_sum(
+        INITIAL_AMOUNT + reward_amount + MIN_RELAY_FEE_DISPROVE
+            - MIN_RELAY_FEE_TAKE_2
+            - DUST_AMOUNT * 3,
+        &take_2_tx,
+    );
 
-    let zk_verifying_key = get_correct_proof().vk;
+    let zk_verifying_key = get_incorrect_proof().vk;
     let disprove_tx = peg_out_graph
         .disprove(
             &esplora_client,
@@ -447,7 +512,8 @@ async fn test_peg_out_fees() {
         )
         .await
         .unwrap();
-    check_tx_output_sum(reward_amount, &disprove_tx);
+    // minus 2 dust from kick off 1, 1 dust from kick off 2
+    check_tx_output_sum(reward_amount - DUST_AMOUNT * 3, &disprove_tx);
 }
 
 // TODO: consider making the graph getter in client public after refactor

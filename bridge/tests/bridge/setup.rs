@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use bitcoin::{Network, PublicKey};
 
-use super::helper::{
-    get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached,
-};
+use super::helper::{get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached};
 use bridge::{
     client::client::BitVMClient,
     commitments::CommitmentMessageId,

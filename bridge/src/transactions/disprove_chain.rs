@@ -79,12 +79,13 @@ impl DisproveChainTransaction {
 
         let total_output_amount = input_0.amount - Amount::from_sat(MIN_RELAY_FEE_DISPROVE_CHAIN);
 
+        let burn_amount = total_output_amount / 2;
         let _output_0 = TxOut {
-            value: total_output_amount / 2,
+            value: burn_amount,
             script_pubkey: generate_burn_script_address(network).script_pubkey(),
         };
 
-        let reward_output_amount = total_output_amount - (total_output_amount / 2);
+        let reward_output_amount = total_output_amount - burn_amount;
         let _output_1 = TxOut {
             value: reward_output_amount,
             script_pubkey: ScriptBuf::default(),

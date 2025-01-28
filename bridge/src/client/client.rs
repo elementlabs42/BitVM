@@ -24,8 +24,8 @@ use crate::{
     error::{ClientError, Error},
     graphs::{
         base::{
-            broadcast_and_verify, get_tx_statuses, GraphId, PEG_OUT_FEE_FOR_TAKE_1,
-            REWARD_MULTIPLIER, REWARD_PRECISION,
+            broadcast_and_verify, get_tx_statuses, GraphId, PEG_OUT_FEE, REWARD_MULTIPLIER,
+            REWARD_PRECISION,
         },
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::PegOutOperatorStatus,
@@ -728,8 +728,7 @@ impl BitVMClient {
                     let deposit_amount =
                         peg_in_graph.peg_in_deposit_transaction.tx().output[0].value;
                     let reward_amount = deposit_amount * REWARD_MULTIPLIER / REWARD_PRECISION;
-                    let expected_peg_out_confirm_amount =
-                        reward_amount.to_sat() + PEG_OUT_FEE_FOR_TAKE_1;
+                    let expected_peg_out_confirm_amount = reward_amount.to_sat() + PEG_OUT_FEE;
                     let input = {
                         // todo: don't use a random address
                         let address = generate_pay_to_pubkey_script_address(
@@ -1243,8 +1242,6 @@ impl BitVMClient {
         }
 
         let graph = self.data.graph_mut(graph_id);
-        let graph_id = graph.id().clone();
-
         let secret_nonces = graph.push_verifier_nonces(self.verifier_context.as_ref().unwrap());
         self.merge_secret_nonces(&graph_id, secret_nonces);
 
@@ -1315,7 +1312,7 @@ impl BitVMClient {
         let transaction_id = tx.compute_txid();
         let status_message = broadcast_and_verify(&self.esplora, tx).await?;
         // TODO: expose this or have it print out here?
-        print!("{} ({:?})", status_message, transaction_id);
+        println!("{} ({:?})", status_message, transaction_id);
         Ok(tx.compute_txid())
     }
 
@@ -1478,12 +1475,10 @@ impl BitVMClient {
             .expect("Can only be called by a verifier!");
 
         let graph = self.data.graph_mut(graph_id);
-        let graph_id = graph.id().clone();
-
         graph.verifier_sign(
             verifier,
             &self.private_data.secret_nonces
-                [&self.verifier_context.as_ref().unwrap().verifier_public_key][&graph_id],
+                [&self.verifier_context.as_ref().unwrap().verifier_public_key][graph_id],
         );
     }
 
