@@ -62,16 +62,14 @@ impl Serialize for ConnectorC {
         S: Serializer,
     {
         let mut c = s.serialize_struct("ConnectorC", 4)?;
-        c.serialize_field("network", &self.network.to_string())?;
+        c.serialize_field("network", &self.network)?;
         c.serialize_field(
             "operator_taproot_public_key",
-            &self.operator_taproot_public_key.to_string(),
+            &self.operator_taproot_public_key,
         )?;
         c.serialize_field("commitment_public_keys", &self.commitment_public_keys)?;
 
-        let cache_id = Self::cache_id(&self.commitment_public_keys).ok_or(SerError::custom(
-            Error::Connector(ConnectorError::ConnectorCCommitsPublicKeyEmpty),
-        ))?;
+        let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
         c.serialize_field("lock_scripts", &cache_id)?;
 
         let lock_script_cache_file_path =
@@ -208,7 +206,7 @@ impl ConnectorC {
 
     pub fn cache_id(
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-    ) -> Option<String> {
+    ) -> Result<String, ConnectorError> {
         let first_winternitz_public_key = commitment_public_keys.iter().next();
 
         match first_winternitz_public_key {
@@ -217,11 +215,11 @@ impl ConnectorC {
                     "Failed to generate cache id: {:?}",
                     ConnectorError::ConnectorCCommitsPublicKeyEmpty
                 );
-                None
+                Err(ConnectorError::ConnectorCCommitsPublicKeyEmpty)
             }
             Some((_, winternitz_public_key)) => {
                 let hash = hash160::Hash::hash(&winternitz_public_key.public_key.as_flattened());
-                Some(hex::encode(hash))
+                Ok(hex::encode(hash))
             }
         }
     }
