@@ -211,7 +211,7 @@ impl ConnectorC {
 
         match first_winternitz_public_key {
             None => {
-                println!(
+                eprintln!(
                     "Failed to generate cache id: {:?}",
                     ConnectorError::ConnectorCCommitsPublicKeyEmpty
                 );
