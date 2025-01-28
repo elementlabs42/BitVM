@@ -67,10 +67,7 @@ impl Serialize for ConnectorC {
             "operator_taproot_public_key",
             &self.operator_taproot_public_key.to_string(),
         )?;
-        c.serialize_field(
-            "commitment_public_keys",
-            &self.commitment_public_keys.clone(),
-        )?;
+        c.serialize_field("commitment_public_keys", &self.commitment_public_keys)?;
 
         let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
         c.serialize_field("lock_scripts", &cache_id)?;
