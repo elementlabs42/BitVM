@@ -36,6 +36,10 @@ pub enum GraphError {
     PrecedingTxNotConfirmed(Vec<NamedTx>),
     PrecedingTxTimelockNotMet(NamedTx),
     WitnessNotGenerated(CommitmentMessageId),
+}
+
+#[derive(Debug)]
+pub enum ConnectorError {
     ConnectorCCommitsPublicKeyEmpty,
 }
 
@@ -59,6 +63,7 @@ pub enum Error {
     Esplora(esplora_client::Error),
     Client(ClientError),
     Graph(GraphError),
+    Connector(ConnectorError),
     Transaction(TransactionError),
     L2(L2Error),
     Chunker(ChunkerError),

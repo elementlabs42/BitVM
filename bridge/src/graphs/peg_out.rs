@@ -18,11 +18,8 @@ use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::{
-        connector_c::get_commit_from_assert_commit_tx,
-        connector_d::ConnectorD,
-        connector_e::ConnectorE,
-        connector_f_1::ConnectorF1,
-        connector_f_2::ConnectorF2,
+        connector_c::get_commit_from_assert_commit_tx, connector_d::ConnectorD,
+        connector_e::ConnectorE, connector_f_1::ConnectorF1, connector_f_2::ConnectorF2,
     },
     error::{Error, GraphError, L2Error, NamedTx},
     superblock::{
@@ -2395,7 +2392,7 @@ impl PegOutGraph {
             network,
             operator_taproot_public_key,
             commitment_public_keys,
-            ConnectorC::cache_id(commitment_public_keys).ok(),
+            ConnectorC::cache_id(commitment_public_keys),
         );
         let connector_d = ConnectorD::new(network, n_of_n_taproot_public_key);
 

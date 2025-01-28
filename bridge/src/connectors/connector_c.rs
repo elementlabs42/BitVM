@@ -8,7 +8,7 @@ use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::base::*,
-    error::{ChunkerError, Error, GraphError},
+    error::{ChunkerError, ConnectorError, Error},
     transactions::base::Input,
     utils::{read_cache, remove_script_and_control_block_from_witness, write_cache},
 };
@@ -69,7 +69,9 @@ impl Serialize for ConnectorC {
         )?;
         c.serialize_field("commitment_public_keys", &self.commitment_public_keys)?;
 
-        let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
+        let cache_id = Self::cache_id(&self.commitment_public_keys).ok_or(SerError::custom(
+            Error::Connector(ConnectorError::ConnectorCCommitsPublicKeyEmpty),
+        ))?;
         c.serialize_field("lock_scripts", &cache_id)?;
 
         let lock_script_cache_file_path =
@@ -206,14 +208,22 @@ impl ConnectorC {
 
     pub fn cache_id(
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-    ) -> Result<String, Error> {
-        let first_winternitz_public_key = commitment_public_keys
-            .iter()
-            .next()
-            .ok_or(Error::Graph(GraphError::ConnectorCCommitsPublicKeyEmpty))?
-            .1;
-        let hash = hash160::Hash::hash(&first_winternitz_public_key.public_key.as_flattened());
-        Ok(hex::encode(hash))
+    ) -> Option<String> {
+        let first_winternitz_public_key = commitment_public_keys.iter().next();
+
+        match first_winternitz_public_key {
+            None => {
+                println!(
+                    "Failed to generate cache id: {:?}",
+                    ConnectorError::ConnectorCCommitsPublicKeyEmpty
+                );
+                None
+            }
+            Some((_, winternitz_public_key)) => {
+                let hash = hash160::Hash::hash(&winternitz_public_key.public_key.as_flattened());
+                Some(hex::encode(hash))
+            }
+        }
     }
 }
 
