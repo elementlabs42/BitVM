@@ -1,10 +1,11 @@
 use std::{
     collections::BTreeMap,
     fmt::{Formatter, Result as FmtResult},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use crate::{
+    client::client::BRIDGE_DATA_FOLDER_NAME,
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::base::*,
@@ -45,8 +46,14 @@ pub struct DisproveLeaf {
     pub unlock: UnlockWitness,
 }
 
-// TODO: use the same cache location as in client
-const CACHE_LOCATION: &str = "bridge_data/cache/";
+const CACHE_FOLDER_NAME: &str = "cache";
+
+fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
+    let lock_scripts_file_name = format!("lock_scripts_{}.json", cache_id);
+    Path::new(BRIDGE_DATA_FOLDER_NAME)
+        .join(CACHE_FOLDER_NAME)
+        .join(lock_scripts_file_name)
+}
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct ConnectorC {
@@ -72,13 +79,9 @@ impl Serialize for ConnectorC {
         let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
         c.serialize_field("lock_scripts", &cache_id)?;
 
-        let lock_script_cache_file_path =
-            &format!("{}lock-scripts-{}.json", CACHE_LOCATION, &cache_id);
-        let lock_script_cache_path = Path::new(&lock_script_cache_file_path);
-        if lock_script_cache_path.exists() {
-            println!("Lock script cache exists: {}", &cache_id);
-        } else {
-            write_cache(lock_script_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
+        let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
+        if !lock_scripts_cache_path.exists() {
+            write_cache(&lock_scripts_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
         }
 
         c.end()
@@ -157,19 +160,22 @@ impl ConnectorC {
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
         lock_scripts_cache_id: Option<String>,
     ) -> Self {
-        let mut lock_scripts_cache = None;
-        if let Some(cache_id) = lock_scripts_cache_id {
-            let file = &format!("{}lock-scripts-{}.json", CACHE_LOCATION, &cache_id);
-            lock_scripts_cache = read_cache::<Vec<ScriptBuf>>(Path::new(&file)).ok();
-        }
+        let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
+            let file_path = get_lock_scripts_cache_path(&cache_id);
+            read_cache(&file_path).unwrap_or_else(|e| {
+                eprintln!(
+                    "Failed to read lock scripts cache from expected location: {}",
+                    e
+                );
+                None
+            })
+        });
 
         ConnectorC {
             network,
             operator_taproot_public_key: *operator_taproot_public_key,
-            lock_scripts: match lock_scripts_cache {
-                Some(lock_scripts) => lock_scripts,
-                None => generate_assert_leaves(commitment_public_keys),
-            },
+            lock_scripts: lock_scripts_cache
+                .unwrap_or_else(|| generate_assert_leaves(commitment_public_keys)),
             commitment_public_keys: commitment_public_keys.clone(),
         }
     }
@@ -210,13 +216,7 @@ impl ConnectorC {
         let first_winternitz_public_key = commitment_public_keys.iter().next();
 
         match first_winternitz_public_key {
-            None => {
-                eprintln!(
-                    "Failed to generate cache id: {:?}",
-                    ConnectorError::ConnectorCCommitsPublicKeyEmpty
-                );
-                Err(ConnectorError::ConnectorCCommitsPublicKeyEmpty)
-            }
+            None => Err(ConnectorError::ConnectorCCommitsPublicKeyEmpty),
             Some((_, winternitz_public_key)) => {
                 let hash = hash160::Hash::hash(&winternitz_public_key.public_key.as_flattened());
                 Ok(hex::encode(hash))
@@ -262,6 +262,7 @@ impl TaprootConnector for ConnectorC {
 pub fn generate_assert_leaves(
     commits_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 ) -> Vec<ScriptBuf> {
+    println!("Generating new lock scripts...");
     // hash map to btree map
     let pks = commits_public_keys
         .clone()

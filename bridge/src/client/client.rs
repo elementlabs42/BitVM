@@ -67,6 +67,7 @@ use super::{
 const ESPLORA_URL: &str = "http://localhost:8094/regtest/api/";
 const TEN_MINUTES: u64 = 10 * 60;
 
+pub const BRIDGE_DATA_FOLDER_NAME: &str = "bridge_data";
 const PRIVATE_DATA_FILE_NAME: &str = "secret_data.json";
 
 pub type UtxoSet = HashMap<OutPoint, Height>;
@@ -175,8 +176,7 @@ impl BitVMClient {
         // Prepend files with prefix
         let (n_of_n_public_key, _) = generate_n_of_n_public_key(n_of_n_public_keys);
         let file_path_prefix = file_path_prefix.unwrap_or("").to_string();
-        let file_path =
-            format! {"bridge_data/{source_network}/{destination_network}/{n_of_n_public_key}"};
+        let file_path = format! {"{BRIDGE_DATA_FOLDER_NAME}/{source_network}/{destination_network}/{n_of_n_public_key}"};
         let full_path = format! {"{file_path_prefix}{file_path}"};
         Self::create_directories_if_non_existent(&full_path);
 
