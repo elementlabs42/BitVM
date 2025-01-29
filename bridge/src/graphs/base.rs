@@ -12,9 +12,10 @@ use crate::{
     contexts::verifier::VerifierContext,
     error::{Error, TransactionError},
     transactions::base::{
-        MIN_RELAY_FEE_KICK_OFF_1, MIN_RELAY_FEE_KICK_OFF_2, MIN_RELAY_FEE_PEG_IN_CONFIRM,
-        MIN_RELAY_FEE_PEG_IN_DEPOSIT, MIN_RELAY_FEE_PEG_IN_REFUND, MIN_RELAY_FEE_START_TIME,
-        MIN_RELAY_FEE_TAKE_1,
+        MIN_RELAY_FEE_ASSERT_COMMIT1, MIN_RELAY_FEE_ASSERT_COMMIT2, MIN_RELAY_FEE_ASSERT_FINAL,
+        MIN_RELAY_FEE_ASSERT_INITIAL, MIN_RELAY_FEE_DISPROVE, MIN_RELAY_FEE_KICK_OFF_1,
+        MIN_RELAY_FEE_KICK_OFF_2, MIN_RELAY_FEE_PEG_IN_CONFIRM, MIN_RELAY_FEE_PEG_IN_DEPOSIT,
+        MIN_RELAY_FEE_PEG_IN_REFUND, MIN_RELAY_FEE_PEG_OUT_CONFIRM, MIN_RELAY_FEE_START_TIME,
     },
 };
 
@@ -34,13 +35,20 @@ pub const DUST_RELAY_FEE_RATE: u64 = (DUST_RELAY_TX_FEE / 1000) as u64;
 // set reward percentage as 2% of peg in deposit
 pub const REWARD_PRECISION: u64 = 1000;
 pub const REWARD_MULTIPLIER: u64 = 20;
-// (kick-off 1 /w start time + 2 dusts) + kick-off 2 + take 1
-// subsequent tx dust is taken from kick-off 1
-pub const PEG_OUT_FEE_FOR_TAKE_1: u64 = MIN_RELAY_FEE_KICK_OFF_1
-    + MIN_RELAY_FEE_START_TIME
-    + DUST_AMOUNT * 2
-    + MIN_RELAY_FEE_KICK_OFF_2
-    + MIN_RELAY_FEE_TAKE_1;
+
+pub const MIN_RELAY_FEE_ASSERT_SET: u64 = MIN_RELAY_FEE_ASSERT_INITIAL
+    + MIN_RELAY_FEE_ASSERT_COMMIT1
+    + MIN_RELAY_FEE_ASSERT_COMMIT2
+    + MIN_RELAY_FEE_ASSERT_FINAL;
+// use largest fee from each depth
+// assert fee is big enough to cover disprove chain or take 1
+// disprove fee is big enough to cover take 2
+pub const PEG_OUT_FEE: u64 = MIN_RELAY_FEE_PEG_OUT_CONFIRM // depth 0
+    + MIN_RELAY_FEE_KICK_OFF_1 // depth 1
+    + MIN_RELAY_FEE_START_TIME // include START_TIME tx, spent in kickoff 1
+    + MIN_RELAY_FEE_KICK_OFF_2 // depth 2
+    + MIN_RELAY_FEE_ASSERT_SET // depth 3
+    + MIN_RELAY_FEE_DISPROVE; // depth 4
 pub const PEG_IN_FEE: u64 =
     MIN_RELAY_FEE_PEG_IN_DEPOSIT + max(MIN_RELAY_FEE_PEG_IN_CONFIRM, MIN_RELAY_FEE_PEG_IN_REFUND);
 

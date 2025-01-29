@@ -16,17 +16,16 @@ use std::{
 use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
-    connectors::{
-        base::TaprootConnector, connector_0::Connector0, connector_c::LockScriptsGenerator,
-        connector_z::ConnectorZ,
-    },
+    connectors::{base::TaprootConnector, connector_0::Connector0, connector_z::ConnectorZ},
+};
+use crate::{
     constants::DestinationNetwork,
     contexts::base::generate_n_of_n_public_key,
     error::{ClientError, Error},
     graphs::{
         base::{
-            broadcast_and_verify, get_tx_statuses, GraphId, PEG_OUT_FEE_FOR_TAKE_1,
-            REWARD_MULTIPLIER, REWARD_PRECISION,
+            broadcast_and_verify, get_tx_statuses, GraphId, PEG_OUT_FEE, REWARD_MULTIPLIER,
+            REWARD_PRECISION,
         },
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::PegOutOperatorStatus,
@@ -68,6 +67,7 @@ use super::{
 const ESPLORA_URL: &str = "http://localhost:8094/regtest/api/";
 const TEN_MINUTES: u64 = 10 * 60;
 
+pub const BRIDGE_DATA_FOLDER_NAME: &str = "bridge_data";
 const PRIVATE_DATA_FILE_NAME: &str = "secret_data.json";
 
 pub type UtxoSet = HashMap<OutPoint, Height>;
@@ -176,8 +176,7 @@ impl BitVMClient {
         // Prepend files with prefix
         let (n_of_n_public_key, _) = generate_n_of_n_public_key(n_of_n_public_keys);
         let file_path_prefix = file_path_prefix.unwrap_or("").to_string();
-        let file_path =
-            format! {"bridge_data/{source_network}/{destination_network}/{n_of_n_public_key}"};
+        let file_path = format! {"{BRIDGE_DATA_FOLDER_NAME}/{source_network}/{destination_network}/{n_of_n_public_key}"};
         let full_path = format! {"{file_path_prefix}{file_path}"};
         Self::create_directories_if_non_existent(&full_path);
 
@@ -729,8 +728,7 @@ impl BitVMClient {
                     let deposit_amount =
                         peg_in_graph.peg_in_deposit_transaction.tx().output[0].value;
                     let reward_amount = deposit_amount * REWARD_MULTIPLIER / REWARD_PRECISION;
-                    let expected_peg_out_confirm_amount =
-                        reward_amount.to_sat() + PEG_OUT_FEE_FOR_TAKE_1;
+                    let expected_peg_out_confirm_amount = reward_amount.to_sat() + PEG_OUT_FEE;
                     let input = {
                         // todo: don't use a random address
                         let address = generate_pay_to_pubkey_script_address(
@@ -760,7 +758,6 @@ impl BitVMClient {
                         peg_in_graph_id,
                         input,
                         CommitmentMessageId::generate_commitment_secrets(),
-                        crate::connectors::connector_c::generate_assert_leaves,
                     )
                     .await;
                 }
@@ -897,7 +894,6 @@ impl BitVMClient {
         peg_in_graph_id: &str,
         peg_out_confirm_input: Input,
         commitment_secrets: HashMap<CommitmentMessageId, WinternitzSecret>,
-        lock_scripts_generator: LockScriptsGenerator,
     ) -> String {
         if self.operator_context.is_none() {
             panic!("Operator context must be initialized");
@@ -926,7 +922,6 @@ impl BitVMClient {
             peg_in_graph,
             peg_out_confirm_input,
             &commitment_secrets,
-            lock_scripts_generator,
         );
 
         self.private_data.commitment_secrets = HashMap::from([(
@@ -1247,8 +1242,6 @@ impl BitVMClient {
         }
 
         let graph = self.data.graph_mut(graph_id);
-        let graph_id = graph.id().clone();
-
         let secret_nonces = graph.push_verifier_nonces(self.verifier_context.as_ref().unwrap());
         self.merge_secret_nonces(&graph_id, secret_nonces);
 
@@ -1319,7 +1312,7 @@ impl BitVMClient {
         let transaction_id = tx.compute_txid();
         let status_message = broadcast_and_verify(&self.esplora, tx).await?;
         // TODO: expose this or have it print out here?
-        print!("{} ({:?})", status_message, transaction_id);
+        println!("{} ({:?})", status_message, transaction_id);
         Ok(tx.compute_txid())
     }
 
@@ -1482,12 +1475,10 @@ impl BitVMClient {
             .expect("Can only be called by a verifier!");
 
         let graph = self.data.graph_mut(graph_id);
-        let graph_id = graph.id().clone();
-
         graph.verifier_sign(
             verifier,
             &self.private_data.secret_nonces
-                [&self.verifier_context.as_ref().unwrap().verifier_public_key][&graph_id],
+                [&self.verifier_context.as_ref().unwrap().verifier_public_key][graph_id],
         );
     }
 

@@ -3,7 +3,7 @@ use bitvm::signatures::signing_winternitz::WinternitzSigningInputs;
 use bridge::{
     commitments::CommitmentMessageId,
     connectors::base::TaprootConnector,
-    graphs::base::{DUST_AMOUNT, PEG_OUT_FEE_FOR_TAKE_1},
+    graphs::base::{DUST_AMOUNT, PEG_OUT_FEE},
     scripts::generate_pay_to_pubkey_script_address,
     superblock::{get_superblock_hash_message, get_superblock_message},
     transactions::{
@@ -39,7 +39,7 @@ async fn test_take_1_success() {
     funding_inputs.push((&peg_in_confirm_funding_address, deposit_input_amount));
 
     let reward_amount = get_reward_amount(ONE_HUNDRED);
-    let kick_off_1_input_amount = Amount::from_sat(reward_amount + PEG_OUT_FEE_FOR_TAKE_1);
+    let kick_off_1_input_amount = Amount::from_sat(reward_amount + PEG_OUT_FEE);
     let kick_off_1_funding_utxo_address = config.connector_6.generate_taproot_address();
     funding_inputs.push((&kick_off_1_funding_utxo_address, kick_off_1_input_amount));
     faucet

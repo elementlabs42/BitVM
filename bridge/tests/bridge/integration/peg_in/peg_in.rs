@@ -11,7 +11,7 @@ use bridge::{
     client::client::BitVMClient,
     connectors::{base::TaprootConnector, connector_0::Connector0},
     graphs::{
-        base::{BaseGraph, PEG_OUT_FEE_FOR_TAKE_1},
+        base::{BaseGraph, PEG_OUT_FEE},
         peg_in::PegInVerifierStatus,
     },
     scripts::generate_pay_to_pubkey_script_address,
@@ -348,7 +348,7 @@ async fn test_peg_in_graph_automatic_verifier() {
 
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
     let peg_out_confirm_input_amount =
-        Amount::from_sat(get_reward_amount(ONE_HUNDRED) + PEG_OUT_FEE_FOR_TAKE_1);
+        Amount::from_sat(get_reward_amount(ONE_HUNDRED) + PEG_OUT_FEE);
     // fund peg-out confirm
     let operator_funding_utxo_address = generate_pay_to_pubkey_script_address(
         config.operator_context.network,

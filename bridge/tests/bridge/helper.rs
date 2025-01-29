@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap, str::FromStr, time::Duration};
+use std::{borrow::Cow, collections::BTreeMap, path::Path, str::FromStr, time::Duration};
 
 use ark_bn254::G1Affine;
 use ark_ff::UniformRand;
@@ -19,7 +19,7 @@ use bridge::{
         peg_in::PegInGraph,
         peg_out::PegOutGraph,
     },
-    utils::num_blocks_per_network,
+    utils::{num_blocks_per_network, read_cache, write_cache},
 };
 
 use bitvm::{
@@ -27,7 +27,6 @@ use bitvm::{
     signatures::signing_winternitz::WinternitzPublicKey,
 };
 use rand::{RngCore, SeedableRng};
-use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 
 pub const TX_WAIT_TIME: u64 = 5; // in seconds
@@ -196,55 +195,54 @@ pub fn random_hex<'a>(size: usize) -> Cow<'a, str> {
     Cow::Owned(buffer.to_hex_string(Lower))
 }
 
+const TEST_CACHE_FOLDER_NAME: &str = "test_cache";
+const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "intermediates.json";
+const LOCK_SCRIPTS_FILE_NAME: &str = "lock_scripts.json";
+
 pub fn get_intermediate_variables_cached() -> BTreeMap<String, usize> {
-    let intermediate_variables_cache_file_path = std::path::Path::new("cache/intermediates.json");
-    match intermediate_variables_cache_file_path.exists() {
-        true => read_cache(intermediate_variables_cache_file_path),
-        false => {
-            let all_variables = BridgeAssigner::default().all_intermediate_variables();
-            write_cache(intermediate_variables_cache_file_path, &all_variables).unwrap();
-            all_variables
-        }
-    }
+    let intermediate_variables_cache_path =
+        Path::new(TEST_CACHE_FOLDER_NAME).join(INTERMEDIATE_VARIABLES_FILE_NAME);
+    let intermediate_variables = if intermediate_variables_cache_path.exists() {
+        read_cache(&intermediate_variables_cache_path).unwrap_or_else(|e| {
+            eprintln!(
+                "Failed to read intermediate variables cache after a check for its existence: {}",
+                e
+            );
+            None
+        })
+    } else {
+        None
+    };
+
+    intermediate_variables.unwrap_or_else(|| {
+        println!("Generating new intermediate variables...");
+        let intermediate_variables = BridgeAssigner::default().all_intermediate_variables();
+        write_cache(&intermediate_variables_cache_path, &intermediate_variables).unwrap();
+        intermediate_variables
+    })
 }
 
 pub fn get_lock_scripts_cached(
     commits_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 ) -> Vec<ScriptBuf> {
-    let lock_scripts_cache_file_path = std::path::Path::new("cache/locks.json");
-    match lock_scripts_cache_file_path.exists() {
-        true => read_cache(lock_scripts_cache_file_path),
-        false => {
-            let locks = generate_assert_leaves(commits_public_keys);
-            write_cache(lock_scripts_cache_file_path, &locks).unwrap();
-            locks
-        }
-    }
-}
+    let lock_scripts_cache_path = Path::new(TEST_CACHE_FOLDER_NAME).join(LOCK_SCRIPTS_FILE_NAME);
+    let lock_scripts = if lock_scripts_cache_path.exists() {
+        read_cache(&lock_scripts_cache_path).unwrap_or_else(|e| {
+            eprintln!(
+                "Failed to read lock scripts cache after a check for its existence: {}",
+                e
+            );
+            None
+        })
+    } else {
+        None
+    };
 
-pub fn write_cache(file_path: &std::path::Path, data: &impl Serialize) -> std::io::Result<()> {
-    println!("Writing cache to {}...", file_path.to_str().unwrap());
-    let path_only = file_path
-        .to_str()
-        .unwrap()
-        .replace(file_path.file_name().unwrap().to_str().unwrap(), "");
-    if !std::path::Path::new(path_only.as_str()).exists() {
-        std::fs::create_dir_all(path_only).expect("Failed to create directories");
-    }
-    let file = std::fs::File::create(file_path)?;
-    let file = std::io::BufWriter::new(file);
-    serde_json::to_writer(file, data)?;
-    Ok(())
-}
-
-pub fn read_cache<T>(file_path: &std::path::Path) -> T
-where
-    T: for<'a> Deserialize<'a>,
-{
-    println!("Reading cache from {}...", file_path.to_str().unwrap());
-    let file = std::fs::File::open(file_path).expect("Failed to open file");
-    let file = std::io::BufReader::new(file);
-    serde_json::from_reader(file).expect("Failed to read file")
+    lock_scripts.unwrap_or_else(|| {
+        let lock_scripts = generate_assert_leaves(commits_public_keys);
+        write_cache(&lock_scripts_cache_path, &lock_scripts).unwrap();
+        lock_scripts
+    })
 }
 
 pub fn get_correct_proof() -> RawProof {

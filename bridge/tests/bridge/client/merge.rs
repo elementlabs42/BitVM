@@ -3,14 +3,11 @@ use std::str::FromStr;
 use bitcoin::{Amount, OutPoint, Txid};
 use bridge::{
     client::client::{BitVMClient, BitVMClientPublicData},
-    graphs::{base::PEG_OUT_FEE_FOR_TAKE_1, peg_in::PegInGraph, peg_out::PegOutGraph},
+    graphs::{base::PEG_OUT_FEE, peg_in::PegInGraph, peg_out::PegOutGraph},
     transactions::base::Input,
 };
 
-use crate::bridge::{
-    helper::get_lock_scripts_cached,
-    setup::{setup_test, INITIAL_AMOUNT},
-};
+use crate::bridge::setup::{setup_test, INITIAL_AMOUNT};
 
 #[tokio::test]
 // TODO: test merging signatures after Musig2 feature is ready
@@ -49,7 +46,7 @@ async fn test_merge_add_new_graph() {
 async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
     let mut config = setup_test().await;
 
-    let amount = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE_FOR_TAKE_1);
+    let amount = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE);
     let peg_in_outpoint = OutPoint {
         txid: Txid::from_str("0e6719ac074b0e3cac76d057643506faa1c266b322aa9cf4c6f635fe63b14327")
             .unwrap(),
@@ -79,7 +76,6 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
                 amount,
             },
             config.commitment_secrets.clone(),
-            get_lock_scripts_cached,
         )
         .await;
 
@@ -100,7 +96,6 @@ async fn setup_and_create_graphs() -> (BitVMClient, PegInGraph, PegOutGraph) {
             amount,
         },
         &config.commitment_secrets,
-        get_lock_scripts_cached,
     );
 
     (config.client_0, new_peg_in_graph, new_peg_out_graph)

@@ -7,7 +7,7 @@ use bridge::{
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{generate_stub_outpoint, get_lock_scripts_cached},
+    helper::generate_stub_outpoint,
     setup::{setup_test, INITIAL_AMOUNT},
 };
 
@@ -29,11 +29,13 @@ async fn test_sync() {
 
     let outpoint = generate_stub_outpoint(&config.client_0, &address, amount).await;
 
+    println!("Creating peg in graph ...");
     let peg_in_graph_id = config
         .client_0
         .create_peg_in_graph(Input { outpoint, amount }, &config.depositor_evm_address)
         .await;
 
+    println!("Creating peg out graph ...");
     config
         .client_0
         .create_peg_out_graph(
@@ -51,7 +53,6 @@ async fn test_sync() {
                 amount,
             },
             config.commitment_secrets,
-            get_lock_scripts_cached,
         )
         .await;
 

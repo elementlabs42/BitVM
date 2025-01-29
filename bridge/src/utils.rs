@@ -1,6 +1,13 @@
+use std::{
+    fs::{create_dir_all, File},
+    io::{BufReader, BufWriter},
+    path::Path,
+};
+
 use bitcoin::Network;
 use bitcoin_script::{script, Script};
 use bitvm::{bigint::BigIntImpl, pseudo::NMUL};
+use serde::{Deserialize, Serialize};
 
 const NUM_BLOCKS_REGTEST: u32 = 3;
 const NUM_BLOCKS_TESTNET: u32 = 3;
@@ -98,4 +105,28 @@ pub fn sb_hash_from_bytes() -> Script {
         for _ in 1..H256::N_LIMBS { OP_FROMALTSTACK }
         for i in 1..H256::N_LIMBS { { i } OP_ROLL }
     }
+}
+
+pub fn write_cache(file_path: &Path, data: &impl Serialize) -> std::io::Result<()> {
+    println!("Writing cache to {}...", file_path.display());
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            create_dir_all(parent)?;
+        }
+    }
+    let file = File::create(file_path)?;
+    let file = BufWriter::new(file);
+
+    serde_json::to_writer(file, data).map_err(std::io::Error::from)
+}
+
+pub fn read_cache<T>(file_path: &Path) -> std::io::Result<T>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    println!("Reading cache from {}...", file_path.display());
+    let file = File::open(file_path)?;
+    let file = BufReader::new(file);
+
+    serde_json::from_reader(file).map_err(std::io::Error::from)
 }

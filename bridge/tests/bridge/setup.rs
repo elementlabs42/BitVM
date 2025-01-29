@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use bitcoin::{Network, PublicKey};
 
-use super::helper::{
-    get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached,
-    get_lock_scripts_cached,
-};
+use super::helper::{get_correct_proof, get_incorrect_proof, get_intermediate_variables_cached};
 use bridge::{
     client::client::BitVMClient,
     commitments::CommitmentMessageId,
@@ -139,12 +136,12 @@ pub async fn setup_test_full() -> SetupConfigFull {
         &connector_e2_commitment_public_keys,
     );
 
+    let cache_id = ConnectorC::cache_id(&commitment_public_keys).unwrap();
     let connector_c = ConnectorC::new(
         config.network,
         &config.operator_context.operator_taproot_public_key,
         &commitment_public_keys,
-        get_lock_scripts_cached,
-        None,
+        Some(cache_id),
     );
 
     SetupConfigFull {
@@ -372,7 +369,7 @@ fn get_test_commitment_secrets() -> HashMap<CommitmentMessageId, WinternitzSecre
     for (v, size) in all_variables {
         commitment_map.insert(
             CommitmentMessageId::Groth16IntermediateValues((v, size)),
-            WinternitzSecret::new(size),
+            generate_test_winternitz_secret(5, size),
         );
     }
     commitment_map

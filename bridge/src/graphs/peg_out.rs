@@ -18,13 +18,8 @@ use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::{
-        connector_c::{
-            generate_assert_leaves, get_commit_from_assert_commit_tx, LockScriptsGenerator,
-        },
-        connector_d::ConnectorD,
-        connector_e::ConnectorE,
-        connector_f_1::ConnectorF1,
-        connector_f_2::ConnectorF2,
+        connector_c::get_commit_from_assert_commit_tx, connector_d::ConnectorD,
+        connector_e::ConnectorE, connector_f_1::ConnectorF1, connector_f_2::ConnectorF2,
     },
     error::{Error, GraphError, L2Error, NamedTx},
     superblock::{
@@ -253,13 +248,6 @@ struct PegOutConnectors {
     assert_commit_connectors_f: AssertCommitConnectorsF,
 }
 
-#[derive(Eq, PartialEq, Clone)]
-pub struct LockScriptsGeneratorWrapper(pub LockScriptsGenerator);
-
-impl Default for LockScriptsGeneratorWrapper {
-    fn default() -> Self { LockScriptsGeneratorWrapper(generate_assert_leaves) }
-}
-
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PegOutGraph {
     version: String,
@@ -316,9 +304,6 @@ pub struct PegOutGraph {
 
     pub peg_out_chain_event: Option<PegOutEvent>,
     pub peg_out_transaction: Option<PegOutTransaction>,
-
-    #[serde(skip)]
-    pub lock_scripts_generator_wrapper: LockScriptsGeneratorWrapper,
 }
 
 impl BaseGraph for PegOutGraph {
@@ -399,7 +384,6 @@ impl PegOutGraph {
         peg_in_graph: &PegInGraph,
         peg_out_confirm_input: Input,
         commitment_secrets: &HashMap<CommitmentMessageId, WinternitzSecret>,
-        lock_scripts_generator: LockScriptsGenerator,
     ) -> Self {
         let peg_in_confirm_transaction = peg_in_graph.peg_in_confirm_transaction_ref();
         let peg_in_confirm_txid = peg_in_confirm_transaction.tx().compute_txid();
@@ -461,8 +445,6 @@ impl PegOutGraph {
             &connector_b_commitment_public_keys,
             &connector_e1_commitment_public_keys,
             &connector_e2_commitment_public_keys,
-            lock_scripts_generator,
-            None,
         );
 
         let peg_out_confirm_transaction =
@@ -807,7 +789,6 @@ impl PegOutGraph {
             operator_taproot_public_key: context.operator_taproot_public_key,
             peg_out_chain_event: None,
             peg_out_transaction: None,
-            lock_scripts_generator_wrapper: LockScriptsGeneratorWrapper(lock_scripts_generator),
         }
     }
 
@@ -825,8 +806,6 @@ impl PegOutGraph {
             &self.connector_b.commitment_public_keys,
             &self.connector_e_1.commitment_public_keys(),
             &self.connector_e_2.commitment_public_keys(),
-            self.lock_scripts_generator_wrapper.0,
-            Some(self.connector_c.lock_scripts.clone()), // reuse lock scripts
         );
 
         let peg_out_confirm_vout_0 = 0;
@@ -1182,7 +1161,6 @@ impl PegOutGraph {
             operator_taproot_public_key: self.operator_taproot_public_key,
             peg_out_chain_event: None,
             peg_out_transaction: None,
-            lock_scripts_generator_wrapper: self.lock_scripts_generator_wrapper.clone(),
         }
     }
 
@@ -2372,8 +2350,6 @@ impl PegOutGraph {
             CommitmentMessageId,
             WinternitzPublicKey,
         >],
-        lock_scripts_generator: LockScriptsGenerator,
-        lock_scripts_copy: Option<Vec<ScriptBuf>>,
     ) -> PegOutConnectors {
         let connector_0 = Connector0::new(network, n_of_n_taproot_public_key);
         let connector_1 = Connector1::new(
@@ -2408,15 +2384,19 @@ impl PegOutGraph {
         );
 
         // connector c pks = connector e1 pks + connector e2 pks
+        let commitment_public_keys = &merge_to_connector_c_commits_public_key(
+            connector_e1_commitment_public_keys,
+            connector_e2_commitment_public_keys,
+        );
         let connector_c = ConnectorC::new(
             network,
             operator_taproot_public_key,
-            &merge_to_connector_c_commits_public_key(
-                connector_e1_commitment_public_keys,
-                connector_e2_commitment_public_keys,
-            ),
-            lock_scripts_generator,
-            lock_scripts_copy,
+            commitment_public_keys,
+            ConnectorC::cache_id(commitment_public_keys)
+                .inspect_err(|e| {
+                    eprintln!("Failed to generate cache id: {}", e);
+                })
+                .ok(),
         );
         let connector_d = ConnectorD::new(network, n_of_n_taproot_public_key);
 

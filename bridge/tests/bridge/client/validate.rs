@@ -4,15 +4,12 @@ use bitcoin::{Amount, OutPoint, Txid};
 
 use bridge::{
     client::client::{BitVMClient, BitVMClientPublicData},
-    graphs::{base::PEG_OUT_FEE_FOR_TAKE_1, peg_in::PegInGraph, peg_out::PegOutGraph},
+    graphs::{base::PEG_OUT_FEE, peg_in::PegInGraph, peg_out::PegOutGraph},
     scripts::generate_burn_script,
     transactions::{base::Input, pre_signed::PreSignedTransaction},
 };
 
-use crate::bridge::{
-    helper::get_lock_scripts_cached,
-    setup::{setup_test, INITIAL_AMOUNT},
-};
+use crate::bridge::setup::{setup_test, INITIAL_AMOUNT};
 
 #[tokio::test]
 async fn test_validate_success() {
@@ -91,8 +88,8 @@ async fn test_validate_invalid_script_pubkey() {
 async fn setup_and_create_graphs() -> (BitVMClientPublicData, OutPoint) {
     let config = setup_test().await;
 
-    let amount_0 = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE_FOR_TAKE_1 + 1);
-    let amount_1 = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE_FOR_TAKE_1 - 1);
+    let amount_0 = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE + 1);
+    let amount_1 = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE - 1);
     let peg_in_outpoint = OutPoint {
         txid: Txid::from_str("0e6719ac074b0e3cac76d057643506faa1c266b322aa9cf4c6f635fe63b14327")
             .unwrap(),
@@ -130,7 +127,6 @@ async fn setup_and_create_graphs() -> (BitVMClientPublicData, OutPoint) {
             amount: amount_0,
         },
         &config.commitment_secrets,
-        get_lock_scripts_cached,
     );
 
     let data = BitVMClientPublicData {

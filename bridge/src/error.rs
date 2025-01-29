@@ -3,6 +3,7 @@ use super::graphs::base::GraphId;
 use super::transactions::{base::BaseTransaction, pre_signed::PreSignedTransaction};
 use bitcoin::Txid;
 use std::fmt;
+use strum::Display;
 
 #[derive(Debug)]
 pub enum ClientError {
@@ -36,6 +37,11 @@ pub enum GraphError {
     PrecedingTxNotConfirmed(Vec<NamedTx>),
     PrecedingTxTimelockNotMet(NamedTx),
     WitnessNotGenerated(CommitmentMessageId),
+}
+
+#[derive(Debug, Display)]
+pub enum ConnectorError {
+    ConnectorCCommitsPublicKeyEmpty,
 }
 
 #[derive(Debug)]
