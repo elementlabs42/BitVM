@@ -134,7 +134,7 @@ impl DataStoreDriver for AwsS3 {
         Ok(keys)
     }
 
-    async fn fetch_json(&self, key: &str, file_path: Option<&str>) -> Result<String, String> {
+    async fn fetch_object(&self, key: &str, file_path: Option<&str>) -> Result<String, String> {
         let response = self.get_object(key, file_path).await;
         match response {
             Ok(buffer) => {
@@ -148,19 +148,16 @@ impl DataStoreDriver for AwsS3 {
         }
     }
 
-    async fn upload_json(
+    async fn upload_object(
         &self,
-        key: &str,
-        json: String,
+        file_name: &str,
+        contents: &str,
         file_path: Option<&str>,
     ) -> Result<usize, String> {
-        let bytes = json.as_bytes().to_vec();
-        let size = bytes.len();
-        let byte_stream = ByteStream::from(bytes);
+        let size = contents.len();
+        let byte_stream = ByteStream::from(contents.as_bytes().to_vec());
 
-        // println!("Writing data file to {} (size: {})", key, size);
-
-        match self.upload_object(key, byte_stream, file_path).await {
+        match self.upload_object(file_name, byte_stream, file_path).await {
             Ok(_) => Ok(size),
             Err(err) => Err(format!("Failed to save json file: {}", err)),
         }

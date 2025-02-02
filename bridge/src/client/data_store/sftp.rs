@@ -187,7 +187,7 @@ impl DataStoreDriver for Sftp {
         }
     }
 
-    async fn fetch_json(&self, key: &str, file_path: Option<&str>) -> Result<String, String> {
+    async fn fetch_object(&self, key: &str, file_path: Option<&str>) -> Result<String, String> {
         let response = self.get_object(key, file_path).await;
         match response {
             Ok(buffer) => {
@@ -201,18 +201,20 @@ impl DataStoreDriver for Sftp {
         }
     }
 
-    async fn upload_json(
+    async fn upload_object(
         &self,
-        key: &str,
-        json: String,
+        file_name: &str,
+        contents: &str,
         file_path: Option<&str>,
     ) -> Result<usize, String> {
-        let bytes = json.as_bytes().to_vec();
-        let size = bytes.len();
+        let size = contents.len();
 
-        println!("Writing data file to {} (size: {})", key, size);
+        println!("Writing data file to {} (size: {})", file_name, size);
 
-        match self.upload_object(key, &bytes, file_path).await {
+        match self
+            .upload_object(file_name, contents.as_bytes(), file_path)
+            .await
+        {
             Ok(_) => Ok(size),
             Err(err) => Err(format!("Failed to save json file: {}", err)),
         }
