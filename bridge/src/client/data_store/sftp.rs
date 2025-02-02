@@ -187,8 +187,12 @@ impl DataStoreDriver for Sftp {
         }
     }
 
-    async fn fetch_object(&self, key: &str, file_path: Option<&str>) -> Result<String, String> {
-        let response = self.get_object(key, file_path).await;
+    async fn fetch_object(
+        &self,
+        file_name: &str,
+        file_path: Option<&str>,
+    ) -> Result<String, String> {
+        let response = self.get_object(file_name, file_path).await;
         match response {
             Ok(buffer) => {
                 let json = String::from_utf8(buffer);
