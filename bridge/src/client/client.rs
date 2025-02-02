@@ -173,13 +173,15 @@ impl BitVMClient {
 
         let (n_of_n_public_key, _) = generate_n_of_n_public_key(n_of_n_public_keys);
 
-        // NOTE: This is used to store files in the remote data store. Currently this is AWS S3, which
-        // implements folder structure using '/' as a delimiter. For this reason we have to use it
+        // NOTE: This path is used to save files in the remote data store (currently AWS S3).
+        // Although S3 implements a flat object storage model without true directories, it uses '/'
+        // as a delimiter to simulate a hierarchical directory structure. For this reason we use it
         // explicitly in the format string below.
         let remote_file_path = format! {"{BRIDGE_DATA_DIRECTORY_NAME}/{source_network}/{destination_network}/{n_of_n_public_key}"};
-        // The local file path must use the platform specific path separator and it also uses the provided file path prefix.
-        let local_file_path = Path::new(file_path_prefix.unwrap_or_default())
-            .join(BRIDGE_DATA_DIRECTORY_NAME)
+        // The local file path, on the other hand, must use the platform specific path separator.
+        // Additionally, it includes the provided file path prefix to create a user namespace.
+        let local_file_path = Path::new(BRIDGE_DATA_DIRECTORY_NAME)
+            .join(file_path_prefix.unwrap_or_default())
             .join(source_network.to_string())
             .join(destination_network.to_string())
             .join(n_of_n_public_key.to_string());
