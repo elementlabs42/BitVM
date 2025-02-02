@@ -185,6 +185,7 @@ impl BitVMClient {
             .join(source_network.to_string())
             .join(destination_network.to_string())
             .join(n_of_n_public_key.to_string());
+        println!("Using data file path: {}", local_file_path.display());
 
         let data = BitVMClientPublicData {
             version: 1,
