@@ -53,7 +53,7 @@ impl KeysCommand {
             .arg(arg!(-o --operator <SECRET_KEY> "Secret key for operator").required(false))
             .arg(arg!(-v --verifier <SECRET_KEY> "Secret key for verifier").required(false))
             .arg(arg!(-w --withdrawer <SECRET_KEY> "Secret key for withdrawer").required(false))
-            .arg(arg!(-vk --zkp-verifying-key <KEY> "Zero-knowledge proof verifying key").required(false))
+            .arg(arg!(-k --zkp <KEY> "Zero-knowledge proof verifying key").required(false))
             .group(ArgGroup::new("context")
                 .args(["depositor", "operator", "verifier", "withdrawer"])
                 .required(true))
