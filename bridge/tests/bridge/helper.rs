@@ -80,7 +80,6 @@ pub async fn wait_for_confirmation() {
 
 pub async fn wait_timelock_expiry(network: Network, timelock_name: Option<&str>) {
     let timeout = Duration::from_secs(TX_WAIT_TIME * num_blocks_per_network(network, 0) as u64);
-    let a = DURATION_COLOR;
     println!(
         "Waiting {DURATION_COLOR}{:?}{RESET_COLOR} {} to timeout ...",
         timeout,
