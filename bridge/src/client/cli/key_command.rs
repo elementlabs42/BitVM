@@ -23,6 +23,9 @@ pub struct Keys {
     pub verifying_key: Option<String>,
 }
 
+const BRIDGE_HOME_DIR_NAME: &str = ".bitvm-bridge";
+const BRIDGE_TOML: &str = "bridge.toml";
+
 pub struct KeysCommand {
     pub config_path: PathBuf,
 }
@@ -30,15 +33,18 @@ pub struct KeysCommand {
 impl KeysCommand {
     pub fn new(key_dir: Option<String>) -> Self {
         let bitvm_dir = key_dir.map(PathBuf::from).unwrap_or_else(|| {
-            let home_dir = env::var("HOME").expect("Could not find home directory");
-            PathBuf::from(&home_dir).join(".bitvm")
+            let home_dir = env::var("HOME").expect("Home directory not specified");
+            PathBuf::from(&home_dir).join(BRIDGE_HOME_DIR_NAME)
         });
 
-        let config_path = bitvm_dir.join("bitvm-cli-env.toml");
+        let config_path = bitvm_dir.join(BRIDGE_TOML);
 
-        // Create .bitvm directory if it doesn't exist
+        // Create home directory if it doesn't exist
         if !bitvm_dir.exists() {
-            fs::create_dir_all(&bitvm_dir).expect("Failed to create .bitvm directory");
+            fs::create_dir_all(&bitvm_dir).expect(&format!(
+                "Failed to create {} directory",
+                bitvm_dir.display()
+            ));
         }
 
         KeysCommand { config_path }
@@ -147,6 +153,7 @@ impl KeysCommand {
     // We'll add it once circuit design is finalized and we can run a Groth16 setup.
     fn validate_verifying_key(&self, _key: &str) -> bool { todo!() }
 }
+
 fn pubkey_of(private_key: &str) -> PublicKey {
     generate_keys_from_secret(Network::Bitcoin, private_key).1
 }
