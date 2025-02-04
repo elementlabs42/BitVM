@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, process::Command, time::Duration};
 use tokio::time::sleep;
 
-use crate::bridge::helper::{ESPLORA_FUNDING_URL, TX_WAIT_TIME};
+use crate::bridge::helper::{ALPEN_SIGNET_ESPLORA_URL, TX_WAIT_TIME};
 
 const ESPLORA_RETRIES: usize = 5;
 const ESPLORA_RETRY_WAIT_TIME: u64 = 10;
@@ -152,12 +152,12 @@ impl Faucet {
             "Funding {:?} with {} sats at {}",
             address,
             amount.to_sat(),
-            ESPLORA_FUNDING_URL,
+            ALPEN_SIGNET_ESPLORA_URL,
         );
 
         Self::http_post(
             &self.client,
-            format!("{}api/onchain", ESPLORA_FUNDING_URL),
+            format!("{}api/onchain", ALPEN_SIGNET_ESPLORA_URL),
             payload,
         )
         .await
