@@ -29,6 +29,8 @@ use bitvm::{
 use rand::{RngCore, SeedableRng};
 use tokio::time::sleep;
 
+use crate::bridge::{DURATION_COLOR, RESET_COLOR};
+
 pub const TX_WAIT_TIME: u64 = 8; // In seconds. Must be >= expected block time.
 const REGTEST_ESPLORA_URL: &str = "http://localhost:8094/regtest/api/";
 pub const ALPEN_SIGNET_ESPLORA_URL: &str =
@@ -69,14 +71,18 @@ pub fn get_reward_amount(initial_amount: u64) -> u64 {
 
 pub async fn wait_for_confirmation() {
     let timeout = Duration::from_secs(TX_WAIT_TIME);
-    println!("Waiting {:?} for tx confirmation...", timeout);
+    println!(
+        "Waiting {DURATION_COLOR}{:?}{RESET_COLOR} for tx confirmation...",
+        timeout
+    );
     sleep(timeout).await;
 }
 
 pub async fn wait_timelock_expiry(network: Network, timelock_name: Option<&str>) {
     let timeout = Duration::from_secs(TX_WAIT_TIME * num_blocks_per_network(network, 0) as u64);
+    let a = DURATION_COLOR;
     println!(
-        "Waiting \x1b[37;41m{:?}\x1b[0m{} to timeout ...",
+        "Waiting {DURATION_COLOR}{:?}{RESET_COLOR} {} to timeout ...",
         timeout,
         match timelock_name {
             Some(timelock_name) => format!(" for {}", timelock_name),
