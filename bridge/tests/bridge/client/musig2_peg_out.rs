@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bitcoin::{Address, Amount, OutPoint};
 use bridge::{
     client::{
@@ -21,11 +19,12 @@ use bridge::{
 };
 use num_traits::ToPrimitive;
 use serial_test::serial;
-use tokio::time::sleep;
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{find_peg_in_graph_by_peg_out, generate_stub_outpoint, TX_WAIT_TIME},
+    helper::{
+        find_peg_in_graph_by_peg_out, generate_stub_outpoint, wait_for_confirmation_with_message,
+    },
     mock::chain::mock::MockAdaptor,
     setup::{setup_test, INITIAL_AMOUNT},
 };
@@ -326,9 +325,7 @@ async fn broadcast_transactions_from_peg_out_graph(
         .await
         .expect("Failed to broadcast kick-off 1");
 
-    // Wait for peg-in deposit transaction to be mined
-    println!("Waiting for peg-out kick-off tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(client.source_network, Some("peg-out kick-off 1 tx")).await;
 
     if with_kick_off_2_tx {
         eprintln!("Broadcasting start time...");
@@ -337,8 +334,8 @@ async fn broadcast_transactions_from_peg_out_graph(
             .await
             .expect("Failed to broadcast start time");
 
-        println!("Waiting for peg-out start time tx...");
-        sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+        wait_for_confirmation_with_message(client.source_network, Some("peg-out start time tx"))
+            .await;
 
         eprintln!("Broadcasting kick-off 2...");
         client
@@ -346,8 +343,8 @@ async fn broadcast_transactions_from_peg_out_graph(
             .await
             .expect("Failed to broadcast kick-off 2");
 
-        println!("Waiting for peg-out kick-off 2 tx...");
-        sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+        wait_for_confirmation_with_message(client.source_network, Some("peg-out kick-off 2 tx"))
+            .await;
     }
 
     if with_challenge_tx {
@@ -384,8 +381,8 @@ async fn broadcast_transactions_from_peg_out_graph(
             .await
             .expect("Failed to broadcast challenge");
 
-        println!("Waiting for peg-out challenge tx...");
-        sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+        wait_for_confirmation_with_message(client.source_network, Some("peg-out challenge tx"))
+            .await;
     }
 
     // TODO: uncomment after assert txs are done
@@ -393,8 +390,7 @@ async fn broadcast_transactions_from_peg_out_graph(
     //     eprintln!("Broadcasting assert...");
     //     client.broadcast_assert(&peg_out_graph_id).await;
 
-    //     println!("Waiting for peg-out assert tx...");
-    //     sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    //     wait_for_confirmation_with_message(client.source_network, Some("peg-out assert tx")).await;
     // }
 }
 
@@ -431,9 +427,9 @@ async fn create_peg_out_graph() -> (
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
     faucet
         .fund_inputs(&depositor_operator_verifier_0_client, &funding_inputs)
+        .await
+        .wait()
         .await;
-    println!("Waiting for funding inputs tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
 
     let kick_off_outpoint = generate_stub_outpoint(
         &depositor_operator_verifier_0_client,
@@ -532,9 +528,7 @@ async fn create_peg_in_graph(
     client_1.push_verifier_signature(&graph_id);
     client_1.flush().await;
 
-    // Wait for peg-in deposit transaction to be mined
-    println!("Waiting for peg-in deposit tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(client_0.source_network, Some("peg-in deposit tx")).await;
 
     client_0.sync().await;
     client_0
@@ -620,9 +614,7 @@ async fn simulate_peg_out_from_l2(
         .await
         .expect("Failed to broadcast peg out");
 
-    // Wait for peg-out transaction to be mined
-    println!("Waiting for peg-out tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(client.source_network, Some("peg-out tx")).await;
 
     eprintln!("Broadcasting peg out confirm...");
     client
@@ -630,7 +622,5 @@ async fn simulate_peg_out_from_l2(
         .await
         .expect("Failed to broadcast peg out confirm");
 
-    // Wait for peg-out confirm transaction to be mined
-    println!("Waiting for peg-out confirm tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(client.source_network, Some("peg-out confirm tx")).await;
 }

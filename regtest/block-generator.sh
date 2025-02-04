@@ -1,7 +1,10 @@
 #!/bin/bash
 
 if [ -z "$1" ]; then
-        interval=8
+        # Load REGTEST_BLOCK_TIME
+        source ../.env.test
+
+        interval=$REGTEST_BLOCK_TIME
 else
         interval=$1
 fi

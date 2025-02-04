@@ -1,8 +1,9 @@
-use std::time::Duration;
-
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{find_peg_out_graph, generate_stub_outpoint, REGTEST_ESPLORA_URL, TX_WAIT_TIME},
+    helper::{
+        find_peg_out_graph, generate_stub_outpoint, wait_for_confirmation_with_message,
+        REGTEST_ESPLORA_URL,
+    },
     setup::{setup_test, INITIAL_AMOUNT},
 };
 use bitcoin::{Address, Amount};
@@ -20,7 +21,6 @@ use bridge::{
 use esplora_client::Builder;
 use futures::StreamExt;
 use serial_test::serial;
-use tokio::time::sleep;
 
 #[ignore]
 #[tokio::test]
@@ -113,8 +113,7 @@ async fn test_e2e_1_simulate_peg_out() {
         .expect("Failed to broadcast peg out");
 
     // Wait for peg-out transaction to be mined
-    println!("Waiting for peg-out tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(config.network, Some("peg-out tx")).await;
 
     operator_client.flush().await;
 
@@ -179,9 +178,9 @@ async fn create_graph() -> (
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
     faucet
         .fund_inputs(&depositor_operator_verifier_0_client, &funding_inputs)
+        .await
+        .wait()
         .await;
-    println!("Waiting for funding inputs tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
 
     let kick_off_outpoint = generate_stub_outpoint(
         &depositor_operator_verifier_0_client,
@@ -285,8 +284,7 @@ async fn create_peg_in_graph(
     client_1.flush().await;
 
     // Wait for peg-in deposit transaction to be mined
-    println!("Waiting for peg-in deposit tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(client_0.source_network, Some("peg-in deposit tx")).await;
 
     client_0.sync().await;
     client_0
