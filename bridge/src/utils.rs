@@ -7,7 +7,6 @@ use std::{
 use bitcoin::Network;
 use bitcoin_script::{script, Script};
 use bitvm::{bigint::BigIntImpl, pseudo::NMUL};
-use lz4_flex::{compress_prepend_size, decompress_size_prepended};
 use serde::{Deserialize, Serialize};
 
 const NUM_BLOCKS_REGTEST: u32 = 2;
@@ -116,11 +115,16 @@ pub fn write_cache(file_path: &Path, data: &impl Serialize) -> std::io::Result<(
         }
     }
     let file = File::create(file_path)?;
-    let mut file = BufWriter::new(file);
 
-    let compressed = compress_prepend_size(&serde_json::to_vec(data).unwrap());
+    let writer = BufWriter::new(file);
 
-    file.write_all(&compressed)?;
+    let raw_data = serde_json::to_vec(data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+    let mut compressor = brotli::CompressorWriter::new(writer, 4096, 5, 22);
+
+    compressor.write_all(&raw_data)?;
+    compressor.flush()?;
 
     Ok(())
 }
@@ -131,13 +135,13 @@ where
 {
     println!("Reading cache from {}...", file_path.display());
     let file = File::open(file_path)?;
-    let mut file = BufReader::new(file);
+    let mut reader = BufReader::new(file);
 
-    let mut compressed_data = Vec::new();
-    file.read_to_end(&mut compressed_data)?;
+    let mut decompressed_data = Vec::new();
 
-    let decompressed_data = decompress_size_prepended(&compressed_data)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let mut decompressor = brotli::Decompressor::new(&mut reader, 4096);
+
+    decompressor.read_to_end(&mut decompressed_data)?;
 
     let deserialized: T = serde_json::from_slice(&decompressed_data)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;

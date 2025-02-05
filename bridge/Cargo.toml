@@ -40,7 +40,7 @@ ark-ff.workspace = true
 ark-std.workspace = true
 ark-serialize.workspace = true
 secp256k1.workspace = true
-lz4_flex.workspace = true
+brotli.workspace = true
 
 [profile.dev]
 opt-level = 3
