@@ -28,6 +28,7 @@ use crate::{
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::PegOutOperatorStatus,
     },
+    proof::generate_proof,
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         peg_in_confirm::PegInConfirmTransaction, peg_in_deposit::PegInDepositTransaction,
@@ -35,7 +36,9 @@ use crate::{
     },
 };
 
-use bitvm::signatures::signing_winternitz::WinternitzSecret;
+use bitvm::{
+    chunker::disprove_execution::RawProof, signatures::signing_winternitz::WinternitzSecret,
+};
 
 use super::{
     super::{
@@ -113,7 +116,7 @@ pub struct BitVMClient {
 
     data_store: DataStore,
     data: BitVMClientPublicData,
-    fetched_file_name: Option<String>,
+    latest_processed_file_name: Option<String>,
     remote_file_path: String,
     local_file_path: PathBuf,
 
@@ -215,7 +218,7 @@ impl BitVMClient {
 
             data_store,
             data,
-            fetched_file_name: None,
+            latest_processed_file_name: None,
             remote_file_path,
             local_file_path,
 
@@ -259,7 +262,7 @@ impl BitVMClient {
         let latest_file_names_result = Self::get_latest_file_names(
             &self.data_store,
             Some(&self.remote_file_path),
-            self.fetched_file_name.clone(),
+            self.latest_processed_file_name.clone(),
         )
         .await;
 
@@ -279,7 +282,7 @@ impl BitVMClient {
                         latest_file_name.as_ref().unwrap(),
                         &serialize(&latest_file.as_ref().unwrap()),
                     );
-                    self.fetched_file_name = latest_file_name;
+                    self.latest_processed_file_name = latest_file_name;
 
                     // fetch and process all the previous files if latest valid file exists
                     let result =
@@ -361,10 +364,10 @@ impl BitVMClient {
         latest_file_names: Vec<String>,
         period: u64,
     ) -> Result<Vec<String>, String> {
-        if self.fetched_file_name.is_some() {
+        if self.latest_processed_file_name.is_some() {
             let latest_timestamp = self
                 .data_store
-                .get_file_timestamp(self.fetched_file_name.as_ref().unwrap())?;
+                .get_file_timestamp(self.latest_processed_file_name.as_ref().unwrap())?;
 
             let past_max_file_name = self
                 .data_store
@@ -491,7 +494,7 @@ impl BitVMClient {
         let latest_file_names_result = Self::get_latest_file_names(
             &self.data_store,
             Some(&self.remote_file_path),
-            self.fetched_file_name.clone(),
+            self.latest_processed_file_name.clone(),
         )
         .await;
 
@@ -499,7 +502,7 @@ impl BitVMClient {
             let mut latest_file_names = latest_file_names_result.unwrap();
             latest_file_names.reverse();
             let latest_valid_file_name = Self::process_files(self, latest_file_names).await;
-            self.fetched_file_name = latest_valid_file_name;
+            self.latest_processed_file_name = latest_valid_file_name;
         }
 
         // push data
@@ -514,6 +517,7 @@ impl BitVMClient {
             Ok(file_name) => {
                 println!("Pushed new file: {} (size: {})", file_name, contents.len());
                 save_local_public_file(&self.local_file_path, &file_name, &contents);
+                self.latest_processed_file_name = Some(file_name);
             }
             Err(err) => println!("Failed to push: {}", err),
         }
@@ -810,10 +814,14 @@ impl BitVMClient {
                     let _ = self.broadcast_assert_initial(peg_out_graph.id()).await;
                 }
                 PegOutOperatorStatus::PegOutAssertCommit1Available => {
-                    let _ = self.broadcast_assert_commit_1(peg_out_graph.id()).await;
+                    let _ = self
+                        .broadcast_assert_commit_1(peg_out_graph.id(), &generate_proof())
+                        .await;
                 }
                 PegOutOperatorStatus::PegOutAssertCommit2Available => {
-                    let _ = self.broadcast_assert_commit_2(peg_out_graph.id()).await;
+                    let _ = self
+                        .broadcast_assert_commit_2(peg_out_graph.id(), &generate_proof())
+                        .await;
                 }
                 PegOutOperatorStatus::PegOutAssertFinalAvailable => {
                     let _ = self.broadcast_assert_final(peg_out_graph.id()).await;
@@ -1127,14 +1135,16 @@ impl BitVMClient {
     pub async fn broadcast_assert_commit_1(
         &mut self,
         peg_out_graph_id: &String,
+        proof: &RawProof,
     ) -> Result<Txid, Error> {
         let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
         let tx = graph
             .assert_commit_1(
                 &self.esplora,
                 &self.private_data.commitment_secrets
-                    [&self.verifier_context.as_ref().unwrap().verifier_public_key]
+                    [&self.operator_context.as_ref().unwrap().operator_public_key]
                     [peg_out_graph_id],
+                proof,
             )
             .await?;
         self.broadcast_tx(&tx).await
@@ -1143,14 +1153,16 @@ impl BitVMClient {
     pub async fn broadcast_assert_commit_2(
         &mut self,
         peg_out_graph_id: &String,
+        proof: &RawProof,
     ) -> Result<Txid, Error> {
         let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
         let tx = graph
             .assert_commit_2(
                 &self.esplora,
                 &self.private_data.commitment_secrets
-                    [&self.verifier_context.as_ref().unwrap().verifier_public_key]
+                    [&self.operator_context.as_ref().unwrap().operator_public_key]
                     [peg_out_graph_id],
+                proof,
             )
             .await?;
         self.broadcast_tx(&tx).await
