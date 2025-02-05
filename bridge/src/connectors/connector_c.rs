@@ -11,7 +11,9 @@ use crate::{
     connectors::base::*,
     error::{ChunkerError, ConnectorError, Error},
     transactions::base::Input,
-    utils::{read_cache, remove_script_and_control_block_from_witness, write_cache},
+    utils::{
+        cleanup_cache_files, read_cache, remove_script_and_control_block_from_witness, write_cache,
+    },
 };
 use bitcoin::{
     hashes::{hash160, Hash},
@@ -47,9 +49,11 @@ pub struct DisproveLeaf {
 }
 
 const CACHE_DIRECTORY_NAME: &str = "cache";
+const LOCK_SCRIPTS_FILE_PREFIX: &str = "lock_scripts_";
+const MAX_CACHE_FILES: u32 = 20;
 
 fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
-    let lock_scripts_file_name = format!("lock_scripts_{}.json", cache_id);
+    let lock_scripts_file_name = format!("{LOCK_SCRIPTS_FILE_PREFIX}{}.json", cache_id);
     Path::new(BRIDGE_DATA_DIRECTORY_NAME)
         .join(CACHE_DIRECTORY_NAME)
         .join(lock_scripts_file_name)
@@ -83,6 +87,12 @@ impl Serialize for ConnectorC {
         if !lock_scripts_cache_path.exists() {
             write_cache(&lock_scripts_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
         }
+
+        cleanup_cache_files(
+            LOCK_SCRIPTS_FILE_PREFIX,
+            &Path::new(BRIDGE_DATA_DIRECTORY_NAME).join(CACHE_DIRECTORY_NAME),
+            MAX_CACHE_FILES,
+        );
 
         c.end()
     }
