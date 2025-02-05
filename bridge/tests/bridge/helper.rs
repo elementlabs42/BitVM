@@ -63,7 +63,7 @@ fn network_block_time(network: Network) -> u32 {
 
 /// Provides a safe waiting duration in seconds for transaction confirmation on the specified network.
 /// This duration must be at least as long as the expected block time for that network.
-/// Returns network block time + 1 second for safety.
+/// Returns network block time + 1 second to avoid race conditions.
 fn tx_wait_time(network: Network) -> u64 { (network_block_time(network) + 1).into() }
 
 pub const TX_RELAY_FEE_CHECK_FAIL_MSG: &str =
