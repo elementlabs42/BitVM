@@ -172,13 +172,16 @@ impl ConnectorC {
     ) -> Self {
         let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
             let file_path = get_lock_scripts_cache_path(&cache_id);
-            read_cache(&file_path).unwrap_or_else(|e| {
+            let cache = read_cache(&file_path).unwrap_or_else(|e| {
                 eprintln!(
                     "Failed to read lock scripts cache from expected location: {}",
                     e
                 );
                 None
-            })
+            });
+            // write_serialized(std::path::Path::new("json-cache-lock-scripts.decompressed"), &cache).unwrap();
+
+            cache
         });
 
         ConnectorC {

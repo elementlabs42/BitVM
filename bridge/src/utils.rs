@@ -1,6 +1,6 @@
 use std::{
     fs::{create_dir_all, File},
-    io::{BufReader, BufWriter, Read, Write},
+    io::{BufReader, BufWriter, Write},
     path::{Path, PathBuf},
 };
 
@@ -107,6 +107,19 @@ pub fn sb_hash_from_bytes() -> Script {
     }
 }
 
+// pub fn write_serialized(file_path: &Path, data: &impl Serialize) -> std::io::Result<()> {
+//     println!("Writing uncompressed cache to {}...", file_path.display());
+//     if let Some(parent) = file_path.parent() {
+//         if !parent.exists() {
+//             create_dir_all(parent)?;
+//         }
+//     }
+//     let file = File::create(file_path)?;
+//     let file = BufWriter::new(file);
+
+//     serde_json::to_writer(file, data).map_err(std::io::Error::from)
+// }
+
 pub fn write_cache(file_path: &Path, data: &impl Serialize) -> std::io::Result<()> {
     println!("Writing cache to {}...", file_path.display());
     if let Some(parent) = file_path.parent() {
@@ -116,15 +129,30 @@ pub fn write_cache(file_path: &Path, data: &impl Serialize) -> std::io::Result<(
     }
     let file = File::create(file_path)?;
 
-    let writer = BufWriter::new(file);
+    let mut writer = BufWriter::new(file);
 
     let raw_data = serde_json::to_vec(data)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    // let file_orig = File::create("json-cache.orig")?;
+    // let writer_orig = BufWriter::new(file_orig);
+    // serde_json::to_writer(writer_orig, data).map_err(std::io::Error::from)?;
 
-    let mut compressor = brotli::CompressorWriter::new(writer, 4096, 5, 22);
+    // let start = Instant::now();
 
-    compressor.write_all(&raw_data)?;
-    compressor.flush()?;
+    //brotli
+    // let mut compressor = brotli::CompressorWriter::new(writer, 4096, 5, 22);
+    // compressor.write_all(&raw_data)?;
+    // compressor.flush()?;
+
+    //zstd
+    let compressed = zstd::stream::encode_all(raw_data.as_slice(), 5)?;
+    writer.write_all(&compressed)?;
+
+    // let elapsed = start.elapsed();
+    // println!(
+    //     "Compressing took \x1b[30;46m{}\x1b[0m ms",
+    //     elapsed.as_millis()
+    // );
 
     Ok(())
 }
@@ -135,13 +163,25 @@ where
 {
     println!("Reading cache from {}...", file_path.display());
     let file = File::open(file_path)?;
-    let mut reader = BufReader::new(file);
+    let reader = BufReader::new(file);
 
-    let mut decompressed_data = Vec::new();
+    // let start = Instant::now();
 
-    let mut decompressor = brotli::Decompressor::new(&mut reader, 4096);
+    //brotli
+    // let mut decompressed_data = Vec::new();
+    // let mut decompressor = brotli::Decompressor::new(&mut reader, 4096);
+    // decompressor.read_to_end(&mut decompressed_data)?;
 
-    decompressor.read_to_end(&mut decompressed_data)?;
+    //zstd
+    let decompressed_data = zstd::stream::decode_all(reader)?;
+    // zstd::zstd_safe::decompress(&mut decompressed_data, &compressed_data).map_err(
+    //     |code| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("zstd error code: {}", code)))?;
+
+    // let elapsed = start.elapsed();
+    // println!(
+    //     "Decompressing took \x1b[30;46m{}\x1b[0m ms",
+    //     elapsed.as_millis()
+    // );
 
     let deserialized: T = serde_json::from_slice(&decompressed_data)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
