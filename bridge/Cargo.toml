@@ -40,8 +40,8 @@ ark-ff.workspace = true
 ark-std.workspace = true
 ark-serialize.workspace = true
 secp256k1.workspace = true
-#brotli.workspace = true
 zstd.workspace = true
+bitcode.workspace = true
 
 [profile.dev]
 opt-level = 3

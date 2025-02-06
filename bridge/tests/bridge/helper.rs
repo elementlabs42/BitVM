@@ -13,7 +13,7 @@ use bitcoin::{
 use bridge::{
     client::client::BitVMClient,
     commitments::CommitmentMessageId,
-    connectors::connector_c::generate_assert_leaves,
+    connectors::connector_c::{generate_assert_leaves, unwrap_lock_scripts, wrap_lock_scripts},
     graphs::{
         base::{BaseGraph, REWARD_MULTIPLIER, REWARD_PRECISION},
         peg_in::PegInGraph,
@@ -241,6 +241,7 @@ pub fn get_intermediate_variables_cached() -> BTreeMap<String, usize> {
     intermediate_variables.unwrap_or_else(|| {
         println!("Generating new intermediate variables...");
         let intermediate_variables = BridgeAssigner::default().all_intermediate_variables();
+        println!("in test, Intermediate variables length: {:?}", intermediate_variables.iter().len());
         write_cache(&intermediate_variables_cache_path, &intermediate_variables).unwrap();
         intermediate_variables
     })
@@ -251,20 +252,28 @@ pub fn get_lock_scripts_cached(
 ) -> Vec<ScriptBuf> {
     let lock_scripts_cache_path = Path::new(TEST_CACHE_DIRECTORY_NAME).join(LOCK_SCRIPTS_FILE_NAME);
     let lock_scripts = if lock_scripts_cache_path.exists() {
-        read_cache(&lock_scripts_cache_path).unwrap_or_else(|e| {
-            eprintln!(
-                "Failed to read lock scripts cache after a check for its existence: {}",
-                e
-            );
-            None
-        })
+        let lock_scripts_bytes: Option<Vec<Vec<u8>>> = read_cache(&lock_scripts_cache_path)
+            .unwrap_or_else(|e| {
+                eprintln!(
+                    "Failed to read lock scripts cache from expected location: {}",
+                    e
+                );
+                None
+            });
+        let cache = match lock_scripts_bytes {
+            Some(lock_scripts_bytes) => Some(wrap_lock_scripts(lock_scripts_bytes)),
+            None => None,
+        };
+        cache
     } else {
         None
     };
 
     lock_scripts.unwrap_or_else(|| {
         let lock_scripts = generate_assert_leaves(commits_public_keys);
-        write_cache(&lock_scripts_cache_path, &lock_scripts).unwrap();
+        let lock_scripts_bytes = unwrap_lock_scripts(&lock_scripts);
+        println!("in test, Lock scripts length: {:?}", lock_scripts.iter().len());
+        write_cache(&lock_scripts_cache_path, &lock_scripts_bytes).unwrap();
         lock_scripts
     })
 }
