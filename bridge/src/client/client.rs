@@ -28,7 +28,7 @@ use crate::{
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::PegOutOperatorStatus,
     },
-    proof::generate_proof,
+    proof::get_proof,
     scripts::generate_pay_to_pubkey_script_address,
     transactions::{
         peg_in_confirm::PegInConfirmTransaction, peg_in_deposit::PegInDepositTransaction,
@@ -817,12 +817,12 @@ impl BitVMClient {
                 }
                 PegOutOperatorStatus::PegOutAssertCommit1Available => {
                     let _ = self
-                        .broadcast_assert_commit_1(peg_out_graph.id(), &generate_proof())
+                        .broadcast_assert_commit_1(peg_out_graph.id(), &get_proof())
                         .await;
                 }
                 PegOutOperatorStatus::PegOutAssertCommit2Available => {
                     let _ = self
-                        .broadcast_assert_commit_2(peg_out_graph.id(), &generate_proof())
+                        .broadcast_assert_commit_2(peg_out_graph.id(), &get_proof())
                         .await;
                 }
                 PegOutOperatorStatus::PegOutAssertFinalAvailable => {

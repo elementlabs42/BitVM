@@ -4,7 +4,7 @@ use crate::common::ZkProofVerifyingKey;
 use crate::constants::DestinationNetwork;
 use crate::contexts::base::generate_keys_from_secret;
 use crate::graphs::base::{VERIFIER_0_SECRET, VERIFIER_1_SECRET};
-use crate::proof::generate_proof;
+use crate::proof::get_proof;
 use crate::transactions::base::Input;
 use ark_serialize::CanonicalDeserialize;
 
@@ -218,12 +218,12 @@ impl ClientCommand {
             Some(("assert_initial", _)) => self.client.broadcast_assert_initial(graph_id).await,
             Some(("assert_commit_1", _)) => {
                 self.client
-                    .broadcast_assert_commit_1(graph_id, &generate_proof())
+                    .broadcast_assert_commit_1(graph_id, &get_proof())
                     .await
             }
             Some(("assert_commit_2", _)) => {
                 self.client
-                    .broadcast_assert_commit_2(graph_id, &generate_proof())
+                    .broadcast_assert_commit_2(graph_id, &get_proof())
                     .await
             }
             Some(("assert_final", _)) => self.client.broadcast_assert_final(graph_id).await,

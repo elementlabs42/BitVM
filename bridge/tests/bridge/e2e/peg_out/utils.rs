@@ -9,20 +9,21 @@ use bridge::{
         MIN_RELAY_FEE_ASSERT_FINAL, MIN_RELAY_FEE_ASSERT_INITIAL, MIN_RELAY_FEE_DISPROVE,
         MIN_RELAY_FEE_KICK_OFF_2, MIN_RELAY_FEE_PEG_OUT,
     },
-    utils::num_blocks_per_network,
 };
 use colored::Colorize;
 use core::panic;
-use std::time::Duration;
-use tokio::time::sleep;
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{generate_stub_outpoint, get_default_peg_out_event, TX_WAIT_TIME},
+    helper::{
+        generate_stub_outpoint, get_default_peg_out_event, wait_for_confirmation_with_message,
+        wait_for_timelock_expiry,
+    },
     setup::{setup_test, INITIAL_AMOUNT},
 };
 
 pub async fn create_peg_in_graph(
+    network: Network,
     verifier_0: &mut BitVMClient,
     verifier_1: &mut BitVMClient,
     deposit_input: Input,
@@ -34,15 +35,13 @@ pub async fn create_peg_in_graph(
         .await;
 
     match verifier_0.broadcast_peg_in_deposit(&graph_id).await {
-        Ok(txid) => eprintln!(
+        Ok(txid) => println!(
             "Broadcasted {} with txid {txid}",
             "peg-in deposit".bold().green()
         ),
         Err(e) => panic!("Failed to broadcast peg-in deposit: {e}"),
     }
-    // Wait for peg-in deposit transaction to be mined
-    println!("Waiting for peg-in deposit tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(network, Some("peg-in deposit tx")).await;
 
     println!("{}", "PEG-IN ceremony start".bold().yellow());
     println!("{}", "Generate verifier 0 nonces".bold().magenta());
@@ -82,6 +81,7 @@ pub async fn create_peg_in_graph(
         ),
         Err(e) => panic!("Failed to broadcast peg-in confirm: {e}"),
     }
+    wait_for_confirmation_with_message(network, Some("peg-in confirm tx")).await;
 
     graph_id
 }
@@ -133,8 +133,8 @@ pub async fn create_peg_out_graph() -> (BitVMClient, BitVMClient, String, Script
     faucet
         .fund_inputs(&verifier_0_operator_depositor, &funding_inputs)
         .await;
-    println!("Waiting for funding inputs tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+
+    wait_for_confirmation_with_message(config.network, Some("funding inputs")).await;
 
     // create peg-in graph
     let peg_in_deposit_outpoint = generate_stub_outpoint(
@@ -145,6 +145,7 @@ pub async fn create_peg_out_graph() -> (BitVMClient, BitVMClient, String, Script
     .await;
 
     let peg_in_graph_id = create_peg_in_graph(
+        config.network,
         &mut verifier_0_operator_depositor,
         &mut verifier_1,
         Input {
@@ -236,8 +237,6 @@ pub async fn broadcast_txs_for_disprove_scenario(
     peg_out_input: Input,
     proof: &RawProof,
 ) {
-    let num_blocks_timelock = num_blocks_per_network(network, 0) as u64;
-
     println!("{}", "Sync operator".bold().cyan());
     operator.sync().await;
 
@@ -267,8 +266,7 @@ pub async fn broadcast_txs_for_disprove_scenario(
         Ok(txid) => println!("Broadcasted {} with txid {txid}", "peg-out".bold().green()),
         Err(e) => panic!("Failed to broadcast peg-out: {e}"),
     };
-    println!("Waiting for peg-out tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(network, Some("peg-out tx")).await;
 
     match operator.broadcast_peg_out_confirm(peg_out_graph_id).await {
         Ok(txid) => println!(
@@ -277,8 +275,7 @@ pub async fn broadcast_txs_for_disprove_scenario(
         ),
         Err(e) => panic!("Failed to broadcast peg-out confirm: {e}"),
     }
-    println!("Waiting for peg-out confirm tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(network, Some("peg-out confirm tx")).await;
 
     match operator.broadcast_kick_off_1(peg_out_graph_id).await {
         Ok(txid) => println!(
@@ -287,8 +284,7 @@ pub async fn broadcast_txs_for_disprove_scenario(
         ),
         Err(e) => panic!("Failed to broadcast kick-off 1: {e}"),
     }
-    println!("Waiting for kick-off 1 tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME * num_blocks_timelock)).await;
+    wait_for_timelock_expiry(network, Some("kick-off 1 connector 1")).await;
 
     match operator.broadcast_kick_off_2(peg_out_graph_id).await {
         Ok(txid) => println!(
@@ -297,8 +293,7 @@ pub async fn broadcast_txs_for_disprove_scenario(
         ),
         Err(e) => panic!("Failed to broadcast kick-off 2: {e}"),
     }
-    println!("Waiting for kick-off 2 tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME * num_blocks_timelock)).await;
+    wait_for_timelock_expiry(network, Some("kick-off 2 connector B")).await;
 
     match operator.broadcast_assert_initial(peg_out_graph_id).await {
         Ok(txid) => println!(
@@ -307,8 +302,7 @@ pub async fn broadcast_txs_for_disprove_scenario(
         ),
         Err(e) => panic!("Failed to broadcast assert-initial: {e}"),
     }
-    println!("Waiting for assert-initial tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(network, Some("assert-initial tx")).await;
 
     match operator
         .broadcast_assert_commit_1(peg_out_graph_id, proof)
@@ -330,8 +324,8 @@ pub async fn broadcast_txs_for_disprove_scenario(
         ),
         Err(e) => panic!("Failed to broadcast assert-commit 2: {e}"),
     }
-    println!("Waiting for assert-commit 1 and assert-commit 2 txs...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(network, Some("assert-commit 1 and assert-commit 2 txs"))
+        .await;
 
     match operator.broadcast_assert_final(peg_out_graph_id).await {
         Ok(txid) => println!(
@@ -340,8 +334,7 @@ pub async fn broadcast_txs_for_disprove_scenario(
         ),
         Err(e) => panic!("Failed to broadcast assert-final: {e}"),
     }
-    println!("Waiting for assert-final tx...");
-    sleep(Duration::from_secs(TX_WAIT_TIME)).await;
+    wait_for_confirmation_with_message(network, Some("assert-final tx")).await;
 
     println!("{}", "Flush operator txs".bold().cyan());
     operator.flush().await;

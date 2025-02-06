@@ -31,7 +31,7 @@ async fn test_disprove_success_1() {
     {
         Ok(txid) => {
             println!("Broadcasted {} with txid {txid}", "disprove".bold().green());
-            panic!(
+            println!(
                 "{}",
                 "Succesfully disproved incorrect ZK proof".bold().green()
             );
