@@ -146,7 +146,8 @@ pub async fn setup_test_full() -> SetupConfigFull {
         &commitment_public_keys,
         Some(cache_id),
     );
-    serialize(&connector_c); // Caches the lock scripts
+    // serialize(&connector_c); // Caches the lock scripts
+    connector_c.write_lock_scripts_cache().unwrap();
 
     SetupConfigFull {
         network: config.network,

@@ -11,7 +11,9 @@ use crate::{
     connectors::base::*,
     error::{ChunkerError, ConnectorError, Error},
     transactions::base::Input,
-    utils::{read_cache, remove_script_and_control_block_from_witness, write_cache},
+    utils::{
+        read_cache, remove_script_and_control_block_from_witness, write_cache, write_cache_bitcode,
+    },
 };
 use bitcoin::{
     hashes::{hash160, Hash},
@@ -49,7 +51,7 @@ pub struct DisproveLeaf {
 const CACHE_DIRECTORY_NAME: &str = "cache";
 
 fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
-    let lock_scripts_file_name = format!("lock_scripts_{}.json", cache_id);
+    let lock_scripts_file_name = format!("lock_scripts_{}.bitcode", cache_id);
     Path::new(BRIDGE_DATA_DIRECTORY_NAME)
         .join(CACHE_DIRECTORY_NAME)
         .join(lock_scripts_file_name)
@@ -81,7 +83,13 @@ impl Serialize for ConnectorC {
 
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
         if !lock_scripts_cache_path.exists() {
-            write_cache(&lock_scripts_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
+            let lock_scripts_bytes: Vec<Vec<u8>> = self
+                .lock_scripts
+                .iter()
+                .map(|script| script.to_bytes())
+                .collect();
+            write_cache_bitcode(&lock_scripts_cache_path, &lock_scripts_bytes)
+                .map_err(SerError::custom)?;
         }
 
         c.end()
@@ -161,14 +169,14 @@ impl ConnectorC {
         lock_scripts_cache_id: Option<String>,
     ) -> Self {
         let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
-            let file_path = get_lock_scripts_cache_path(&cache_id);
-            read_cache(&file_path).unwrap_or_else(|e| {
-                eprintln!(
-                    "Failed to read lock scripts cache from expected location: {}",
-                    e
-                );
-                None
-            })
+            // let file_path = get_lock_scripts_cache_path(&cache_id);
+            // read_cache(&file_path).unwrap_or_else(|e| {
+            //     eprintln!(
+            //         "Failed to read lock scripts cache from expected location: {}",
+            //         e
+            //     );
+            None
+            // })
         });
 
         ConnectorC {
@@ -178,6 +186,18 @@ impl ConnectorC {
                 .unwrap_or_else(|| generate_assert_leaves(commitment_public_keys)),
             commitment_public_keys: commitment_public_keys.clone(),
         }
+    }
+
+    pub fn write_lock_scripts_cache(&self) -> Result<(), std::io::Error> {
+        let lock_scripts_bytes: Vec<Vec<u8>> = self
+            .lock_scripts
+            .iter()
+            .map(|script| script.to_bytes())
+            .collect();
+        let lock_scripts_cache_path =
+            get_lock_scripts_cache_path(&Self::cache_id(&self.commitment_public_keys).unwrap());
+
+        write_cache_bitcode(&lock_scripts_cache_path, &lock_scripts_bytes)
     }
 
     pub fn generate_disprove_witness(

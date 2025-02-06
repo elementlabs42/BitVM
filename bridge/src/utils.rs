@@ -4,6 +4,7 @@ use std::{
     path::Path,
 };
 
+use bitcode::{Decode, Encode};
 use bitcoin::Network;
 use bitcoin_script::{script, Script};
 use bitvm::{bigint::BigIntImpl, pseudo::NMUL};
@@ -129,4 +130,34 @@ where
     let file = BufReader::new(file);
 
     serde_json::from_reader(file).map_err(std::io::Error::from)
+}
+
+pub fn write_cache_bitcode(file_path: &Path, data: &impl Encode) -> std::io::Result<()> {
+    println!("Writing cache to {}...", file_path.display());
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            create_dir_all(parent)?;
+        }
+    }
+
+    let start = std::time::Instant::now();
+    std::fs::write(file_path, bitcode::encode(data))?;
+    println!(
+        "Writing cache took: {:?}",
+        format!(
+            "{:02}:{:02}",
+            start.elapsed().as_secs() / 60,
+            start.elapsed().as_secs() % 60
+        )
+    );
+
+    Ok(())
+}
+
+pub fn read_cache_bitcode<T>(file_path: &Path) -> std::io::Result<T>
+where
+    T: for<'a> Decode<'a>,
+{
+    println!("Reading cache from {}...", file_path.display());
+    Ok(bitcode::decode(&std::fs::read(file_path)?).unwrap())
 }
