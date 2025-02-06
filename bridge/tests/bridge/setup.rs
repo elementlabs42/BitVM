@@ -203,6 +203,8 @@ pub async fn setup_test() -> SetupConfig {
     let withdrawer_context =
         WithdrawerContext::new(source_network, WITHDRAWER_SECRET, &n_of_n_public_keys);
 
+    let veryfying_key = get_correct_proof().vk;
+
     let client_0 = BitVMClient::new(
         Some(get_esplora_url(source_network)),
         source_network,
@@ -213,7 +215,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(VERIFIER_0_SECRET),
         Some(WITHDRAWER_SECRET),
         Some("test_client_0"),
-        Some(get_correct_proof().vk),
+        Some(veryfying_key.clone()),
     )
     .await;
 
@@ -227,7 +229,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(VERIFIER_1_SECRET),
         Some(WITHDRAWER_SECRET),
         Some("test_client_1"),
-        Some(get_correct_proof().vk),
+        Some(veryfying_key),
     )
     .await;
 
