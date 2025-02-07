@@ -120,7 +120,7 @@ pub fn sb_hash_from_bytes() -> Script {
 //     serde_json::to_writer(file, data).map_err(std::io::Error::from)
 // }
 
-pub fn write_cache<T: savefile::Serialize>(file_path: &Path, data: &T) -> std::io::Result<()> {
+pub fn write_cache<T: Encode + ?Sized>(file_path: &Path, data: &T) -> std::io::Result<()> {
     println!("Writing cache to {}...", file_path.display());
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
@@ -133,17 +133,9 @@ pub fn write_cache<T: savefile::Serialize>(file_path: &Path, data: &T) -> std::i
 
     let start = Instant::now();
 
-    // let encoded = bitcode::encode(data);
-
+    let encoded = bitcode::encode(data);
     // let mut bitcode_buffer = bitcode::Buffer::new();
     // let encoded = bitcode_buffer.encode(data).to_vec();
-
-    let encoded = savefile::save_to_mem(0, data).map_err(|e| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("savefile error: {}", e),
-        )
-    })?;
     println!("encoded size: {}", encoded.len());
 
     // let _ = bitcode::decode(&encoded).map_err(|e| {
@@ -193,7 +185,7 @@ pub fn write_cache<T: savefile::Serialize>(file_path: &Path, data: &T) -> std::i
 
 pub fn read_cache<T>(file_path: &Path) -> std::io::Result<T>
 where
-    T: for<'de> savefile::Deserialize,
+    T: for<'de> Decode<'de>,
 {
     println!("Reading cache from {}...", file_path.display());
     let file = File::open(file_path)?;
@@ -228,14 +220,13 @@ where
 
     let start = Instant::now();
 
-    // let mut bitcode_buffer = bitcode::Buffer::new();
-    // let decoded = bitcode_buffer.decode(&encoded_data).map_err(|e| {
-    //     std::io::Error::new(
-    //         std::io::ErrorKind::InvalidData,
-    //         format!("bitcode error: {}", e),
-    //     )
-    // })?;
-
+    let mut bitcode_buffer = bitcode::Buffer::new();
+    let decoded = bitcode_buffer.decode(&encoded_data).map_err(|e| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("bitcode error: {}", e),
+        )
+    })?;
     // let decoded = bitcode::decode(&encoded_data).map_err(|e| {
     //     std::io::Error::new(
     //         std::io::ErrorKind::InvalidData,
@@ -243,12 +234,6 @@ where
     //     )
     // })?;
 
-    let decoded = savefile::load_from_mem(&encoded_data, 0).map_err(|e| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("savefile error: {}", e),
-        )
-    })?;
     let elapsed = start.elapsed();
     println!(
         "Bitcode decoding took \x1b[30;46m{}\x1b[0m ms",
