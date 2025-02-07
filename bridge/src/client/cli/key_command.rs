@@ -23,7 +23,7 @@ pub struct Keys {
     pub verifying_key: Option<String>,
 }
 
-const BRIDGE_HOME_DIR_NAME: &str = ".bitvm-bridge";
+const BRIDGE_KEY_DIR_NAME: &str = ".bitvm-bridge";
 const BRIDGE_TOML: &str = "bridge.toml";
 
 pub struct KeysCommand {
@@ -32,19 +32,17 @@ pub struct KeysCommand {
 
 impl KeysCommand {
     pub fn new(key_dir: Option<String>) -> Self {
-        let bitvm_dir = key_dir.map(PathBuf::from).unwrap_or_else(|| {
-            let home_dir = env::var("HOME").expect("Home directory not specified");
-            PathBuf::from(&home_dir).join(BRIDGE_HOME_DIR_NAME)
+        let key_dir = key_dir.map(PathBuf::from).unwrap_or_else(|| {
+            let home_dir = env::var("HOME").expect("Environment variable HOME not set.");
+            PathBuf::from(&home_dir).join(BRIDGE_KEY_DIR_NAME)
         });
 
-        let config_path = bitvm_dir.join(BRIDGE_TOML);
+        let config_path = key_dir.join(BRIDGE_TOML);
 
-        // Create home directory if it doesn't exist
-        if !bitvm_dir.exists() {
-            fs::create_dir_all(&bitvm_dir).expect(&format!(
-                "Failed to create {} directory",
-                bitvm_dir.display()
-            ));
+        // Create key directory if it doesn't exist
+        if !key_dir.exists() {
+            fs::create_dir_all(&key_dir)
+                .expect(&format!("Failed to create {} directory", key_dir.display()));
         }
 
         KeysCommand { config_path }
