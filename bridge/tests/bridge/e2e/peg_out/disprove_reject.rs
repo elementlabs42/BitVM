@@ -1,6 +1,6 @@
-use colored::Colorize;
+use bridge::error::{ChunkerError, Error};
 
-use crate::bridge::helper::get_correct_proof;
+use colored::Colorize;
 
 use super::utils::{broadcast_txs_for_disprove_scenario, create_peg_out_graph};
 
@@ -13,6 +13,8 @@ async fn test_disprove_reject() {
         reward_script,
         peg_out_input,
         network,
+        valid_proof,
+        _,
     ) = create_peg_out_graph().await;
 
     broadcast_txs_for_disprove_scenario(
@@ -21,23 +23,25 @@ async fn test_disprove_reject() {
         &mut verifier_1,
         &peg_out_graph_id,
         peg_out_input,
-        &get_correct_proof(),
+        &valid_proof,
     )
     .await;
 
-    match verifier_1
+    let result = verifier_1
         .broadcast_disprove(&peg_out_graph_id, reward_script)
-        .await
-    {
-        Ok(txid) => {
-            println!("Broadcasted {} with txid {txid}", "disprove".bold().red());
-            panic!("{}", "Incorrectly disproved correct ZK proof".bold().red());
-        }
-        Err(e) => println!(
-            "{}: {e}",
-            "Successfully rejected disproving correct ZK proof"
-                .bold()
-                .green()
-        ),
-    }
+        .await;
+
+    assert!(
+        matches!(result, Err(Error::Chunker(ChunkerError::ValidProof))),
+        "Should have failed with {} but got {:?}",
+        Error::Chunker(ChunkerError::ValidProof),
+        result
+    );
+
+    println!(
+        "{}",
+        "Successfully rejected disproving correct ZK proof"
+            .bold()
+            .green()
+    );
 }

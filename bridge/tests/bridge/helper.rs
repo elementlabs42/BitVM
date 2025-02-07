@@ -335,7 +335,7 @@ pub fn get_lock_scripts_cached(
     })
 }
 
-pub fn get_correct_proof() -> RawProof {
+pub fn get_valid_proof() -> RawProof {
     type E = Bn254;
     let k = 6;
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
@@ -358,12 +358,12 @@ pub fn get_correct_proof() -> RawProof {
     }
 }
 
-pub fn get_incorrect_proof() -> RawProof {
-    let mut correct_proof = get_correct_proof();
+pub fn invalidate_proof(valid_proof: &RawProof) -> RawProof {
+    let mut _valid_proof = valid_proof.clone();
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
-    correct_proof.proof.a = G1Affine::rand(&mut rng);
+    _valid_proof.proof.a = G1Affine::rand(&mut rng);
 
-    correct_proof
+    _valid_proof
 }
 
 // TODO: Consider importing `gen_correct_proof` fn from bitvm/src/chunker/disprove_execution.rs

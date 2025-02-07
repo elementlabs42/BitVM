@@ -1,7 +1,5 @@
 use colored::Colorize;
 
-use crate::bridge::helper::get_incorrect_proof;
-
 use super::utils::{broadcast_txs_for_disprove_scenario, create_peg_out_graph};
 
 #[tokio::test]
@@ -13,6 +11,8 @@ async fn test_disprove_success_1() {
         reward_script,
         peg_out_input,
         network,
+        _,
+        invalid_proof,
     ) = create_peg_out_graph().await;
 
     broadcast_txs_for_disprove_scenario(
@@ -21,24 +21,23 @@ async fn test_disprove_success_1() {
         &mut verifier_1,
         &peg_out_graph_id,
         peg_out_input,
-        &get_incorrect_proof(),
+        &invalid_proof,
     )
     .await;
 
-    match verifier_1
+    let result = verifier_1
         .broadcast_disprove(&peg_out_graph_id, reward_script)
-        .await
-    {
-        Ok(txid) => {
-            println!("Broadcasted {} with txid {txid}", "disprove".bold().green());
-            println!(
-                "{}",
-                "Succesfully disproved incorrect ZK proof".bold().green()
-            );
-        }
-        Err(e) => panic!(
-            "{}: {e}",
-            "Failed to disprove incorrect ZK proof".bold().red()
-        ),
-    }
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "{}: {}",
+        "Failed to disprove incorrect ZK proof",
+        result.unwrap_err()
+    );
+
+    println!(
+        "{}",
+        "Succesfully disproved incorrect ZK proof".bold().green()
+    );
 }

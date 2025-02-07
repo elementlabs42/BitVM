@@ -86,8 +86,16 @@ pub async fn create_peg_in_graph(
     graph_id
 }
 
-pub async fn create_peg_out_graph() -> (BitVMClient, BitVMClient, String, ScriptBuf, Input, Network)
-{
+pub async fn create_peg_out_graph() -> (
+    BitVMClient,
+    BitVMClient,
+    String,
+    ScriptBuf,
+    Input,
+    Network,
+    RawProof,
+    RawProof,
+) {
     let config = setup_test().await;
     let mut verifier_0_operator_depositor = config.client_0;
     let mut verifier_1 = config.client_1;
@@ -132,9 +140,9 @@ pub async fn create_peg_out_graph() -> (BitVMClient, BitVMClient, String, Script
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
     faucet
         .fund_inputs(&verifier_0_operator_depositor, &funding_inputs)
+        .await
+        .wait()
         .await;
-
-    wait_for_confirmation_with_message(config.network, Some("funding inputs")).await;
 
     // create peg-in graph
     let peg_in_deposit_outpoint = generate_stub_outpoint(
@@ -226,6 +234,8 @@ pub async fn create_peg_out_graph() -> (BitVMClient, BitVMClient, String, Script
             amount: peg_out_input_amount,
         },
         config.network,
+        config.valid_proof,
+        config.invalid_proof,
     )
 }
 

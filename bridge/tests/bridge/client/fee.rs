@@ -33,7 +33,7 @@ use crate::bridge::{
     faucet::{Faucet, FaucetType},
     helper::{
         check_tx_output_sum, find_peg_in_graph_by_peg_out, generate_stub_outpoint,
-        get_incorrect_proof, get_reward_amount, wait_for_confirmation, wait_for_timelock_expiry,
+        get_reward_amount, get_valid_proof, wait_for_confirmation, wait_for_timelock_expiry,
     },
     mock::chain::mock::MockAdaptor,
     setup::{setup_test, INITIAL_AMOUNT, ONE_HUNDRED},
@@ -501,7 +501,7 @@ async fn test_peg_out_fees() {
         &take_2_tx,
     );
 
-    let zk_verifying_key = get_incorrect_proof().vk;
+    let zk_verifying_key = config.invalid_proof.vk;
     let disprove_tx = peg_out_graph
         .disprove(
             &esplora_client,
