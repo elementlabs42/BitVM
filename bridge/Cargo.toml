@@ -42,6 +42,7 @@ ark-serialize.workspace = true
 secp256k1.workspace = true
 zstd.workspace = true
 bitcode.workspace = true
+savefile.workspace = true
 
 [profile.dev]
 opt-level = 3

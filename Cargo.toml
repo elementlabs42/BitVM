@@ -54,6 +54,7 @@ tqdm = "0.7"
 secp256k1 = { version = "0.29.1", features = ["global-context"]}
 zstd = "0.13.2"
 bitcode = "0.6.3"
+savefile = "0.18.5"
 
 [profile.dev]
 opt-level = 3
