@@ -103,7 +103,7 @@ pub fn sb_hash_from_bytes() -> Script {
     }
 }
 
-pub fn write_cache<T: Encode + ?Sized>(file_path: &Path, data: &T) -> std::io::Result<()> {
+pub fn write_cache<T: Encode>(file_path: &Path, data: &T) -> std::io::Result<()> {
     println!("Writing cache to {}...", file_path.display());
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
@@ -112,9 +112,7 @@ pub fn write_cache<T: Encode + ?Sized>(file_path: &Path, data: &T) -> std::io::R
     }
     let encoded_data = bitcode::encode(data);
     let compressed_data = zstd::stream::encode_all(encoded_data.as_slice(), 5)?;
-    std::fs::write(file_path, compressed_data)?;
-
-    Ok(())
+    std::fs::write(file_path, compressed_data)
 }
 
 pub fn read_cache<T>(file_path: &Path) -> std::io::Result<T>
