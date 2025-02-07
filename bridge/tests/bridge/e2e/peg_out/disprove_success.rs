@@ -3,7 +3,7 @@ use colored::Colorize;
 use super::utils::{broadcast_txs_for_disprove_scenario, create_peg_out_graph};
 
 #[tokio::test]
-async fn test_disprove_success_1() {
+async fn test_e2e_disprove_success() {
     let (
         mut verifier_0_operator_depositor,
         mut verifier_1,

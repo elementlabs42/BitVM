@@ -36,6 +36,7 @@ use bitvm::{
     chunker::{assigner::BridgeAssigner, disprove_execution::RawProof},
     signatures::signing_winternitz::WinternitzPublicKey,
 };
+use colored::Colorize;
 use rand::{RngCore, SeedableRng};
 use tokio::time::sleep;
 
@@ -364,6 +365,10 @@ pub fn invalidate_proof(valid_proof: &RawProof) -> RawProof {
     _valid_proof.proof.a = G1Affine::rand(&mut rng);
 
     _valid_proof
+}
+
+pub fn print_tx_broadcasted(tx_name: &str, txid: Txid) {
+    println!("Broadcasted {} with txid: {txid}", tx_name.bold().green(),);
 }
 
 // TODO: Consider importing `gen_correct_proof` fn from bitvm/src/chunker/disprove_execution.rs
