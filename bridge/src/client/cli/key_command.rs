@@ -57,7 +57,7 @@ impl KeysCommand {
             .arg(arg!(-o --operator <SECRET_KEY> "Secret key for operator").required(false))
             .arg(arg!(-v --verifier <SECRET_KEY> "Secret key for verifier").required(false))
             .arg(arg!(-w --withdrawer <SECRET_KEY> "Secret key for withdrawer").required(false))
-            .arg(arg!(-k --zkp <KEY> "Zero-knowledge proof verifying key").required(false))
+            .arg(arg!(-k --vk <KEY> "Zero-knowledge proof verifying key").required(false))
             .group(ArgGroup::new("context")
                 .args(["depositor", "operator", "verifier", "withdrawer"])
                 .required(true))
@@ -107,7 +107,7 @@ impl KeysCommand {
                 eprintln!("error: Invalid withdrawer secret key.");
                 std::process::exit(1);
             }
-        } else if let Some(verifying_key) = sub_matches.get_one::<String>("zkp-verifying-key") {
+        } else if let Some(verifying_key) = sub_matches.get_one::<String>("vk") {
             if self.validate_verifying_key(verifying_key) {
                 config.keys.verifying_key = Some(verifying_key.clone());
                 println!("ZK verifying key saved successfully!");
@@ -149,7 +149,7 @@ impl KeysCommand {
 
     // TODO: This is TBD. Verifying key validation is unclear at the moment.
     // We'll add it once circuit design is finalized and we can run a Groth16 setup.
-    fn validate_verifying_key(&self, _key: &str) -> bool { todo!() }
+    fn validate_verifying_key(&self, _key: &str) -> bool { true }
 }
 
 fn pubkey_of(private_key: &str) -> PublicKey {
