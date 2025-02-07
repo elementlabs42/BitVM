@@ -1,8 +1,4 @@
-use std::{
-    fs::{create_dir_all, File},
-    io::{BufReader, BufWriter, Read, Write},
-    path::{Path, PathBuf}, time::Instant,
-};
+use std::path::{Path, PathBuf};
 
 use bitcode::{Decode, Encode};
 use bitcoin::Network;
@@ -107,78 +103,16 @@ pub fn sb_hash_from_bytes() -> Script {
     }
 }
 
-// pub fn write_serialized(file_path: &Path, data: &impl Serialize) -> std::io::Result<()> {
-//     println!("Writing uncompressed cache to {}...", file_path.display());
-//     if let Some(parent) = file_path.parent() {
-//         if !parent.exists() {
-//             create_dir_all(parent)?;
-//         }
-//     }
-//     let file = File::create(file_path)?;
-//     let file = BufWriter::new(file);
-
-//     serde_json::to_writer(file, data).map_err(std::io::Error::from)
-// }
-
 pub fn write_cache<T: Encode + ?Sized>(file_path: &Path, data: &T) -> std::io::Result<()> {
     println!("Writing cache to {}...", file_path.display());
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
-            create_dir_all(parent)?;
+            std::fs::create_dir_all(parent)?;
         }
     }
-    let file = File::create(file_path)?;
-
-    let mut writer = BufWriter::new(file);
-
-    let start = Instant::now();
-
-    let encoded = bitcode::encode(data);
-    // let mut bitcode_buffer = bitcode::Buffer::new();
-    // let encoded = bitcode_buffer.encode(data).to_vec();
-    println!("encoded size: {}", encoded.len());
-
-    // let _ = bitcode::decode(&encoded).map_err(|e| {
-    //     std::io::Error::new(
-    //         std::io::ErrorKind::InvalidData,
-    //         format!("(in encode decoding test) bitcode error: {}", e),
-    //     )
-    // })?;
-    // let _ = bitcode_buffer.decode(&encoded).map_err(|e| {
-    //     std::io::Error::new(
-    //         std::io::ErrorKind::InvalidData,
-    //         format!("(in encode decoding test) bitcode error: {}", e),
-    //     )
-    // })?;
-    writer.write_all(&encoded)?;
-
-    let elapsed = start.elapsed();
-    println!(
-        "Bitcode encoding took \x1b[30;46m{}\x1b[0m ms",
-        elapsed.as_millis()
-    );
-    // let file_orig = File::create("json-cache.orig")?;
-    // let writer_orig = BufWriter::new(file_orig);
-    // serde_json::to_writer(writer_orig, data).map_err(std::io::Error::from)?;
-
-    // let start = Instant::now();
-
-    //brotli
-    // let mut compressor = brotli::CompressorWriter::new(writer, 4096, 5, 22);
-    // compressor.write_all(&raw_data)?;
-    // compressor.flush()?;
-
-    //zstd
-    // zstd::stream::copy_encode(raw_data.as_slice(), &mut writer, 5)?;
-
-    // let compressed = zstd::stream::encode_all(raw_data.as_slice(), 5)?;
-    // writer.write_all(&compressed)?;
-
-    // let elapsed = start.elapsed();
-    // println!(
-    //     "Compressing took \x1b[30;46m{}\x1b[0m ms",
-    //     elapsed.as_millis()
-    // );
+    let encoded_data = bitcode::encode(data);
+    let compressed_data = zstd::stream::encode_all(encoded_data.as_slice(), 5)?;
+    std::fs::write(file_path, compressed_data)?;
 
     Ok(())
 }
@@ -188,62 +122,19 @@ where
     T: for<'de> Decode<'de>,
 {
     println!("Reading cache from {}...", file_path.display());
-    let file = File::open(file_path)?;
-    let mut reader = BufReader::new(file);
-
-    // let start = Instant::now();
-
-    //brotli
-    // let mut decompressed_data = Vec::new();
-    // let mut decompressor = brotli::Decompressor::new(&mut reader, 4096);
-    // decompressor.read_to_end(&mut decompressed_data)?;
-
-    //zstd
-    // let decompressed_data: Vec<u8> = zstd::stream::decode_all(reader)?;
-
-    // zstd::zstd_safe::decompress(&mut decompressed_data, &compressed_data).map_err(
-    //     |code| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("zstd error code: {}", code)))?;
-
-    // let elapsed = start.elapsed();
-    // println!(
-    //     "Decompressing took \x1b[30;46m{}\x1b[0m ms",
-    //     elapsed.as_millis()
-    // );
-
-    let mut encoded_data = Vec::new();
-    reader.read_to_end(&mut encoded_data).map_err(|e| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("read io error: {}", e),
-        )
-    })?;
-
-    let start = Instant::now();
-
-    let mut bitcode_buffer = bitcode::Buffer::new();
-    let decoded = bitcode_buffer.decode(&encoded_data).map_err(|e| {
+    let compressed_data = std::fs::read(file_path)?;
+    let encoded_data: Vec<u8> = zstd::stream::decode_all(compressed_data.as_slice())?;
+    let decoded = bitcode::decode(&encoded_data).map_err(|e| {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("bitcode error: {}", e),
         )
     })?;
-    // let decoded = bitcode::decode(&encoded_data).map_err(|e| {
-    //     std::io::Error::new(
-    //         std::io::ErrorKind::InvalidData,
-    //         format!("bitcode error: {}", e),
-    //     )
-    // })?;
-
-    let elapsed = start.elapsed();
-    println!(
-        "Bitcode decoding took \x1b[30;46m{}\x1b[0m ms",
-        elapsed.as_millis()
-    );
 
     Ok(decoded)
 }
 
-pub fn cleanup_cache_files(prefix: &str, cache_location: &PathBuf, max_cache_files: u32) {
+pub fn cleanup_cache_files(prefix: &str, cache_location: &Path, max_cache_files: u32) {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(cache_location)
         .unwrap()
         .filter_map(Result::ok)

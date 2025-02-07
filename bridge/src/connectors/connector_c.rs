@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{Formatter, Result as FmtResult},
-    path::{Path, PathBuf}, time::Instant,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -68,30 +68,19 @@ pub struct ConnectorC {
 }
 
 pub fn unwrap_lock_scripts(lock_scripts: &Vec<ScriptBuf>) -> Vec<Vec<u8>> {
-    let start = Instant::now();
     let mut lock_scripts_bytes: Vec<Vec<u8>> = Vec::new();
     for script in lock_scripts {
         lock_scripts_bytes.push(script.clone().into_bytes());
     }
-    let elapsed = start.elapsed();
-    println!(
-        "Unwrapping lock scripts took \x1b[30;46m{}\x1b[0m ms",
-        elapsed.as_millis()
-    );
+
     lock_scripts_bytes
 }
 
 pub fn wrap_lock_scripts(unwrapped: Vec<Vec<u8>>) -> Vec<ScriptBuf> {
-    let start = Instant::now();
     let mut lock_scripts: Vec<ScriptBuf> = Vec::new();
     for script in unwrapped {
         lock_scripts.push(ScriptBuf::from_bytes(script));
     }
-    let elapsed = start.elapsed();
-    println!(
-        "Wrapping lock scripts took \x1b[30;46m{}\x1b[0m ms",
-        elapsed.as_millis()
-    );
 
     lock_scripts
 }
@@ -113,9 +102,8 @@ impl Serialize for ConnectorC {
         c.serialize_field("lock_scripts", &cache_id)?;
 
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
-        let lock_scripts_bytes = unwrap_lock_scripts(&self.lock_scripts);
         if !lock_scripts_cache_path.exists() {
-            println!("lock scripts cache size: {}", lock_scripts_bytes.len());
+            let lock_scripts_bytes = unwrap_lock_scripts(&self.lock_scripts);
             write_cache(&lock_scripts_cache_path, &lock_scripts_bytes).map_err(SerError::custom)?;
         }
 
@@ -203,19 +191,20 @@ impl ConnectorC {
     ) -> Self {
         let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
             let file_path = get_lock_scripts_cache_path(&cache_id);
-            let lock_scripts_bytes: Option<Vec<Vec<u8>>> =
-                read_cache(&file_path).unwrap_or_else(|e| {
+            let lock_scripts_bytes = match read_cache(&file_path) {
+                Ok(lock_scripts_bytes) => Some(lock_scripts_bytes),
+                Err(e) => {
                     eprintln!(
                         "Failed to read lock scripts cache from expected location: {}",
                         e
                     );
                     None
-                });
+                }
+            };
             let cache = match lock_scripts_bytes {
                 Some(lock_scripts_bytes) => Some(wrap_lock_scripts(lock_scripts_bytes)),
                 None => None,
             };
-            // write_serialized(std::path::Path::new("json-cache-lock-scripts.decompressed"), &cache).unwrap();
 
             cache
         });
