@@ -214,7 +214,7 @@ pub fn random_hex<'a>(size: usize) -> Cow<'a, str> {
 }
 
 const TEST_CACHE_DIRECTORY_NAME: &str = "test_cache";
-const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "intermediates.json";
+const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "intermediates.bin";
 
 pub fn get_intermediate_variables_cached() -> BTreeMap<String, usize> {
     let intermediate_variables_cache_path =

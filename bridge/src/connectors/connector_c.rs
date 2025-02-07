@@ -53,7 +53,7 @@ const LOCK_SCRIPTS_FILE_PREFIX: &str = "lock_scripts_";
 const MAX_CACHE_FILES: u32 = 20;
 
 fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
-    let lock_scripts_file_name = format!("{LOCK_SCRIPTS_FILE_PREFIX}{}.json", cache_id);
+    let lock_scripts_file_name = format!("{LOCK_SCRIPTS_FILE_PREFIX}{}.bin", cache_id);
     Path::new(BRIDGE_DATA_DIRECTORY_NAME)
         .join(CACHE_DIRECTORY_NAME)
         .join(lock_scripts_file_name)
@@ -67,7 +67,7 @@ pub struct ConnectorC {
     commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 }
 
-pub fn unwrap_lock_scripts(lock_scripts: &Vec<ScriptBuf>) -> Vec<Vec<u8>> {
+fn unwrap_lock_scripts(lock_scripts: &Vec<ScriptBuf>) -> Vec<Vec<u8>> {
     let mut lock_scripts_bytes: Vec<Vec<u8>> = Vec::new();
     for script in lock_scripts {
         lock_scripts_bytes.push(script.clone().into_bytes());
@@ -76,7 +76,7 @@ pub fn unwrap_lock_scripts(lock_scripts: &Vec<ScriptBuf>) -> Vec<Vec<u8>> {
     lock_scripts_bytes
 }
 
-pub fn wrap_lock_scripts(unwrapped: Vec<Vec<u8>>) -> Vec<ScriptBuf> {
+fn wrap_lock_scripts(unwrapped: Vec<Vec<u8>>) -> Vec<ScriptBuf> {
     let mut lock_scripts: Vec<ScriptBuf> = Vec::new();
     for script in unwrapped {
         lock_scripts.push(ScriptBuf::from_bytes(script));
@@ -109,7 +109,7 @@ impl Serialize for ConnectorC {
 
         cleanup_cache_files(
             LOCK_SCRIPTS_FILE_PREFIX,
-            &Path::new(BRIDGE_DATA_DIRECTORY_NAME).join(CACHE_DIRECTORY_NAME),
+            get_lock_scripts_cache_path(&cache_id).parent().unwrap(),
             MAX_CACHE_FILES,
         );
 
@@ -201,12 +201,8 @@ impl ConnectorC {
                     None
                 }
             };
-            let cache = match lock_scripts_bytes {
-                Some(lock_scripts_bytes) => Some(wrap_lock_scripts(lock_scripts_bytes)),
-                None => None,
-            };
 
-            cache
+            lock_scripts_bytes.map(wrap_lock_scripts)
         });
 
         ConnectorC {
