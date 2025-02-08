@@ -63,7 +63,7 @@ fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
 pub struct ConnectorC {
     pub network: Network,
     pub operator_taproot_public_key: XOnlyPublicKey,
-    pub lock_scripts: Vec<Vec<u8>>,
+    pub lock_scripts_bytes: Vec<Vec<u8>>,
     commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 }
 
@@ -85,7 +85,7 @@ impl Serialize for ConnectorC {
 
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
         if !lock_scripts_cache_path.exists() {
-            write_cache(&lock_scripts_cache_path, &self.lock_scripts).map_err(SerError::custom)?;
+            write_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes).map_err(SerError::custom)?;
         }
 
         cleanup_cache_files(
@@ -185,7 +185,7 @@ impl ConnectorC {
         ConnectorC {
             network,
             operator_taproot_public_key: *operator_taproot_public_key,
-            lock_scripts: lock_scripts_cache
+            lock_scripts_bytes: lock_scripts_cache
                 .unwrap_or_else(|| generate_assert_leaves(commitment_public_keys)),
             commitment_public_keys: commitment_public_keys.clone(),
         }
@@ -239,15 +239,15 @@ impl ConnectorC {
 impl TaprootConnector for ConnectorC {
     fn generate_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
         let index = leaf_index.to_usize().unwrap();
-        if index >= self.lock_scripts.len() {
+        if index >= self.lock_scripts_bytes.len() {
             panic!("Invalid leaf index.")
         }
-        ScriptBuf::from_bytes(self.lock_scripts[index].clone())
+        ScriptBuf::from_bytes(self.lock_scripts_bytes[index].clone())
     }
 
     fn generate_taproot_leaf_tx_in(&self, leaf_index: u32, input: &Input) -> TxIn {
         let index = leaf_index.to_usize().unwrap();
-        if index >= self.lock_scripts.len() {
+        if index >= self.lock_scripts_bytes.len() {
             panic!("Invalid leaf index.")
         }
         generate_default_tx_in(input)
@@ -255,9 +255,9 @@ impl TaprootConnector for ConnectorC {
 
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
         let script_weights = self
-            .lock_scripts
+            .lock_scripts_bytes
             .iter()
-            .map(|script| (1, ScriptBuf::from_bytes(script.clone())));
+            .map(|b| (1, ScriptBuf::from_bytes(b.clone())));
 
         TaprootBuilder::with_huffman_tree(script_weights)
             .expect("Unable to add assert leaves")
