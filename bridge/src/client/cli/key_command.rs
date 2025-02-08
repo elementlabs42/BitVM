@@ -110,9 +110,9 @@ impl KeysCommand {
         } else if let Some(verifying_key) = sub_matches.get_one::<String>("vk") {
             if self.validate_verifying_key(verifying_key) {
                 config.keys.verifying_key = Some(verifying_key.clone());
-                println!("ZK verifying key saved successfully!");
+                println!("ZK proof verifying key saved successfully!");
             } else {
-                println!("error: Invalid ZK verifying key.");
+                println!("error: Invalid ZK proof verifying key.");
             }
         } else {
             eprintln!("Invalid command. Use --help to see the valid commands.");
