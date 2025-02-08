@@ -63,7 +63,7 @@ fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
 pub struct ConnectorC {
     pub network: Network,
     pub operator_taproot_public_key: XOnlyPublicKey,
-    pub lock_scripts_bytes: Vec<Vec<u8>>,
+    pub lock_scripts_bytes: Vec<Vec<u8>>, // using primitive type for binary serialization, convert to ScriptBuf when using it
     commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 }
 
@@ -85,7 +85,8 @@ impl Serialize for ConnectorC {
 
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
         if !lock_scripts_cache_path.exists() {
-            write_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes).map_err(SerError::custom)?;
+            write_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes)
+                .map_err(SerError::custom)?;
         }
 
         cleanup_cache_files(
