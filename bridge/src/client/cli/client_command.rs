@@ -21,6 +21,7 @@ pub struct CommonArgs {
     pub key_dir: Option<String>,
     pub verifiers: Option<Vec<PublicKey>>,
     pub environment: Option<String>,
+    pub path_prefix: Option<String>,
 }
 
 pub struct ClientCommand {
@@ -64,7 +65,7 @@ impl ClientCommand {
             config.keys.operator.as_deref(),
             config.keys.verifier.as_deref(),
             config.keys.withdrawer.as_deref(),
-            None,
+            common_args.path_prefix.as_deref(),
             verifying_key,
         )
         .await;
@@ -103,7 +104,7 @@ impl ClientCommand {
 
     pub fn get_initiate_peg_in_command() -> Command {
         Command::new("initiate-peg-in")
-        .short_flag('p')
+        .short_flag('n')
         .about("Initiate a peg-in")
         .after_help("Initiate a peg-in by creating a peg-in graph")
         .arg(arg!(-u --utxo <UTXO> "Specify the uxo to spend from. Format: <TXID>:<VOUT>")

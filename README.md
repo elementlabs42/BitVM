@@ -119,7 +119,7 @@ The BitVM CLI application can be invoked with various commands. The general synt
 ### Global Options
 
 - -r, --verifiers <VERIFIER_PUBKEYS>: Optional; Comma-separated list of public keys for verifiers (max: 1000). Can also be set via the VERIFIERS environment variable.
-- -e, --environment <ENVIRONMENT>: Specify the Bitcoin network environment (mainnet, testnet). Defaults to mainnet. Can also be set via the ENVIRONMENT environment variable.
+- -e, --environment <ENVIRONMENT>: Specify the Bitcoin network environment (mainnet, testnet). Defaults to testnet. Can also be set via the ENVIRONMENT environment variable.
 - --key-dir <DIRECTORY>: Directory containing the private keys. Can also be set via the KEY_DIR environment variable.
 
 ### Available Commands
