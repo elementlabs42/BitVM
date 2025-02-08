@@ -44,9 +44,9 @@ impl ClientCommand {
 
         let n_of_n_public_keys = common_args.verifiers.unwrap_or_else(|| {
             let (_, verifier_0_public_key) =
-                generate_keys_from_secret(Network::Bitcoin, VERIFIER_0_SECRET);
+                generate_keys_from_secret(source_network, VERIFIER_0_SECRET);
             let (_, verifier_1_public_key) =
-                generate_keys_from_secret(Network::Bitcoin, VERIFIER_1_SECRET);
+                generate_keys_from_secret(source_network, VERIFIER_1_SECRET);
             vec![verifier_0_public_key, verifier_1_public_key]
         });
 

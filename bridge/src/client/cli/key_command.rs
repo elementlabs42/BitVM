@@ -152,6 +152,8 @@ impl KeysCommand {
     fn validate_verifying_key(&self, _key: &str) -> bool { true }
 }
 
+// TODO: Technically this should use the source network specified by the user. However, since this
+// is only used in console output as an ID, we can leave it for now.
 fn pubkey_of(private_key: &str) -> PublicKey {
     generate_keys_from_secret(Network::Bitcoin, private_key).1
 }
