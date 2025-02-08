@@ -252,16 +252,14 @@ pub fn get_intermediate_variables_cached() -> BTreeMap<String, usize> {
     let intermediate_variables_cache_path =
         Path::new(TEST_CACHE_DIRECTORY_NAME).join(INTERMEDIATE_VARIABLES_FILE_NAME);
     let intermediate_variables = if intermediate_variables_cache_path.exists() {
-        match read_cache(&intermediate_variables_cache_path) {
-            Ok(intermediate_variables) => Some(intermediate_variables),
-            Err(e) => {
+        read_cache(&intermediate_variables_cache_path)
+            .inspect_err(|e| {
                 eprintln!(
                     "Failed to read intermediate variables cache after validates its existence: {}",
                     e
                 );
-                None
-            }
-        }
+            })
+            .ok()
     } else {
         None
     };

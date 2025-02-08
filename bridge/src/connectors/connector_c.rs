@@ -50,7 +50,7 @@ pub struct DisproveLeaf {
 
 const CACHE_DIRECTORY_NAME: &str = "cache";
 const LOCK_SCRIPTS_FILE_PREFIX: &str = "lock_scripts_";
-const MAX_CACHE_FILES: u32 = 20;
+const MAX_CACHE_FILES: u32 = 90; //~1GB in total, based on lock scripts cache being 11MB each
 
 fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
     let lock_scripts_file_name = format!("{LOCK_SCRIPTS_FILE_PREFIX}{}.bin", cache_id);
@@ -191,16 +191,14 @@ impl ConnectorC {
     ) -> Self {
         let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
             let file_path = get_lock_scripts_cache_path(&cache_id);
-            let lock_scripts_bytes = match read_cache(&file_path) {
-                Ok(lock_scripts_bytes) => Some(lock_scripts_bytes),
-                Err(e) => {
+            let lock_scripts_bytes = read_cache(&file_path)
+                .inspect_err(|e| {
                     eprintln!(
                         "Failed to read lock scripts cache from expected location: {}",
                         e
                     );
-                    None
-                }
-            };
+                })
+                .ok();
 
             lock_scripts_bytes.map(wrap_lock_scripts)
         });
