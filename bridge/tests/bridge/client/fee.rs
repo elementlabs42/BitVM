@@ -33,7 +33,7 @@ use crate::bridge::{
     faucet::{Faucet, FaucetType},
     helper::{
         check_tx_output_sum, find_peg_in_graph_by_peg_out, generate_stub_outpoint,
-        get_reward_amount, get_valid_proof, wait_for_confirmation, wait_for_timelock_expiry,
+        get_reward_amount, wait_for_confirmation, wait_for_timelock_expiry,
     },
     mock::chain::mock::MockAdaptor,
     setup::{setup_test, INITIAL_AMOUNT, ONE_HUNDRED},

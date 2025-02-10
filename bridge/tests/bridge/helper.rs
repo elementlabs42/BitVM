@@ -360,11 +360,11 @@ pub fn get_valid_proof() -> RawProof {
 }
 
 pub fn invalidate_proof(valid_proof: &RawProof) -> RawProof {
-    let mut _valid_proof = valid_proof.clone();
+    let mut invalid_proof = valid_proof.clone();
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
-    _valid_proof.proof.a = G1Affine::rand(&mut rng);
+    invalid_proof.proof.a = G1Affine::rand(&mut rng);
 
-    _valid_proof
+    invalid_proof
 }
 
 pub fn print_tx_broadcasted(tx_name: &str, txid: Txid) {

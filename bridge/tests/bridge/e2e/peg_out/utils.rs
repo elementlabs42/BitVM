@@ -18,7 +18,6 @@ use crate::bridge::{
 };
 
 pub async fn create_peg_in_graph(
-    network: Network,
     depositor_verifier_0: &mut BitVMClient,
     verifier_1: &mut BitVMClient,
     deposit_input: Input,
@@ -34,7 +33,11 @@ pub async fn create_peg_in_graph(
         .await
         .expect("Failed to broadcast peg-in deposit");
     print_tx_broadcasted("peg-in deposit", peg_in_deposit_txid);
-    wait_for_confirmation_with_message(network, Some("peg-in deposit tx")).await;
+    wait_for_confirmation_with_message(
+        depositor_verifier_0.source_network,
+        Some("peg-in deposit tx"),
+    )
+    .await;
 
     println!("{}", "PEG-IN ceremony start".bold().yellow());
     println!("{}", "Generate verifier 0 nonces".bold().magenta());
@@ -72,7 +75,11 @@ pub async fn create_peg_in_graph(
         .await
         .expect("Failed to broadcast peg-in confirm");
     print_tx_broadcasted("peg-in confirm", peg_in_confirm_txid);
-    wait_for_confirmation_with_message(network, Some("peg-in confirm tx")).await;
+    wait_for_confirmation_with_message(
+        depositor_verifier_0.source_network,
+        Some("peg-in confirm tx"),
+    )
+    .await;
 
     graph_id
 }
@@ -83,7 +90,6 @@ pub async fn create_peg_out_graph() -> (
     String,
     ScriptBuf,
     Input,
-    Network,
     RawProof,
     RawProof,
 ) {
@@ -134,7 +140,6 @@ pub async fn create_peg_out_graph() -> (
     .await;
 
     let peg_in_graph_id = create_peg_in_graph(
-        config.network,
         &mut verifier_0_operator_depositor,
         &mut verifier_1,
         Input {
@@ -214,20 +219,19 @@ pub async fn create_peg_out_graph() -> (
             outpoint: peg_out_outpoint,
             amount: peg_out_input_amount,
         },
-        config.network,
         config.valid_proof,
         config.invalid_proof,
     )
 }
 
 pub async fn broadcast_txs_for_disprove_scenario(
-    network: Network,
     operator: &mut BitVMClient,
     verifier_1: &mut BitVMClient,
     peg_out_graph_id: &String,
     peg_out_input: Input,
     proof: &RawProof,
 ) {
+    let network = operator.source_network;
     println!("{}", "Sync operator".bold().cyan());
     operator.sync().await;
 

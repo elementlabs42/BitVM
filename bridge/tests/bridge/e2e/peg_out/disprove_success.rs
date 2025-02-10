@@ -10,13 +10,11 @@ async fn test_e2e_disprove_success() {
         peg_out_graph_id,
         reward_script,
         peg_out_input,
-        network,
         _,
         invalid_proof,
     ) = create_peg_out_graph().await;
 
     broadcast_txs_for_disprove_scenario(
-        network,
         &mut verifier_0_operator_depositor,
         &mut verifier_1,
         &peg_out_graph_id,
@@ -32,7 +30,7 @@ async fn test_e2e_disprove_success() {
     assert!(
         result.is_ok(),
         "{}: {}",
-        "Failed to disprove incorrect ZK proof",
+        "Failed to disprove incorrect ZK proof".bold().red(),
         result.unwrap_err()
     );
 

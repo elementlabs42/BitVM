@@ -12,13 +12,11 @@ async fn test_e2e_disprove_reject() {
         peg_out_graph_id,
         reward_script,
         peg_out_input,
-        network,
         valid_proof,
         _,
     ) = create_peg_out_graph().await;
 
     broadcast_txs_for_disprove_scenario(
-        network,
         &mut verifier_0_operator_depositor,
         &mut verifier_1,
         &peg_out_graph_id,
