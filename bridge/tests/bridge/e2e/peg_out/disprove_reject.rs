@@ -1,10 +1,12 @@
 use bridge::error::{ChunkerError, Error};
 
 use colored::Colorize;
+use serial_test::serial;
 
 use super::utils::{broadcast_txs_for_disprove_scenario, create_peg_out_graph};
 
 #[tokio::test]
+#[serial(client)]
 async fn test_e2e_disprove_reject() {
     let (
         mut verifier_0_operator_depositor,
@@ -31,9 +33,14 @@ async fn test_e2e_disprove_reject() {
 
     assert!(
         matches!(result, Err(Error::Chunker(ChunkerError::ValidProof))),
-        "Should have failed with {} but got {:?}",
-        Error::Chunker(ChunkerError::ValidProof),
-        result
+        "{}",
+        &format!(
+            "Should have failed with {} but got {:?}",
+            Error::Chunker(ChunkerError::ValidProof),
+            result
+        )
+        .bold()
+        .red(),
     );
 
     println!(

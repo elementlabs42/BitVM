@@ -115,8 +115,10 @@ pub async fn wait_for_timelock_expiry(network: Network, timelock_name: Option<&s
     // Note that the extra 1 second from tx_wait_time() compounds here. Normally this will not be an issue.
     // You'll just wait a couple seconds longer than the required number of blocks. However, if you need to
     // wait for an exact number of seconds, consider using a simple sleep (or adding a sister helper function).
-    let timeout =
-        Duration::from_secs(tx_wait_time(network) * num_blocks_per_network(network, 0) as u64);
+    let tx_wait_time = tx_wait_time(network);
+    let timeout = Duration::from_secs(
+        tx_wait_time * num_blocks_per_network(network, 0) as u64 + tx_wait_time,
+    );
     let message = format!(
         " for{} timelock to expire",
         match timelock_name {

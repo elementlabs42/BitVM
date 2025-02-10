@@ -1,4 +1,4 @@
-use bitcoin::{Address, Amount, Network, ScriptBuf};
+use bitcoin::{Address, Amount, ScriptBuf};
 use bitvm::chunker::disprove_execution::RawProof;
 use bridge::{
     client::client::BitVMClient,
