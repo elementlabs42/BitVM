@@ -112,16 +112,28 @@ impl Take2Transaction {
         input_2: Input,
         input_3: Input,
     ) -> Self {
+        let now = std::time::Instant::now();
         let input_0_leaf = 1;
         let _input_0 = connector_0.generate_taproot_leaf_tx_in(input_0_leaf, &input_0);
+        let elapsed_total = now.elapsed();
+        println!(">>>>>>> Created input 0 in {elapsed_total:?}");
 
         let _input_1 = connector_4.generate_tx_in(&input_1);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created input 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let input_2_leaf = 0;
         let _input_2 = connector_5.generate_taproot_leaf_tx_in(input_2_leaf, &input_2);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created input 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let input_3_leaf = 0;
         let _input_3 = connector_c.generate_taproot_leaf_tx_in(input_3_leaf, &input_3);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created input 3 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let total_output_amount = input_0.amount + input_1.amount + input_2.amount + input_3.amount
             - Amount::from_sat(MIN_RELAY_FEE_TAKE_2);
@@ -131,6 +143,54 @@ impl Take2Transaction {
             script_pubkey: generate_pay_to_pubkey_script_address(network, operator_public_key)
                 .script_pubkey(),
         };
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created output 0 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+
+        let prev_outs_0 = TxOut {
+            value: input_0.amount,
+            script_pubkey: connector_0.generate_taproot_address().script_pubkey(),
+        };
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev out 0 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+        let prev_outs_1 = TxOut {
+            value: input_1.amount,
+            script_pubkey: connector_4.generate_address().script_pubkey(),
+        };
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev out 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+        let prev_outs_2 = TxOut {
+            value: input_2.amount,
+            script_pubkey: connector_5.generate_taproot_address().script_pubkey(),
+        };
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev out 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+        let prev_outs_3 = TxOut {
+            value: input_3.amount,
+            script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+        };
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev out 3 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+
+        let prev_scripts_0 = connector_0.generate_taproot_leaf_script(input_0_leaf);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev scripts 0 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+        let prev_scripts_1 = connector_4.generate_script();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev scripts 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+        let prev_scripts_2 = connector_5.generate_taproot_leaf_script(input_2_leaf);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev scripts 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+        let prev_scripts_3 = connector_c.generate_taproot_leaf_script(input_3_leaf);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Created prev scripts 3 in {elapsed:?}");
 
         Take2Transaction {
             tx: Transaction {
@@ -139,29 +199,12 @@ impl Take2Transaction {
                 input: vec![_input_0, _input_1, _input_2, _input_3],
                 output: vec![_output_0],
             },
-            prev_outs: vec![
-                TxOut {
-                    value: input_0.amount,
-                    script_pubkey: connector_0.generate_taproot_address().script_pubkey(),
-                },
-                TxOut {
-                    value: input_1.amount,
-                    script_pubkey: connector_4.generate_address().script_pubkey(),
-                },
-                TxOut {
-                    value: input_2.amount,
-                    script_pubkey: connector_5.generate_taproot_address().script_pubkey(),
-                },
-                TxOut {
-                    value: input_3.amount,
-                    script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
-                },
-            ],
+            prev_outs: vec![prev_outs_0, prev_outs_1, prev_outs_2, prev_outs_3],
             prev_scripts: vec![
-                connector_0.generate_taproot_leaf_script(input_0_leaf),
-                connector_4.generate_script(),
-                connector_5.generate_taproot_leaf_script(input_2_leaf),
-                connector_c.generate_taproot_leaf_script(input_3_leaf),
+                prev_scripts_0,
+                prev_scripts_1,
+                prev_scripts_2,
+                prev_scripts_3,
             ],
             musig2_nonces: HashMap::new(),
             musig2_nonce_signatures: HashMap::new(),

@@ -597,19 +597,28 @@ impl PegInGraph {
 
     pub fn validate(&self) -> bool {
         let mut ret_val = true;
+        let now = std::time::Instant::now();
         let peg_in_graph = self.new_for_validation();
+        let elapsed_total = now.elapsed();
+        println!(">>>>>>> Created peg-in graph for validation in {elapsed_total:?}");
         if !validate_transaction(
             self.peg_in_deposit_transaction.tx(),
             peg_in_graph.peg_in_deposit_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated peg-in deposit in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.peg_in_refund_transaction.tx(),
             peg_in_graph.peg_in_refund_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated peg-in refund in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.peg_in_confirm_transaction.tx(),
             peg_in_graph.peg_in_confirm_transaction.tx(),
@@ -617,9 +626,14 @@ impl PegInGraph {
             ret_val = false;
         }
 
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated peg-in confirm in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.peg_in_confirm_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of peg-in confirm in {elapsed:?}");
 
         ret_val
     }

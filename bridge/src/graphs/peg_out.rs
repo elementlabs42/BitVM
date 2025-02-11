@@ -385,6 +385,7 @@ impl PegOutGraph {
         peg_out_confirm_input: Input,
         commitment_secrets: &HashMap<CommitmentMessageId, WinternitzSecret>,
     ) -> Self {
+        let now = std::time::Instant::now();
         let peg_in_confirm_transaction = peg_in_graph.peg_in_confirm_transaction_ref();
         let peg_in_confirm_txid = peg_in_confirm_transaction.tx().compute_txid();
 
@@ -430,9 +431,16 @@ impl PegOutGraph {
                 ),
             ),
         ]);
+        let elapsed_total = now.elapsed();
+        println!(
+            ">>>>> Constructed commitment public keys for connectors 1,2,6,b in {elapsed_total:?}"
+        );
 
         let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) =
             groth16_commitment_secrets_to_public_keys(commitment_secrets);
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed commitment public keys for connectors e1,e2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let connectors = Self::create_new_connectors(
             context.network,
@@ -446,10 +454,16 @@ impl PegOutGraph {
             &connector_e1_commitment_public_keys,
             &connector_e2_commitment_public_keys,
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed connectors in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let peg_out_confirm_transaction =
             PegOutConfirmTransaction::new(context, &connectors.connector_6, peg_out_confirm_input);
         let peg_out_confirm_txid = peg_out_confirm_transaction.tx().compute_txid();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed peg-out confirm in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let kick_off_1_vout_0 = 0;
         let kick_off_1_transaction = KickOff1Transaction::new(
@@ -466,6 +480,9 @@ impl PegOutGraph {
             },
         );
         let kick_off_1_txid = kick_off_1_transaction.tx().compute_txid();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed kick-off 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let start_time_vout_0 = 2;
         let start_time_transaction = StartTimeTransaction::new(
@@ -479,6 +496,9 @@ impl PegOutGraph {
                 amount: kick_off_1_transaction.tx().output[start_time_vout_0].value,
             },
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed start time in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let start_time_timeout_vout_0 = 2;
         let start_time_timeout_vout_1 = 1;
@@ -501,6 +521,9 @@ impl PegOutGraph {
                 amount: kick_off_1_transaction.tx().output[start_time_timeout_vout_1].value,
             },
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed start time timeout in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let kick_off_2_vout_0 = 1;
         let kick_off_2_transaction = KickOff2Transaction::new(
@@ -516,6 +539,9 @@ impl PegOutGraph {
             },
         );
         let kick_off_2_txid = kick_off_2_transaction.tx().compute_txid();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed kick-off 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let kick_off_timeout_vout_0 = 1;
         let kick_off_timeout_transaction = KickOffTimeoutTransaction::new(
@@ -529,6 +555,9 @@ impl PegOutGraph {
                 amount: kick_off_1_transaction.tx().output[kick_off_timeout_vout_0].value,
             },
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed kick-off timeout in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let input_amount_crowdfunding = Amount::from_btc(CROWDFUNDING_AMOUNT).unwrap();
         let challenge_vout_0 = 0;
@@ -544,6 +573,9 @@ impl PegOutGraph {
             },
             input_amount_crowdfunding,
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed challenge in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let take_1_vout_0 = 0;
         let take_1_vout_1 = 0;
@@ -584,6 +616,9 @@ impl PegOutGraph {
                 amount: kick_off_2_transaction.tx().output[take_1_vout_3].value,
             },
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed take 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         // assert initial
         let assert_initial_vout_0 = 1;
@@ -601,6 +636,9 @@ impl PegOutGraph {
             },
         );
         let assert_initial_txid = assert_initial_transaction.tx().compute_txid();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed assert initial in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         // assert commit txs
         let mut vout_base = 1;
@@ -617,6 +655,9 @@ impl PegOutGraph {
                 })
                 .collect(),
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed assert commit 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         vout_base += connectors.assert_commit_connectors_e_1.connectors_num();
 
@@ -633,6 +674,9 @@ impl PegOutGraph {
                 })
                 .collect(),
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed assert commit 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         // assert final
         let assert_final_vout_0 = 0;
@@ -668,6 +712,9 @@ impl PegOutGraph {
             },
         );
         let assert_final_txid = assert_final_transaction.tx().compute_txid();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed assert final in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let take_2_vout_0 = 0;
         let take_2_vout_1 = 0;
@@ -708,6 +755,9 @@ impl PegOutGraph {
                 amount: assert_final_transaction.tx().output[take_2_vout_3].value,
             },
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed take 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let script_index = 1; // TODO replace placeholder
         let disprove_vout_0 = 1;
@@ -732,6 +782,9 @@ impl PegOutGraph {
             },
             script_index,
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed disprove in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let disprove_chain_vout_0 = 1;
         let disprove_chain_transaction = DisproveChainTransaction::new(
@@ -745,6 +798,8 @@ impl PegOutGraph {
                 amount: kick_off_2_transaction.tx().output[disprove_chain_vout_0].value,
             },
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Constructed disprove chain in {elapsed:?}");
 
         PegOutGraph {
             version: GRAPH_VERSION.to_string(),
@@ -2192,125 +2247,200 @@ impl PegOutGraph {
 
     pub fn validate(&self) -> bool {
         let mut ret_val = true;
+        let now = std::time::Instant::now();
         let peg_out_graph = self.new_for_validation();
+        let elapsed_total = now.elapsed();
+        println!(">>>>>>> Created peg-out graph for validation in {elapsed_total:?}");
+
         if !validate_transaction(
             self.assert_initial_transaction.tx(),
             peg_out_graph.assert_initial_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated assert initial in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.assert_commit_1_transaction.tx(),
             peg_out_graph.assert_commit_1_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated assert commit 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.assert_commit_2_transaction.tx(),
             peg_out_graph.assert_commit_2_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated assert commit 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.assert_final_transaction.tx(),
             peg_out_graph.assert_final_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated assert final in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.challenge_transaction.tx(),
             peg_out_graph.challenge_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated challenge in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.disprove_chain_transaction.tx(),
             peg_out_graph.disprove_chain_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated disprove chain in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.disprove_transaction.tx(),
             peg_out_graph.disprove_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated disprove in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.peg_out_confirm_transaction.tx(),
             peg_out_graph.peg_out_confirm_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated peg-out confirm in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.kick_off_1_transaction.tx(),
             peg_out_graph.kick_off_1_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated kick-off 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.kick_off_2_transaction.tx(),
             peg_out_graph.kick_off_2_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated kick-off 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.kick_off_timeout_transaction.tx(),
             peg_out_graph.kick_off_timeout_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated kick-off timeout in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.start_time_transaction.tx(),
             peg_out_graph.start_time_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated start time in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.start_time_timeout_transaction.tx(),
             peg_out_graph.start_time_timeout_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated start time timeout in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.take_1_transaction.tx(),
             peg_out_graph.take_1_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated take 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !validate_transaction(
             self.take_2_transaction.tx(),
             peg_out_graph.take_2_transaction.tx(),
         ) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated take 2 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         if !verify_public_nonces_for_tx(&self.assert_initial_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of assert initial in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.assert_final_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of assert final in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.disprove_chain_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of disprove chain in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.disprove_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of disprove in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.kick_off_timeout_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of kick-off timeout in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.start_time_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of start time in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.start_time_timeout_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of start time timeout in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.take_1_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of take 1 in {elapsed:?}");
+        let elapsed_total = now.elapsed();
         if !verify_public_nonces_for_tx(&self.take_2_transaction) {
             ret_val = false;
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>> Validated nonces of take 2 in {elapsed:?}");
 
         ret_val
     }

@@ -261,46 +261,72 @@ impl BitVMClient {
     */
 
     async fn read_from_data_store(&mut self) {
+        let whole = std::time::Instant::now();
+        println!("> Begin sync ...");
+        let now = std::time::Instant::now();
         let latest_file_names_result = Self::get_latest_file_names(
             &self.data_store,
             Some(&self.remote_file_path),
             self.latest_processed_file_name.clone(),
         )
         .await;
+        let elapsed = now.elapsed();
+        println!(
+            ">>> Get latest file names since {:?} in {elapsed:?}",
+            self.latest_processed_file_name
+        );
 
         if latest_file_names_result.is_ok() {
             let mut latest_file_names = latest_file_names_result.unwrap();
             if !latest_file_names.is_empty() {
                 // fetch latest valid file
+                let now = std::time::Instant::now();
                 let (latest_file, latest_file_name) = Self::fetch_latest_valid_file(
                     &self.data_store,
                     &mut latest_file_names,
                     Some(&self.remote_file_path),
                 )
                 .await;
+                let elapsed = now.elapsed();
+                println!(">>> Get latest valid file in {elapsed:?}");
+
                 if latest_file.is_some() && latest_file_name.is_some() {
+                    let now = std::time::Instant::now();
+                    let content = serialize(&latest_file.as_ref().unwrap());
+                    let elapsed = now.elapsed();
+                    println!(">>>>> Serialized latest valid file in {elapsed:?}");
                     save_local_public_file(
                         &self.local_file_path,
                         latest_file_name.as_ref().unwrap(),
-                        &serialize(&latest_file.as_ref().unwrap()),
+                        &content,
                     );
                     self.latest_processed_file_name = latest_file_name;
+                    let elapsed = now.elapsed();
+                    println!(">>> Saved latest valid file in {elapsed:?}");
 
                     // fetch and process all the previous files if latest valid file exists
+                    let now = std::time::Instant::now();
                     let result =
                         Self::process_files_by_timestamp(self, latest_file_names, TEN_MINUTES)
                             .await;
+                    let elapsed = now.elapsed();
+                    println!(">>> Processed rest of the files in {elapsed:?}");
                     match result {
                         Ok(_) => (), // println!("Ok"),
                         Err(err) => println!("Error: {}", err),
                     }
 
+                    let now = std::time::Instant::now();
                     self.merge_data(latest_file.unwrap()); // merge the latest data at the end
+                    let elapsed = now.elapsed();
+                    println!(">>> Merged data in {elapsed:?}");
                 }
             }
         } else {
             println!("Error: {}", latest_file_names_result.unwrap_err());
         }
+        let elapsed = whole.elapsed();
+        println!(">>> Done sync in {elapsed:?}");
     }
 
     pub fn set_chain_adaptor(&mut self, chain_adaptor: Chain) {
@@ -415,17 +441,29 @@ impl BitVMClient {
         } else {
             // TODO: can be optimized to fetch all data at once?
             for file_name in file_names.iter() {
+                let now = std::time::Instant::now();
                 let result = self
                     .data_store
                     .fetch_data_by_key(file_name, Some(&self.remote_file_path))
                     .await; // TODO: use `fetch_by_key()` function
+                let elapsed = now.elapsed();
+                println!(">>>>> Fetched {:?} in {elapsed:?}", file_name);
                 if result.is_ok() && result.as_ref().unwrap().is_some() {
+                    let now = std::time::Instant::now();
                     let data =
                         try_deserialize::<BitVMClientPublicData>(&(result.unwrap()).unwrap());
+                    let elapsed = now.elapsed();
+                    println!(">>>>> Deserialized in {elapsed:?}");
+                    let now = std::time::Instant::now();
                     if data.is_ok() && Self::validate_data(data.as_ref().unwrap()) {
+                        let elapsed = now.elapsed();
+                        println!(">>>>> Validated in {elapsed:?}");
                         // merge the file if the data is valid
                         println!("Merging {} data...", { file_name });
+                        let now = std::time::Instant::now();
                         self.merge_data(data.unwrap());
+                        let elapsed = now.elapsed();
+                        println!(">>>>> Merged in {elapsed:?}");
                         if latest_valid_file_name.is_none() {
                             latest_valid_file_name = Some(file_name.clone());
                         }
@@ -478,10 +516,16 @@ impl BitVMClient {
         key: &String,
         file_path: Option<&str>,
     ) -> (Option<BitVMClientPublicData>, usize) {
+        let now = std::time::Instant::now();
         let result = data_store.fetch_data_by_key(key, file_path).await;
+        let elapsed = now.elapsed();
+        println!(">>>>> Fetched file {:?} in {elapsed:?}", file_path);
         if result.is_ok() {
             if let Some(json) = result.unwrap() {
+                let now = std::time::Instant::now();
                 let data = try_deserialize::<BitVMClientPublicData>(&json);
+                let elapsed = now.elapsed();
+                println!(">>>>> Deserialized file {:?} in {elapsed:?}", file_path);
                 if let Ok(data) = data {
                     return (Some(data), json.len());
                 }
@@ -492,6 +536,8 @@ impl BitVMClient {
     }
 
     async fn save_to_data_store(&mut self) {
+        let whole = std::time::Instant::now();
+        println!("> Begin flush ...");
         // read newly created data before pushing
         let latest_file_names_result = Self::get_latest_file_names(
             &self.data_store,
@@ -500,21 +546,33 @@ impl BitVMClient {
         )
         .await;
 
+        let now = std::time::Instant::now();
         if latest_file_names_result.is_ok() {
             let mut latest_file_names = latest_file_names_result.unwrap();
             latest_file_names.reverse();
             let latest_valid_file_name = Self::process_files(self, latest_file_names).await;
             self.latest_processed_file_name = latest_valid_file_name;
         }
+        let elapsed = now.elapsed();
+        println!(">>> Processed files in {elapsed:?}");
 
         // push data
         self.data.version += 1;
 
+        let now = std::time::Instant::now();
         let contents = serialize(&self.data);
+        let elapsed = now.elapsed();
+        println!(">>> Serialized self.data in {elapsed:?}");
+
+        let now = std::time::Instant::now();
         let result = self
             .data_store
             .write_data(&contents, Some(&self.remote_file_path))
             .await;
+        let elapsed = now.elapsed();
+        println!(">>> Pushed to remote in {elapsed:?}");
+
+        let now = std::time::Instant::now();
         match result {
             Ok(file_name) => {
                 println!("Pushed new file: {} (size: {})", file_name, contents.len());
@@ -523,9 +581,15 @@ impl BitVMClient {
             }
             Err(err) => println!("Failed to push: {}", err),
         }
+        let elapsed = now.elapsed();
+        println!(">>> Saved to local in {elapsed:?}");
+
+        let elapsed = whole.elapsed();
+        println!(">>> Done flush in {elapsed:?}");
     }
 
     pub fn validate_data(data: &BitVMClientPublicData) -> bool {
+        let now = std::time::Instant::now();
         for peg_in_graph in data.peg_in_graphs.iter() {
             if !peg_in_graph.validate() {
                 println!(
@@ -535,7 +599,11 @@ impl BitVMClient {
                 return false;
             }
         }
+        let elapsed_total = now.elapsed();
+        println!(">>>>> Validated peg-in graphs in {elapsed_total:?}");
+
         for peg_out_graph in data.peg_out_graphs.iter() {
+            let peg_out_now = std::time::Instant::now();
             if !peg_out_graph.validate() {
                 println!(
                     "Encountered invalid peg out graph (Graph id: {})",
@@ -543,7 +611,11 @@ impl BitVMClient {
                 );
                 return false;
             }
+            let elapsed = peg_out_now.elapsed();
+            println!(">>>>> Validated single peg-in graph in {elapsed:?}");
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>> Validated all peg-out graphs in {elapsed:?}");
 
         // println!("All graph data is valid");
         true
@@ -925,12 +997,15 @@ impl BitVMClient {
         }
         let operator_public_key = &self.operator_context.as_ref().unwrap().operator_public_key;
 
+        let now = std::time::Instant::now();
         let peg_in_graph = self
             .data
             .peg_in_graphs
             .iter_mut()
             .find(|peg_in_graph| peg_in_graph.id().eq(peg_in_graph_id))
             .unwrap_or_else(|| panic!("Invalid graph id"));
+        let elapsed_total = now.elapsed();
+        println!(">>> Found peg-in graph in {elapsed_total:?}");
 
         let peg_out_graph_id = peg_out_generate_id(peg_in_graph, operator_public_key);
         let peg_out_graph = self
@@ -941,6 +1016,9 @@ impl BitVMClient {
         if peg_out_graph.is_some() {
             panic!("Peg out graph already exists");
         }
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>> Looked for peg-out graph in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         let peg_out_graph = PegOutGraph::new(
             self.operator_context.as_ref().unwrap(),
@@ -948,6 +1026,9 @@ impl BitVMClient {
             peg_out_confirm_input,
             &commitment_secrets,
         );
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>> Constructed peg-out graph in {elapsed:?}");
+        let elapsed_total = now.elapsed();
 
         self.data.peg_out_graphs.push(peg_out_graph);
         peg_in_graph.peg_out_graphs.push(peg_out_graph_id.clone());
@@ -957,6 +1038,8 @@ impl BitVMClient {
             HashMap::from([(peg_out_graph_id.to_string(), commitment_secrets)]),
         )]);
         self.save_private_data();
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>> Saved commitment_secrets to private data in {elapsed:?}");
 
         peg_out_graph_id
     }

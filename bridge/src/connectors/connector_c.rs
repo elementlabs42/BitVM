@@ -255,15 +255,27 @@ impl TaprootConnector for ConnectorC {
     }
 
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
+        let now = std::time::Instant::now();
         let script_weights = self
             .lock_scripts_bytes
             .iter()
             .map(|b| (1, ScriptBuf::from_bytes(b.clone())));
+        let elapsed_total = now.elapsed();
+        println!(">>>>>>>>> Created script_weights in {elapsed_total:?}");
 
-        TaprootBuilder::with_huffman_tree(script_weights)
-            .expect("Unable to add assert leaves")
+        let builder =
+            TaprootBuilder::with_huffman_tree(script_weights).expect("Unable to add assert leaves");
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>>>> Created TaprootBuilder in {elapsed:?}");
+        let elapsed_total = now.elapsed();
+
+        let info = builder
             .finalize(SECP256K1, self.operator_taproot_public_key)
-            .expect("Unable to finalize assert transaction connector c taproot")
+            .expect("Unable to finalize assert transaction connector c taproot");
+        let elapsed = now.elapsed() - elapsed_total;
+        println!(">>>>>>>>> Created TaprootSpendInfo in {elapsed:?}");
+
+        info
     }
 
     fn generate_taproot_address(&self) -> Address {

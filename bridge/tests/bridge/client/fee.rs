@@ -141,6 +141,7 @@ async fn test_peg_out_fees() {
     )
     .await;
 
+    let now = std::time::Instant::now();
     let peg_in_graph_id = config
         .client_0
         .create_peg_in_graph(
@@ -151,6 +152,9 @@ async fn test_peg_out_fees() {
             &config.depositor_evm_address,
         )
         .await;
+    let elapsed = now.elapsed();
+    println!("> Created peg-in graph in {elapsed:?}");
+    let now = std::time::Instant::now();
     let peg_out_graph_id = config.client_0.create_peg_out_graph(
         &peg_in_graph_id,
         Input {
@@ -159,6 +163,8 @@ async fn test_peg_out_fees() {
         },
         config.commitment_secrets.clone(),
     );
+    let elapsed = now.elapsed();
+    println!("> Created peg-out graph in {elapsed:?}",);
 
     let esplora_client = config.client_0.esplora.clone();
     config
