@@ -1,7 +1,7 @@
 use bitcoin::{
     hashes::Hash,
     hex::{Case::Upper, DisplayHex},
-    key::{Keypair, TweakedPublicKey},
+    key::Keypair,
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
 use esplora_client::{AsyncClient, TxStatus};
@@ -18,8 +18,11 @@ use crate::{
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::{
-        connector_c::get_commit_from_assert_commit_tx, connector_d::ConnectorD,
-        connector_e::ConnectorE, connector_f_1::ConnectorF1, connector_f_2::ConnectorF2,
+        connector_c::{get_commit_from_assert_commit_tx, TaprootSpendInfoCache},
+        connector_d::ConnectorD,
+        connector_e::ConnectorE,
+        connector_f_1::ConnectorF1,
+        connector_f_2::ConnectorF2,
     },
     error::{Error, GraphError, L2Error, NamedTx},
     superblock::{
@@ -807,7 +810,7 @@ impl PegOutGraph {
             &self.connector_b.commitment_public_keys,
             &self.connector_e_1.commitment_public_keys(),
             &self.connector_e_2.commitment_public_keys(),
-            self.connector_c.taproot_output_key_cache,
+            self.connector_c.taproot_spend_info_cache.clone(),
         );
 
         let peg_out_confirm_vout_0 = 0;
@@ -2021,7 +2024,7 @@ impl PegOutGraph {
                             block_height + self.connector_4.num_blocks_timelock <= height
                         }) =>
                     {
-                        self.take_2_transaction.sign(context, &self.connector_c);
+                        self.take_2_transaction.sign(context, &mut self.connector_c);
                         Ok(self.take_2_transaction.finalize())
                     }
                     _ => Err(Error::Graph(GraphError::PrecedingTxTimelockNotMet(
@@ -2373,7 +2376,7 @@ impl PegOutGraph {
             CommitmentMessageId,
             WinternitzPublicKey,
         >],
-        connector_c_taproot_output_key_cache: Option<TweakedPublicKey>,
+        connector_c_taproot_spend_info_cache: Option<TaprootSpendInfoCache>,
     ) -> PegOutConnectors {
         let connector_0 = Connector0::new(network, n_of_n_taproot_public_key);
         let connector_1 = Connector1::new(
@@ -2421,7 +2424,7 @@ impl PegOutGraph {
                     eprintln!("Failed to generate cache id: {}", e);
                 })
                 .ok(),
-            connector_c_taproot_output_key_cache,
+            connector_c_taproot_spend_info_cache,
         );
         let connector_d = ConnectorD::new(network, n_of_n_taproot_public_key);
 

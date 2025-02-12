@@ -1,4 +1,6 @@
-use bitcoin::{taproot::TaprootSpendInfo, Address, ScriptBuf, Sequence, TxIn, Witness};
+use bitcoin::{
+    taproot::TaprootSpendInfo, Address, ScriptBuf, Sequence, TapNodeHash, TxIn, Witness,
+};
 
 use super::super::transactions::base::Input;
 
@@ -55,9 +57,9 @@ pub trait TaprootConnector {
 }
 
 pub trait TaprootConnectorWithCache {
-    // for spend info cache mutation in connectors with large merkle trees e.g. connector C
     fn generate_taproot_spend_info_cached(&mut self) -> TaprootSpendInfo;
 
-    // mutable self for calling generate_taproot_spend_info
     fn generate_taproot_address_cached(&mut self) -> Address;
+
+    fn generate_taproot_spend_info_merkle_root(&mut self) -> Option<TapNodeHash>;
 }

@@ -19,7 +19,7 @@ use bitcoin::{
     hashes::{hash160, Hash},
     key::TweakedPublicKey,
     taproot::{TaprootBuilder, TaprootSpendInfo},
-    Address, Network, ScriptBuf, Transaction, TxIn, XOnlyPublicKey,
+    Address, Network, ScriptBuf, TapNodeHash, Transaction, TxIn, XOnlyPublicKey,
 };
 use num_traits::ToPrimitive;
 use secp256k1::SECP256K1;
@@ -60,12 +60,18 @@ fn get_lock_scripts_cache_path(cache_id: &str) -> PathBuf {
     get_cache_path().join(lock_scripts_file_name)
 }
 
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct TaprootSpendInfoCache {
+    pub merkle_root: Option<TapNodeHash>,
+    pub output_key: TweakedPublicKey,
+}
+
 #[derive(Eq, PartialEq, Clone)]
 pub struct ConnectorC {
     pub network: Network,
     pub operator_taproot_public_key: XOnlyPublicKey,
     pub lock_scripts_bytes: Vec<Vec<u8>>, // using primitive type for binary serialization, convert to ScriptBuf when using it
-    pub(crate) taproot_output_key_cache: Option<TweakedPublicKey>,
+    pub(crate) taproot_spend_info_cache: Option<TaprootSpendInfoCache>,
     commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 }
 
@@ -85,10 +91,10 @@ impl Serialize for ConnectorC {
         let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
         c.serialize_field("lock_scripts", &cache_id)?;
 
-        let taproot_output_key_cache = self
-            .taproot_output_key_cache
-            .unwrap_or_else(|| self.generate_taproot_spend_info().output_key());
-        c.serialize_field("taproot_output_key_cache", &taproot_output_key_cache)?;
+        c.serialize_field(
+            "taproot_spend_info_cache",
+            &self.generate_spend_info_cache(),
+        )?;
 
         c.end()
     }
@@ -115,7 +121,7 @@ impl<'de> Deserialize<'de> for ConnectorC {
                 let mut commitment_public_keys = None;
                 let mut network = None;
                 let mut lock_scripts_cache_id = None;
-                let mut taproot_output_key_cache = None;
+                let mut taproot_spend_info_cache = None;
 
                 while let Some(key) = map.next_key()? {
                     match key {
@@ -127,8 +133,8 @@ impl<'de> Deserialize<'de> for ConnectorC {
                             commitment_public_keys = Some(map.next_value()?)
                         }
                         "lock_scripts" => lock_scripts_cache_id = Some(map.next_value()?),
-                        "taproot_output_key_cache" => {
-                            taproot_output_key_cache = Some(map.next_value()?)
+                        "taproot_spend_info_cache" => {
+                            taproot_spend_info_cache = Some(map.next_value()?)
                         }
                         _ => (),
                     }
@@ -138,19 +144,19 @@ impl<'de> Deserialize<'de> for ConnectorC {
                     network,
                     operator_taproot_public_key,
                     commitment_public_keys,
-                    taproot_output_key_cache,
+                    taproot_spend_info_cache,
                 ) {
                     (
                         Some(network),
                         Some(operator_taproot_public_key),
                         Some(commitment_public_keys),
-                        Some(taproot_output_key_cache),
+                        Some(taproot_spend_info_cache),
                     ) => Ok(ConnectorC::new_with_cache(
                         network,
                         &operator_taproot_public_key,
                         &commitment_public_keys,
                         lock_scripts_cache_id,
-                        taproot_output_key_cache,
+                        taproot_spend_info_cache,
                     )),
                     _ => Err(de::Error::custom("Invalid ConnectorC data")),
                 }
@@ -195,7 +201,7 @@ impl ConnectorC {
             lock_scripts_bytes: lock_scripts_cache
                 .unwrap_or_else(|| generate_assert_leaves(commitment_public_keys)),
             commitment_public_keys: commitment_public_keys.clone(),
-            taproot_output_key_cache: None,
+            taproot_spend_info_cache: None,
         }
     }
 
@@ -204,7 +210,7 @@ impl ConnectorC {
         operator_taproot_public_key: &XOnlyPublicKey,
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
         lock_scripts_cache_id: Option<String>,
-        taproot_output_key_cache: Option<TweakedPublicKey>,
+        taproot_spend_info_cache: Option<TaprootSpendInfoCache>,
     ) -> Self {
         let mut connector_c = Self::new(
             network,
@@ -212,12 +218,9 @@ impl ConnectorC {
             commitment_public_keys,
             lock_scripts_cache_id,
         );
-        connector_c.taproot_output_key_cache =
-            Some(taproot_output_key_cache.unwrap_or_else(|| {
-                connector_c
-                    .generate_taproot_spend_info_cached()
-                    .output_key()
-            }));
+        connector_c.taproot_spend_info_cache = Some(
+            taproot_spend_info_cache.unwrap_or_else(|| connector_c.generate_spend_info_cache()),
+        );
         connector_c
     }
 
@@ -263,6 +266,16 @@ impl ConnectorC {
                 Ok(hex::encode(hash))
             }
         }
+    }
+
+    fn generate_spend_info_cache(&self) -> TaprootSpendInfoCache {
+        self.taproot_spend_info_cache.clone().unwrap_or_else(|| {
+            let spend_info = self.generate_taproot_spend_info();
+            TaprootSpendInfoCache {
+                merkle_root: spend_info.merkle_root(),
+                output_key: spend_info.output_key(),
+            }
+        })
     }
 }
 
@@ -310,18 +323,28 @@ impl TaprootConnector for ConnectorC {
 impl TaprootConnectorWithCache for ConnectorC {
     fn generate_taproot_spend_info_cached(&mut self) -> TaprootSpendInfo {
         let spend_info = self.generate_taproot_spend_info();
-        self.taproot_output_key_cache = Some(spend_info.output_key());
+        self.taproot_spend_info_cache = Some(TaprootSpendInfoCache {
+            merkle_root: spend_info.merkle_root(),
+            output_key: spend_info.output_key(),
+        });
         spend_info
     }
 
     fn generate_taproot_address_cached(&mut self) -> Address {
         Address::p2tr_tweaked(
-            match self.taproot_output_key_cache {
-                Some(key) => key,
-                None => self.generate_taproot_spend_info().output_key(),
+            match &self.taproot_spend_info_cache {
+                Some(cache) => cache.output_key,
+                None => self.generate_taproot_spend_info_cached().output_key(),
             },
             self.network,
         )
+    }
+
+    fn generate_taproot_spend_info_merkle_root(&mut self) -> Option<TapNodeHash> {
+        match &self.taproot_spend_info_cache {
+            Some(cache) => cache.merkle_root,
+            None => self.generate_taproot_spend_info_cached().merkle_root(),
+        }
     }
 }
 

@@ -138,7 +138,7 @@ async fn test_take_2_success() {
         &secret_nonces_1,
     );
 
-    take_2.sign(&config.operator_context, &connector_c);
+    take_2.sign(&config.operator_context, &mut connector_c);
 
     let take_2_tx = take_2.finalize();
     let take_2_txid = take_2_tx.compute_txid();

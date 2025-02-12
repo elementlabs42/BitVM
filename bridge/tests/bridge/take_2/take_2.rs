@@ -96,7 +96,7 @@ async fn test_take_2_tx_success() {
         &secret_nonces_1,
     );
 
-    take_2_tx.sign(&config.operator_context, &connector_c);
+    take_2_tx.sign(&config.operator_context, &mut connector_c);
 
     let tx = take_2_tx.finalize();
     check_tx_output_sum(ONE_HUNDRED + reward_amount + DUST_AMOUNT * 2, &tx);

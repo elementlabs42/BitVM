@@ -245,17 +245,17 @@ impl Take2Transaction {
         );
     }
 
-    fn sign_input_3(&mut self, context: &OperatorContext, connector_c: &ConnectorC) {
+    fn sign_input_3(&mut self, context: &OperatorContext, connector_c: &mut ConnectorC) {
         let input_index = 3;
         let prev_outs = &self.prev_outs().clone();
-        let taproot_spend_info = connector_c.generate_taproot_spend_info();
+        let merkle_root = connector_c.generate_taproot_spend_info_merkle_root();
 
         populate_p2tr_key_spend_witness(
             self.tx_mut(),
             input_index,
             prev_outs,
             TapSighashType::All,
-            &taproot_spend_info,
+            merkle_root,
             &context.operator_keypair,
         );
     }
@@ -274,7 +274,7 @@ impl Take2Transaction {
         self.sign_input_2(context, connector_5, &secret_nonces[&input_index]);
     }
 
-    pub fn sign(&mut self, context: &OperatorContext, connector_c: &ConnectorC) {
+    pub fn sign(&mut self, context: &OperatorContext, connector_c: &mut ConnectorC) {
         self.sign_input_3(context, connector_c);
     }
 
