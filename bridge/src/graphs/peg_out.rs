@@ -1,7 +1,7 @@
 use bitcoin::{
     hashes::Hash,
     hex::{Case::Upper, DisplayHex},
-    key::Keypair,
+    key::{Keypair, TweakedPublicKey},
     Amount, Network, OutPoint, PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
 use esplora_client::{AsyncClient, TxStatus};
@@ -434,7 +434,7 @@ impl PegOutGraph {
         let (connector_e1_commitment_public_keys, connector_e2_commitment_public_keys) =
             groth16_commitment_secrets_to_public_keys(commitment_secrets);
 
-        let connectors = Self::create_new_connectors(
+        let mut connectors = Self::create_new_connectors(
             context.network,
             &context.n_of_n_taproot_public_key,
             &context.operator_taproot_public_key,
@@ -445,6 +445,7 @@ impl PegOutGraph {
             &connector_b_commitment_public_keys,
             &connector_e1_commitment_public_keys,
             &connector_e2_commitment_public_keys,
+            None,
         );
 
         let peg_out_confirm_transaction =
@@ -642,7 +643,7 @@ impl PegOutGraph {
             context,
             &connectors.connector_4,
             &connectors.connector_5,
-            &connectors.connector_c,
+            &mut connectors.connector_c,
             &connectors.connector_d,
             &connectors.assert_commit_connectors_f,
             Input {
@@ -678,7 +679,7 @@ impl PegOutGraph {
             &connectors.connector_0,
             &connectors.connector_4,
             &connectors.connector_5,
-            &connectors.connector_c,
+            &mut connectors.connector_c,
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -715,7 +716,7 @@ impl PegOutGraph {
         let disprove_transaction = DisproveTransaction::new(
             context,
             &connectors.connector_5,
-            &connectors.connector_c,
+            &mut connectors.connector_c,
             Input {
                 outpoint: OutPoint {
                     txid: assert_final_txid,
@@ -795,7 +796,7 @@ impl PegOutGraph {
     pub fn new_for_validation(&self) -> Self {
         let peg_in_confirm_txid = self.take_1_transaction.tx().input[0].previous_output.txid; // Self-referencing
 
-        let connectors = Self::create_new_connectors(
+        let mut connectors = Self::create_new_connectors(
             self.network,
             &self.n_of_n_taproot_public_key,
             &self.operator_taproot_public_key,
@@ -806,6 +807,7 @@ impl PegOutGraph {
             &self.connector_b.commitment_public_keys,
             &self.connector_e_1.commitment_public_keys(),
             &self.connector_e_2.commitment_public_keys(),
+            self.connector_c.taproot_output_key_cache,
         );
 
         let peg_out_confirm_vout_0 = 0;
@@ -1013,7 +1015,7 @@ impl PegOutGraph {
         let assert_final_transaction = AssertFinalTransaction::new_for_validation(
             &connectors.connector_4,
             &connectors.connector_5,
-            &connectors.connector_c,
+            &mut connectors.connector_c,
             &connectors.connector_d,
             &connectors.assert_commit_connectors_f,
             Input {
@@ -1050,7 +1052,7 @@ impl PegOutGraph {
             &connectors.connector_0,
             &connectors.connector_4,
             &connectors.connector_5,
-            &connectors.connector_c,
+            &mut connectors.connector_c,
             Input {
                 outpoint: OutPoint {
                     txid: peg_in_confirm_txid,
@@ -1086,8 +1088,8 @@ impl PegOutGraph {
         let disprove_vout_1 = 2;
         let disprove_transaction = DisproveTransaction::new_for_validation(
             self.network,
-            &self.connector_5,
-            &self.connector_c,
+            &connectors.connector_5,
+            &mut connectors.connector_c,
             Input {
                 outpoint: OutPoint {
                     txid: assert_final_txid,
@@ -1108,7 +1110,7 @@ impl PegOutGraph {
         let disprove_chain_vout_0 = 1;
         let disprove_chain_transaction = DisproveChainTransaction::new_for_validation(
             self.network,
-            &self.connector_b,
+            &connectors.connector_b,
             Input {
                 outpoint: OutPoint {
                     txid: kick_off_2_txid,
@@ -2371,6 +2373,7 @@ impl PegOutGraph {
             CommitmentMessageId,
             WinternitzPublicKey,
         >],
+        connector_c_taproot_output_key_cache: Option<TweakedPublicKey>,
     ) -> PegOutConnectors {
         let connector_0 = Connector0::new(network, n_of_n_taproot_public_key);
         let connector_1 = Connector1::new(
@@ -2409,7 +2412,7 @@ impl PegOutGraph {
             connector_e1_commitment_public_keys,
             connector_e2_commitment_public_keys,
         );
-        let connector_c = ConnectorC::new(
+        let connector_c = ConnectorC::new_with_cache(
             network,
             operator_taproot_public_key,
             commitment_public_keys,
@@ -2418,6 +2421,7 @@ impl PegOutGraph {
                     eprintln!("Failed to generate cache id: {}", e);
                 })
                 .ok(),
+            connector_c_taproot_output_key_cache,
         );
         let connector_d = ConnectorD::new(network, n_of_n_taproot_public_key);
 

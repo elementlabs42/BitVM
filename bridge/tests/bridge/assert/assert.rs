@@ -35,11 +35,12 @@ async fn test_assert_tx_success() {
     )
     .await;
 
+    let mut connector_c = config.connector_c;
     let mut assert_tx = AssertTransaction::new(
         &config.connector_4,
         &config.connector_5,
         &config.connector_b,
-        &config.connector_c,
+        &mut connector_c,
         Input { outpoint, amount },
     );
 

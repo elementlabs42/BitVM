@@ -42,6 +42,8 @@ pub enum GraphError {
 #[derive(Debug, Display)]
 pub enum ConnectorError {
     ConnectorCCommitsPublicKeyEmpty,
+    TaprootNodeInfoSerializationError,
+    TaprootBuilderNotFinalized,
 }
 
 #[derive(Debug)]
@@ -64,6 +66,7 @@ pub enum Error {
     Esplora(esplora_client::Error),
     Client(ClientError),
     Graph(GraphError),
+    Connector(ConnectorError),
     Transaction(TransactionError),
     L2(L2Error),
     Chunker(ChunkerError),

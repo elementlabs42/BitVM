@@ -60,11 +60,12 @@ async fn test_assert_final_tx_success() {
     let funding_outpoint2 =
         generate_stub_outpoint(&config.client_0, &funding_utxo_address2, input_value2).await;
 
+    let mut connector_c = config.connector_c;
     let mut assert_final_tx = AssertFinalTransaction::new(
         &config.operator_context,
         &config.connector_4,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         &config.connector_d,
         &config.assert_commit_connectors_f,
         Input {

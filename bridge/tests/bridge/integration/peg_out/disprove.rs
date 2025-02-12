@@ -193,11 +193,12 @@ async fn test_disprove_success() {
         },
         amount: assert_commit_2_tx.output[vout_2 as usize].value,
     };
+    let mut connector_c = config.connector_c;
     let mut assert_final = AssertFinalTransaction::new(
         &config.operator_context,
         &config.connector_4,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         &config.connector_d,
         &config.assert_commit_connectors_f,
         assert_final_input_0,
@@ -235,8 +236,7 @@ async fn test_disprove_success() {
     let assert_commit_1_witness = get_commit_from_assert_commit_tx(&assert_commit_1_tx);
     let assert_commit_2_witness = get_commit_from_assert_commit_tx(&assert_commit_2_tx);
 
-    let (script_index, disprove_witness) = config
-        .connector_c
+    let (script_index, disprove_witness) = connector_c
         .generate_disprove_witness(
             assert_commit_1_witness,
             assert_commit_2_witness,
@@ -265,7 +265,7 @@ async fn test_disprove_success() {
     let mut disprove = DisproveTransaction::new(
         &config.operator_context,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         disprove_input_0,
         disprove_input_1,
         script_index as u32,
@@ -291,7 +291,7 @@ async fn test_disprove_success() {
     );
     let verifier_reward_script = reward_address.script_pubkey(); // send reward to withdrawer address
     disprove.add_input_output(
-        &config.connector_c,
+        &mut connector_c,
         script_index as u32,
         disprove_witness,
         verifier_reward_script,

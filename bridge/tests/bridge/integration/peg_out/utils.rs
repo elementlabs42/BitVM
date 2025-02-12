@@ -132,7 +132,7 @@ pub async fn create_and_mine_assert_tx(
     connector_4: &Connector4,
     connector_5: &Connector5,
     connector_b: &ConnectorB,
-    connector_c: &ConnectorC,
+    connector_c: &mut ConnectorC,
     input_amount: Amount,
 ) -> (Transaction, Txid) {
     // create assert tx

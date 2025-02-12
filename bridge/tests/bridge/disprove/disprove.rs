@@ -1,7 +1,7 @@
 use bitcoin::{key::Keypair, Amount, PrivateKey, PublicKey, TxOut};
 
 use bridge::{
-    connectors::base::TaprootConnector,
+    connectors::base::{TaprootConnector, TaprootConnectorWithCache},
     scripts::{generate_pay_to_pubkey_script, generate_pay_to_pubkey_script_address},
     transactions::{
         base::{BaseTransaction, Input, MIN_RELAY_FEE_DISPROVE},
@@ -28,7 +28,8 @@ async fn test_disprove_tx_success() {
     faucet.fund_input(&connector_5_address, amount_0).await;
 
     let amount_1 = Amount::from_sat(INITIAL_AMOUNT);
-    let connector_c_address = config.connector_c.generate_taproot_address();
+    let mut connector_c = config.connector_c;
+    let connector_c_address = &connector_c.generate_taproot_address_cached();
     faucet
         .fund_input(&connector_c_address, amount_1)
         .await
@@ -41,7 +42,7 @@ async fn test_disprove_tx_success() {
     let mut disprove_tx = DisproveTransaction::new(
         &config.operator_context,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         Input {
             outpoint: outpoint_0,
             amount: amount_0,
@@ -72,7 +73,7 @@ async fn test_disprove_tx_success() {
         &config.withdrawer_context.withdrawer_public_key,
     );
     let verifier_reward_script = reward_address.script_pubkey(); // send reward to withdrawer address
-    disprove_tx.add_input_output(&config.connector_c, 1, vec![], verifier_reward_script);
+    disprove_tx.add_input_output(&connector_c, 1, vec![], verifier_reward_script);
 
     let tx = disprove_tx.finalize();
     check_tx_output_sum(INITIAL_AMOUNT, &tx);
@@ -93,7 +94,8 @@ async fn test_disprove_tx_with_verifier_added_to_output_success() {
     faucet.fund_input(&connector_5_address, amount_0).await;
 
     let amount_1 = Amount::from_sat(INITIAL_AMOUNT);
-    let connector_c_address = config.connector_c.generate_taproot_address();
+    let mut connector_c = config.connector_c;
+    let connector_c_address = &connector_c.generate_taproot_address_cached();
     faucet
         .fund_input(&connector_c_address, amount_1)
         .await
@@ -106,7 +108,7 @@ async fn test_disprove_tx_with_verifier_added_to_output_success() {
     let mut disprove_tx = DisproveTransaction::new(
         &config.operator_context,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         Input {
             outpoint: outpoint_0,
             amount: amount_0,
@@ -137,7 +139,7 @@ async fn test_disprove_tx_with_verifier_added_to_output_success() {
         &config.withdrawer_context.withdrawer_public_key,
     );
     let verifier_reward_script = reward_address.script_pubkey(); // send reward to withdrawer address
-    disprove_tx.add_input_output(&config.connector_c, 1, vec![], verifier_reward_script);
+    disprove_tx.add_input_output(&connector_c, 1, vec![], verifier_reward_script);
 
     let mut tx = disprove_tx.finalize();
 

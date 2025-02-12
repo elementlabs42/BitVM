@@ -1,7 +1,7 @@
 use bitcoin::{Address, Amount};
 
 use bridge::{
-    connectors::base::{P2wshConnector, TaprootConnector},
+    connectors::base::{P2wshConnector, TaprootConnector, TaprootConnectorWithCache},
     graphs::base::DUST_AMOUNT,
     transactions::{
         base::{BaseTransaction, Input, MIN_RELAY_FEE_TAKE_2},
@@ -38,7 +38,8 @@ async fn test_take_2_tx_success() {
     funding_inputs.push((&funding_utxo_address2, input_value2));
 
     let input_value3 = Amount::from_sat(DUST_AMOUNT);
-    let funding_utxo_address3 = config.connector_c.generate_taproot_address();
+    let mut connector_c = config.connector_c;
+    let funding_utxo_address3 = &connector_c.generate_taproot_address_cached();
     funding_inputs.push((&funding_utxo_address3, input_value3));
     faucet
         .fund_inputs(&config.client_0, &funding_inputs)
@@ -60,7 +61,7 @@ async fn test_take_2_tx_success() {
         &config.connector_0,
         &config.connector_4,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         Input {
             outpoint: funding_outpoint0,
             amount: input_value0,
@@ -95,7 +96,7 @@ async fn test_take_2_tx_success() {
         &secret_nonces_1,
     );
 
-    take_2_tx.sign(&config.operator_context, &config.connector_c);
+    take_2_tx.sign(&config.operator_context, &connector_c);
 
     let tx = take_2_tx.finalize();
     check_tx_output_sum(ONE_HUNDRED + reward_amount + DUST_AMOUNT * 2, &tx);

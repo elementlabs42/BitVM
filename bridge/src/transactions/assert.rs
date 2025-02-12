@@ -71,7 +71,7 @@ impl AssertTransaction {
         connector_4: &Connector4,
         connector_5: &Connector5,
         connector_b: &ConnectorB,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         input_0: Input,
     ) -> Self {
         Self::new_for_validation(connector_4, connector_5, connector_b, connector_c, input_0)
@@ -81,7 +81,7 @@ impl AssertTransaction {
         connector_4: &Connector4,
         connector_5: &Connector5,
         connector_b: &ConnectorB,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         input_0: Input,
     ) -> Self {
         let input_0_leaf = 1;
@@ -96,7 +96,9 @@ impl AssertTransaction {
 
         let _output_2 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
-            script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+            script_pubkey: connector_c
+                .generate_taproot_address_cached()
+                .script_pubkey(),
         };
 
         let _output_1 = TxOut {

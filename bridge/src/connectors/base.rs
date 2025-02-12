@@ -53,3 +53,11 @@ pub trait TaprootConnector {
 
     fn generate_taproot_address(&self) -> Address;
 }
+
+pub trait TaprootConnectorWithCache {
+    // for spend info cache mutation in connectors with large merkle trees e.g. connector C
+    fn generate_taproot_spend_info_cached(&mut self) -> TaprootSpendInfo;
+
+    // mutable self for calling generate_taproot_spend_info
+    fn generate_taproot_address_cached(&mut self) -> Address;
+}

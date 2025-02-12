@@ -77,7 +77,7 @@ impl AssertFinalTransaction {
         context: &OperatorContext,
         connector_4: &Connector4,
         connector_5: &Connector5,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         connector_d: &ConnectorD,
         assert_commit_connectors_f: &AssertCommitConnectorsF,
         input_0: Input,
@@ -104,7 +104,7 @@ impl AssertFinalTransaction {
     pub fn new_for_validation(
         connector_4: &Connector4,
         connector_5: &Connector5,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         connector_d: &ConnectorD,
         assert_commit_connectors_f: &AssertCommitConnectorsF,
         input_0: Input,
@@ -140,7 +140,9 @@ impl AssertFinalTransaction {
         // goes to take_2 tx or disprove tx
         let _output_2 = TxOut {
             value: Amount::from_sat(DUST_AMOUNT),
-            script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+            script_pubkey: connector_c
+                .generate_taproot_address_cached()
+                .script_pubkey(),
         };
 
         AssertFinalTransaction {

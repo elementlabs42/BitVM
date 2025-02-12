@@ -71,7 +71,7 @@ impl DisproveTransaction {
     pub fn new(
         context: &OperatorContext,
         connector_5: &Connector5,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         input_0: Input,
         input_1: Input,
         script_index: u32,
@@ -89,7 +89,7 @@ impl DisproveTransaction {
     pub fn new_for_validation(
         network: Network,
         connector_5: &Connector5,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         input_0: Input,
         input_1: Input,
         script_index: u32,
@@ -129,7 +129,9 @@ impl DisproveTransaction {
                 },
                 TxOut {
                     value: input_1.amount,
-                    script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+                    script_pubkey: connector_c
+                        .generate_taproot_address_cached()
+                        .script_pubkey(),
                 },
             ],
             prev_scripts: vec![

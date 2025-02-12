@@ -62,6 +62,7 @@ async fn test_take_2_success() {
     .await;
 
     // assert
+    let mut connector_c = config.connector_c;
     let (assert_tx, assert_txid) = create_and_mine_assert_tx(
         &config.client_0,
         &config.verifier_0_context,
@@ -70,7 +71,7 @@ async fn test_take_2_success() {
         &config.connector_4,
         &config.connector_5,
         &config.connector_b,
-        &config.connector_c,
+        &mut connector_c,
         assert_input_amount,
     )
     .await;
@@ -114,7 +115,7 @@ async fn test_take_2_success() {
         &config.connector_0,
         &config.connector_4,
         &config.connector_5,
-        &config.connector_c,
+        &mut connector_c,
         take_2_input_0,
         take_2_input_1,
         take_2_input_2,
@@ -137,7 +138,7 @@ async fn test_take_2_success() {
         &secret_nonces_1,
     );
 
-    take_2.sign(&config.operator_context, &config.connector_c);
+    take_2.sign(&config.operator_context, &connector_c);
 
     let take_2_tx = take_2.finalize();
     let take_2_txid = take_2_tx.compute_txid();

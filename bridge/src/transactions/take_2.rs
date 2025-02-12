@@ -75,7 +75,7 @@ impl Take2Transaction {
         connector_0: &Connector0,
         connector_4: &Connector4,
         connector_5: &Connector5,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         input_0: Input,
         input_1: Input,
         input_2: Input,
@@ -106,7 +106,7 @@ impl Take2Transaction {
         connector_0: &Connector0,
         connector_4: &Connector4,
         connector_5: &Connector5,
-        connector_c: &ConnectorC,
+        connector_c: &mut ConnectorC,
         input_0: Input,
         input_1: Input,
         input_2: Input,
@@ -154,7 +154,9 @@ impl Take2Transaction {
                 },
                 TxOut {
                     value: input_3.amount,
-                    script_pubkey: connector_c.generate_taproot_address().script_pubkey(),
+                    script_pubkey: connector_c
+                        .generate_taproot_address_cached()
+                        .script_pubkey(),
                 },
             ],
             prev_scripts: vec![
