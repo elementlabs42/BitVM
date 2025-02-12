@@ -302,10 +302,8 @@ impl TaprootConnector for ConnectorC {
     }
 
     fn generate_taproot_address(&self) -> Address {
-        Address::p2tr_tweaked(
-            self.generate_taproot_spend_info().output_key(),
-            self.network,
-        )
+        // with spend info output key cached, this should not be called
+        unreachable!()
     }
 }
 
