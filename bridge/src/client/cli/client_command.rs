@@ -4,7 +4,7 @@ use crate::common::ZkProofVerifyingKey;
 use crate::constants::DestinationNetwork;
 use crate::contexts::base::generate_keys_from_secret;
 use crate::graphs::base::{VERIFIER_0_SECRET, VERIFIER_1_SECRET};
-use crate::proof::get_proof;
+use crate::proof::{get_proof, ProofType};
 use crate::transactions::base::Input;
 use ark_serialize::CanonicalDeserialize;
 
@@ -12,10 +12,12 @@ use bitcoin::PublicKey;
 use bitcoin::{Network, OutPoint};
 use clap::{arg, ArgMatches, Command};
 use colored::Colorize;
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 
 pub struct CommonArgs {
@@ -26,6 +28,19 @@ pub struct CommonArgs {
 
 pub struct ClientCommand {
     client: BitVMClient,
+    proof_queue: mpsc::Sender<(String, ProofType)>,
+    proof_receiver: mpsc::Receiver<(String, ProofType)>,
+    graph_states: HashMap<String, GraphState>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum GraphState {
+    Created,
+    DepositConfirmed,
+    AssertionMade(ProofType),
+    AssertionDisputed,
+    Completed,
+    Failed,
 }
 
 impl ClientCommand {
@@ -70,8 +85,13 @@ impl ClientCommand {
         )
         .await;
 
+        let (tx, rx) = mpsc::channel(32);
+
         Self {
             client: bitvm_client,
+            proof_queue: tx,
+            proof_receiver: rx,
+            graph_states: HashMap::new(),
         }
     }
 
@@ -148,7 +168,73 @@ impl ClientCommand {
             .about("Automatic mode: Poll for status updates and sign or broadcast transactions")
     }
 
+    pub async fn handle_automatic_assertion(
+        &mut self,
+        graph_id: &str,
+        proof: ProofType,
+    ) -> io::Result<()> {
+        self.graph_states.insert(
+            graph_id.to_string(),
+            GraphState::AssertionMade(proof.clone()),
+        );
+
+        match proof {
+            ProofType::Commit1 => {
+                self.client
+                    .broadcast_assert_commit_1(graph_id, &proof)
+                    .await?;
+            }
+            ProofType::Commit2 => {
+                self.client
+                    .broadcast_assert_commit_2(graph_id, &proof)
+                    .await?;
+            }
+            ProofType::Final => {
+                self.client.broadcast_assert_final(graph_id).await?;
+            }
+        }
+
+        self.proof_queue
+            .send((graph_id.to_string(), proof))
+            .await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn handle_automatic_verification(&mut self) -> io::Result<()> {
+        while let Some((graph_id, proof)) = self.proof_receiver.recv().await {
+            let is_valid = self.verify_proof(&proof).await;
+
+            if !is_valid {
+                match proof {
+                    ProofType::Commit1 => {
+                        self.client.broadcast_take_1(&graph_id).await?;
+                    }
+                    ProofType::Commit2 => {
+                        self.client.broadcast_take_2(&graph_id).await?;
+                    }
+                    ProofType::Final => {
+                        self.client.broadcast_take_final(&graph_id).await?;
+                    }
+                }
+
+                self.graph_states
+                    .insert(graph_id, GraphState::AssertionDisputed);
+            } else {
+                self.graph_states.insert(graph_id, GraphState::Completed);
+            }
+        }
+        Ok(())
+    }
+
+    async fn verify_proof(&self, proof: &ProofType) -> bool {
+        true
+    }
+
     pub async fn handle_automatic_command(&mut self) -> io::Result<()> {
+        let verification_handle = tokio::spawn(self.handle_automatic_verification());
+
         loop {
             self.client.sync().await;
 
@@ -157,13 +243,33 @@ impl ClientCommand {
             self.client.process_peg_ins().await;
             self.client.process_peg_outs().await;
 
-            // A bit inefficient, but fine for now: only flush if data changed
+            for (graph_id, state) in self.graph_states.clone().iter() {
+                match state {
+                    GraphState::Created => {
+                        if self.client.is_ready_for_assertion(graph_id).await {
+                            self.handle_automatic_assertion(graph_id, ProofType::Commit1)
+                                .await?;
+                        }
+                    }
+                    GraphState::AssertionMade(proof) => {
+                        if self.client.is_assertion_disputed(graph_id).await {
+                            self.graph_states
+                                .insert(graph_id.clone(), GraphState::AssertionDisputed);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             if self.client.data() != &old_data {
                 self.client.flush().await;
             } else {
                 sleep(Duration::from_millis(250)).await;
             }
         }
+
+        verification_handle.abort();
+        Ok(())
     }
 
     pub fn get_broadcast_command() -> Command {
@@ -259,6 +365,26 @@ impl ClientCommand {
             .about("Interactive mode for manually issuing commands")
     }
 
+    pub fn get_automatic_assert_command() -> Command {
+        Command::new("automatic-assert")
+            .short_flag('t')
+            .about("Automatic assertion mode: Automatically make assertions for testing")
+            .arg(arg!(-g --graph_id <GRAPH_ID> "Graph ID to make assertions for").required(true))
+            .arg(
+                arg!(-m --mode <MODE> "Assertion mode: valid or invalid")
+                    .value_parser(["valid", "invalid"])
+                    .default_value("valid")
+                    .required(false),
+            )
+    }
+
+    pub fn get_automatic_verify_command() -> Command {
+        Command::new("automatic-verify")
+            .short_flag('v')
+            .about("Automatic verification mode: Verify assertions from other clients")
+            .arg(arg!(-g --graph_id <GRAPH_ID> "Graph ID to verify assertions for").required(true))
+    }
+
     pub async fn handle_interactive_command(&mut self, main_command: &Command) -> io::Result<()> {
         println!(
             "{}",
@@ -311,6 +437,10 @@ impl ClientCommand {
                 self.handle_status_command().await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("broadcast") {
                 self.handle_broadcast_command(sub_matches).await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("automatic-assert") {
+                self.handle_automatic_assert_command(sub_matches).await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("automatic-verify") {
+                self.handle_automatic_verify_command(sub_matches).await?;
             } else if matches.subcommand_matches("automatic").is_some() {
                 self.handle_automatic_command().await?;
             } else if matches.subcommand_matches("interactive").is_some() {
@@ -324,6 +454,110 @@ impl ClientCommand {
         }
 
         println!("{}", "Exiting interactive mode.".green());
+        Ok(())
+    }
+
+    pub async fn handle_automatic_assert_command(
+        &mut self,
+        sub_matches: &ArgMatches,
+    ) -> io::Result<()> {
+        let graph_id = sub_matches.get_one::<String>("graph_id").unwrap();
+        let mode = sub_matches.get_one::<String>("mode").unwrap();
+        let is_valid = mode == "valid";
+
+        println!("Starting automatic assertion mode for graph {}", graph_id);
+        println!(
+            "Making {} assertions...",
+            if is_valid { "valid" } else { "invalid" }
+        );
+
+        // Set initial state
+        self.graph_states
+            .insert(graph_id.to_string(), GraphState::Created);
+
+        loop {
+            self.client.sync().await;
+
+            match self.graph_states.get(graph_id) {
+                Some(GraphState::Created) => {
+                    if self.client.is_ready_for_assertion(graph_id).await {
+                        let proof = if is_valid {
+                            ProofType::Commit1 // Use valid proof
+                        } else {
+                            ProofType::Commit1 // TODO: Generate invalid proof
+                        };
+                        self.handle_automatic_assertion(graph_id, proof).await?;
+                    }
+                }
+                Some(GraphState::AssertionMade(ProofType::Commit1)) => {
+                    if !self.client.is_assertion_disputed(graph_id).await {
+                        let proof = if is_valid {
+                            ProofType::Commit2
+                        } else {
+                            ProofType::Commit2 // TODO: Generate invalid proof
+                        };
+                        self.handle_automatic_assertion(graph_id, proof).await?;
+                    }
+                }
+                Some(GraphState::AssertionMade(ProofType::Commit2)) => {
+                    if !self.client.is_assertion_disputed(graph_id).await {
+                        let proof = if is_valid {
+                            ProofType::Final
+                        } else {
+                            ProofType::Final // TODO: Generate invalid proof
+                        };
+                        self.handle_automatic_assertion(graph_id, proof).await?;
+                    }
+                }
+                Some(GraphState::Completed) | Some(GraphState::Failed) => {
+                    println!(
+                        "Assertion sequence completed with state: {:?}",
+                        self.graph_states.get(graph_id).unwrap()
+                    );
+                    break;
+                }
+                _ => {}
+            }
+
+            sleep(Duration::from_millis(250)).await;
+        }
+
+        Ok(())
+    }
+
+    pub async fn handle_automatic_verify_command(
+        &mut self,
+        sub_matches: &ArgMatches,
+    ) -> io::Result<()> {
+        let graph_id = sub_matches.get_one::<String>("graph_id").unwrap();
+
+        println!(
+            "Starting automatic verification mode for graph {}",
+            graph_id
+        );
+        println!("Waiting for assertions to verify...");
+
+        // Start verification loop
+        let verification_handle = tokio::spawn(self.handle_automatic_verification());
+
+        loop {
+            self.client.sync().await;
+
+            match self.graph_states.get(graph_id) {
+                Some(GraphState::Completed) | Some(GraphState::Failed) => {
+                    println!(
+                        "Verification completed with state: {:?}",
+                        self.graph_states.get(graph_id).unwrap()
+                    );
+                    break;
+                }
+                _ => {}
+            }
+
+            sleep(Duration::from_millis(250)).await;
+        }
+
+        verification_handle.abort();
         Ok(())
     }
 }
