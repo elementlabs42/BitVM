@@ -212,7 +212,12 @@ impl ConnectorC {
             commitment_public_keys,
             lock_scripts_cache_id,
         );
-        connector_c.taproot_output_key_cache = taproot_output_key_cache;
+        connector_c.taproot_output_key_cache =
+            Some(taproot_output_key_cache.unwrap_or_else(|| {
+                connector_c
+                    .generate_taproot_spend_info_cached()
+                    .output_key()
+            }));
         connector_c
     }
 
