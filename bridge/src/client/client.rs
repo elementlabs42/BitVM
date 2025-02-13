@@ -51,7 +51,6 @@ use super::{
             peg_in::{generate_id as peg_in_generate_id, PegInGraph},
             peg_out::{generate_id as peg_out_generate_id, PegOutGraph},
         },
-        serialization::{serialize, try_deserialize},
         transactions::{
             base::{Input, InputWithScript},
             pre_signed::PreSignedTransaction,
@@ -240,7 +239,14 @@ impl BitVMClient {
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
 
     fn save_private_data(&self) {
-        save_local_private_file(&self.local_file_path, &serialize(&self.private_data));
+        let contents = match serde_json::to_string(&self.data) {
+            Ok(contents) => contents,
+            Err(err) => {
+                println!("Failed to serialize data: {}", err);
+                return;
+            }
+        };
+        save_local_private_file(&self.local_file_path, &contents);
     }
 
     pub async fn sync(&mut self) { self.read_from_data_store().await; }
@@ -279,10 +285,17 @@ impl BitVMClient {
                 )
                 .await;
                 if latest_file.is_some() && latest_file_name.is_some() {
+                    let contents = match serde_json::to_string(&latest_file.as_ref().unwrap()) {
+                        Ok(contents) => contents,
+                        Err(err) => {
+                            println!("Failed to serialize data: {}", err);
+                            return;
+                        }
+                    };
                     save_local_public_file(
                         &self.local_file_path,
                         latest_file_name.as_ref().unwrap(),
-                        &serialize(&latest_file.as_ref().unwrap()),
+                        &contents,
                     );
                     self.latest_processed_file_name = latest_file_name;
 
@@ -417,11 +430,10 @@ impl BitVMClient {
             for file_name in file_names.iter() {
                 let result = self
                     .data_store
-                    .fetch_data_by_key(file_name, Some(&self.remote_file_path))
+                    .fetch_compressed_data_by_key(file_name, Some(&self.remote_file_path))
                     .await; // TODO: use `fetch_by_key()` function
                 if result.is_ok() && result.as_ref().unwrap().is_some() {
-                    let data =
-                        try_deserialize::<BitVMClientPublicData>(&(result.unwrap()).unwrap());
+                    let data = serde_json::from_slice(&(result.unwrap()).unwrap());
                     if data.is_ok() && Self::validate_data(data.as_ref().unwrap()) {
                         // merge the file if the data is valid
                         println!("Merging {} data...", { file_name });
@@ -478,12 +490,14 @@ impl BitVMClient {
         key: &String,
         file_path: Option<&str>,
     ) -> (Option<BitVMClientPublicData>, usize) {
-        let result = data_store.fetch_data_by_key(key, file_path).await;
+        let result = data_store
+            .fetch_compressed_data_by_key(key, file_path)
+            .await;
         if result.is_ok() {
-            if let Some(json) = result.unwrap() {
-                let data = try_deserialize::<BitVMClientPublicData>(&json);
+            if let Some(content) = result.unwrap() {
+                let data = serde_json::from_slice(&content);
                 if let Ok(data) = data {
-                    return (Some(data), json.len());
+                    return (Some(data), content.len());
                 }
             }
         }
@@ -510,10 +524,16 @@ impl BitVMClient {
         // push data
         self.data.version += 1;
 
-        let contents = serialize(&self.data);
+        let contents = match serde_json::to_string(&self.data) {
+            Ok(contents) => contents,
+            Err(err) => {
+                println!("Failed to serialize data: {}", err);
+                return;
+            }
+        };
         let result = self
             .data_store
-            .write_data(&contents, Some(&self.remote_file_path))
+            .write_compressed_data(&contents.as_bytes().to_vec(), Some(&self.remote_file_path))
             .await;
         match result {
             Ok(file_name) => {

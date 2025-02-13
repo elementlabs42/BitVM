@@ -126,6 +126,51 @@ impl DataStore {
         }
     }
 
+    pub async fn fetch_compressed_data_by_key(
+        &self,
+        key: &String,
+        file_path: Option<&str>,
+    ) -> Result<Option<Vec<u8>>, String> {
+        match self.get_driver() {
+            Ok(driver) => {
+                let json = driver.fetch_compressed_object(key, file_path).await;
+                if let Ok(data) = json {
+                    // println!("Fetched data file: {}", key);
+                    return Ok(Some(data));
+                }
+
+                println!("No data file {} found", key);
+                Ok(None)
+            }
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
+    pub async fn write_compressed_data(
+        &self,
+        contents: &Vec<u8>,
+        file_path: Option<&str>,
+    ) -> Result<String, String> {
+        match self.get_driver() {
+            Ok(driver) => {
+                let time = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis();
+                let file_name = self.create_file_name(time);
+                let response = driver
+                    .upload_compressed_object(&file_name, contents, file_path)
+                    .await;
+
+                match response {
+                    Ok(_) => Ok(file_name),
+                    Err(_) => Err(String::from("Failed to save data file")),
+                }
+            }
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
     pub fn get_past_max_file_name_by_timestamp(
         &self,
         latest_timestamp: u64,

@@ -1,3 +1,5 @@
+use crate::error::err_to_string;
+
 use super::base::DataStoreDriver;
 use async_trait::async_trait;
 use aws_sdk_s3::{
@@ -66,7 +68,7 @@ impl AwsS3 {
         match object {
             Ok(mut data) => {
                 let mut buffer: Vec<u8> = vec![];
-                while let Some(bytes) = data.body.try_next().await.unwrap() {
+                while let Some(bytes) = data.body.try_next().await.map_err(err_to_string)? {
                     buffer.append(&mut bytes.to_vec());
                 }
 
@@ -160,6 +162,35 @@ impl DataStoreDriver for AwsS3 {
     ) -> Result<usize, String> {
         let size = contents.len();
         let byte_stream = ByteStream::from(contents.as_bytes().to_vec());
+
+        match self.upload_object(file_name, byte_stream, file_path).await {
+            Ok(_) => Ok(size),
+            Err(err) => Err(format!("Failed to save json file: {}", err)),
+        }
+    }
+
+    async fn fetch_compressed_object(
+        &self,
+        file_name: &str,
+        file_path: Option<&str>,
+    ) -> Result<Vec<u8>, String> {
+        let response = self.get_object(file_name, file_path).await;
+        match response {
+            Ok(buffer) => zstd::stream::decode_all(buffer.as_slice()).map_err(err_to_string),
+            Err(err) => Err(format!("Failed to get json file: {}", err)),
+        }
+    }
+
+    async fn upload_compressed_object(
+        &self,
+        file_name: &str,
+        contents: &Vec<u8>,
+        file_path: Option<&str>,
+    ) -> Result<usize, String> {
+        let compressed_data =
+            zstd::stream::encode_all(contents.as_slice(), 5).map_err(err_to_string)?;
+        let size = compressed_data.len();
+        let byte_stream = ByteStream::from(compressed_data);
 
         match self.upload_object(file_name, byte_stream, file_path).await {
             Ok(_) => Ok(size),
