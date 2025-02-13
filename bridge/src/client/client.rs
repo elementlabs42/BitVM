@@ -4,6 +4,7 @@ use bitcoin::{
 };
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 use futures::future::join_all;
+use human_bytes::human_bytes;
 use musig2::SecNonce;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -30,6 +31,7 @@ use crate::{
     },
     proof::get_proof,
     scripts::generate_pay_to_pubkey_script_address,
+    serialization::{try_deserialize_slice, try_serialize},
     transactions::{
         peg_in_confirm::PegInConfirmTransaction, peg_in_deposit::PegInDepositTransaction,
         peg_in_refund::PegInRefundTransaction, pre_signed_musig2::PreSignedMusig2Transaction,
@@ -239,12 +241,10 @@ impl BitVMClient {
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
 
     fn save_private_data(&self) {
-        let contents = match serde_json::to_string(&self.data) {
-            Ok(contents) => contents,
-            Err(err) => {
-                println!("Failed to serialize data: {}", err);
-                return;
-            }
+        let result = try_serialize(&self.data);
+        let Ok(contents) = result else {
+            eprintln!("{}", result.err().unwrap());
+            return;
         };
         save_local_private_file(&self.local_file_path, &contents);
     }
@@ -285,12 +285,10 @@ impl BitVMClient {
                 )
                 .await;
                 if latest_file.is_some() && latest_file_name.is_some() {
-                    let contents = match serde_json::to_string(&latest_file.as_ref().unwrap()) {
-                        Ok(contents) => contents,
-                        Err(err) => {
-                            println!("Failed to serialize data: {}", err);
-                            return;
-                        }
+                    let result = try_serialize(&latest_file.as_ref().unwrap());
+                    let Ok(contents) = result else {
+                        eprintln!("{}", result.err().unwrap());
+                        return;
                     };
                     save_local_public_file(
                         &self.local_file_path,
@@ -432,8 +430,8 @@ impl BitVMClient {
                     .data_store
                     .fetch_compressed_data_by_key(file_name, Some(&self.remote_file_path))
                     .await; // TODO: use `fetch_by_key()` function
-                if result.is_ok() && result.as_ref().unwrap().is_some() {
-                    let data = serde_json::from_slice(&(result.unwrap()).unwrap());
+                if result.is_ok() && result.as_ref().unwrap().0.is_some() {
+                    let data = try_deserialize_slice(&(result.unwrap()).0.unwrap());
                     if data.is_ok() && Self::validate_data(data.as_ref().unwrap()) {
                         // merge the file if the data is valid
                         println!("Merging {} data...", { file_name });
@@ -464,13 +462,15 @@ impl BitVMClient {
             let file_name_result = file_names.pop();
             if file_name_result.is_some() {
                 let file_name = file_name_result.unwrap();
-                let (latest_data, latest_data_len) =
+                let (latest_data, latest_data_len, encoded_size) =
                     Self::fetch_by_key(data_store, &file_name, file_path).await;
                 if latest_data.is_some() && Self::validate_data(latest_data.as_ref().unwrap()) {
                     // data is valid
                     println!(
-                        "Fetched valid file: {} (size: {})",
-                        file_name, latest_data_len
+                        "Fetched valid file: {} (size: {}, compressed: {})",
+                        file_name,
+                        human_bytes(latest_data_len as f64),
+                        human_bytes(encoded_size as f64)
                     );
                     latest_valid_file = latest_data;
                     latest_valid_file_name = Some(file_name);
@@ -489,20 +489,22 @@ impl BitVMClient {
         data_store: &DataStore,
         key: &String,
         file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, usize) {
+    ) -> (Option<BitVMClientPublicData>, usize, usize) {
         let result = data_store
             .fetch_compressed_data_by_key(key, file_path)
             .await;
         if result.is_ok() {
-            if let Some(content) = result.unwrap() {
-                let data = serde_json::from_slice(&content);
+            if let (Some(content), encoded_size) = result.unwrap() {
+                let data = try_deserialize_slice(&content);
                 if let Ok(data) = data {
-                    return (Some(data), content.len());
+                    return (Some(data), content.len(), encoded_size);
+                } else {
+                    eprintln!("{}", data.err().unwrap());
                 }
             }
         }
 
-        (None, 0)
+        (None, 0, 0)
     }
 
     async fn save_to_data_store(&mut self) {
@@ -524,20 +526,23 @@ impl BitVMClient {
         // push data
         self.data.version += 1;
 
-        let contents = match serde_json::to_string(&self.data) {
-            Ok(contents) => contents,
-            Err(err) => {
-                println!("Failed to serialize data: {}", err);
-                return;
-            }
+        let result = try_serialize(&self.data);
+        let Ok(contents) = result else {
+            eprintln!("{}", result.err().unwrap());
+            return;
         };
         let result = self
             .data_store
             .write_compressed_data(&contents.as_bytes().to_vec(), Some(&self.remote_file_path))
             .await;
         match result {
-            Ok(file_name) => {
-                println!("Pushed new file: {} (size: {})", file_name, contents.len());
+            Ok((file_name, size)) => {
+                println!(
+                    "Pushed new file: {} (size: {}, compressed: {})",
+                    file_name,
+                    human_bytes(contents.len() as f64),
+                    human_bytes(size as f64)
+                );
                 save_local_public_file(&self.local_file_path, &file_name, &contents);
                 self.latest_processed_file_name = Some(file_name);
             }

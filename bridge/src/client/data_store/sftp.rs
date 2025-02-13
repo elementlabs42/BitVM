@@ -1,4 +1,7 @@
-use crate::error::err_to_string;
+use crate::{
+    error::err_to_string,
+    utils::{compress, decompress, DEFAULT_COMPRESSION_LEVEL},
+};
 
 use super::base::DataStoreDriver;
 use async_trait::async_trait;
@@ -230,10 +233,13 @@ impl DataStoreDriver for Sftp {
         &self,
         file_name: &str,
         file_path: Option<&str>,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<(Vec<u8>, usize), String> {
         let response = self.get_object(file_name, file_path).await;
         match response {
-            Ok(buffer) => zstd::stream::decode_all(buffer.as_slice()).map_err(err_to_string),
+            Ok(buffer) => {
+                let size = buffer.len();
+                Ok((decompress(&buffer).map_err(err_to_string)?, size))
+            }
             Err(err) => Err(format!("Failed to get json file: {}", err)),
         }
     }
@@ -245,7 +251,7 @@ impl DataStoreDriver for Sftp {
         file_path: Option<&str>,
     ) -> Result<usize, String> {
         let compressed_data =
-            zstd::stream::encode_all(contents.as_slice(), 5).map_err(err_to_string)?;
+            compress(contents, DEFAULT_COMPRESSION_LEVEL).map_err(err_to_string)?;
         let size = compressed_data.len();
 
         println!("Writing data file to {} (size: {})", file_name, size);

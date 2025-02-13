@@ -80,7 +80,7 @@ impl DataStoreDriver for Ftp {
         &self,
         file_name: &str,
         file_path: Option<&str>,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<(Vec<u8>, usize), String> {
         lib::fetch_compressed_object(&self.credentials, file_name, file_path).await
     }
 
