@@ -241,7 +241,7 @@ impl BitVMClient {
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
 
     fn save_private_data(&self) {
-        let result = try_serialize(&self.data);
+        let result = try_serialize(&self.private_data);
         let Ok(contents) = result else {
             eprintln!("{}", result.err().unwrap());
             return;
