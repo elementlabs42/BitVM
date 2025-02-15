@@ -29,7 +29,6 @@ use crate::{
         peg_in::{PegInDepositorStatus, PegInVerifierStatus},
         peg_out::PegOutOperatorStatus,
     },
-    proof::get_proof,
     scripts::generate_pay_to_pubkey_script_address,
     serialization::{try_deserialize_slice, try_serialize},
     transactions::{
@@ -71,19 +70,19 @@ use super::{
 };
 
 // TODO: Update for production.
-const ESPLORA_URL: &str = "https://esploraapi53d3659b.devnet-annapurna.stratabtc.org/";
+pub const ESPLORA_URL: &str = "https://esploraapi53d3659b.devnet-annapurna.stratabtc.org/";
 const TEN_MINUTES: u64 = 10 * 60;
 
 pub type UtxoSet = HashMap<OutPoint, Height>;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct BitVMClientPublicData {
+#[derive(Serialize, Deserialize, PartialEq)]
+pub struct BitVMClientPublicData<'cache> {
     pub version: u32,
     pub peg_in_graphs: Vec<PegInGraph>,
-    pub peg_out_graphs: Vec<PegOutGraph>,
+    pub peg_out_graphs: Vec<PegOutGraph<'cache>>,
 }
 
-impl BitVMClientPublicData {
+impl BitVMClientPublicData<'_> {
     pub fn graph_mut(&mut self, graph_id: &GraphId) -> &mut dyn BaseGraph {
         if let Some(peg_in) = self.peg_in_graphs.iter_mut().find(|x| x.id() == graph_id) {
             return peg_in;
@@ -107,7 +106,7 @@ pub struct BitVMClientPrivateData {
         HashMap<PublicKey, HashMap<String, HashMap<CommitmentMessageId, WinternitzSecret>>>,
 }
 
-pub struct BitVMClient {
+pub struct BitVMClient<'cache> {
     pub esplora: AsyncClient,
     pub source_network: Network,
 
@@ -117,7 +116,7 @@ pub struct BitVMClient {
     withdrawer_context: Option<WithdrawerContext>,
 
     data_store: DataStore,
-    data: BitVMClientPublicData,
+    data: BitVMClientPublicData<'cache>,
     latest_processed_file_name: Option<String>,
     remote_file_path: String,
     local_file_path: PathBuf,
@@ -129,7 +128,7 @@ pub struct BitVMClient {
     zkproof_verifying_key: Option<ZkProofVerifyingKey>,
 }
 
-impl BitVMClient {
+impl<'cache> BitVMClient<'cache> {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         esplora_url: Option<&str>,
@@ -233,9 +232,9 @@ impl BitVMClient {
         }
     }
 
-    pub fn data(&self) -> &BitVMClientPublicData { &self.data }
+    pub fn data(&self) -> &BitVMClientPublicData<'cache> { &self.data }
 
-    pub fn data_mut(&mut self) -> &mut BitVMClientPublicData { &mut self.data }
+    pub fn data_mut(&'cache mut self) -> &mut BitVMClientPublicData { &mut self.data }
 
     // TODO: This should be private. Currently used in the fees test. See if it can be refactored.
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
@@ -454,7 +453,7 @@ impl BitVMClient {
         data_store: &DataStore,
         file_names: &mut Vec<String>,
         file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, Option<String>) {
+    ) -> (Option<BitVMClientPublicData<'cache>>, Option<String>) {
         let mut latest_valid_file: Option<BitVMClientPublicData> = None;
         let mut latest_valid_file_name: Option<String> = None;
 
@@ -489,7 +488,7 @@ impl BitVMClient {
         data_store: &DataStore,
         key: &String,
         file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, usize, usize) {
+    ) -> (Option<BitVMClientPublicData<'cache>>, usize, usize) {
         let result = data_store
             .fetch_compressed_data_by_key(key, file_path)
             .await;
@@ -579,7 +578,7 @@ impl BitVMClient {
     /// # Arguments
     ///
     /// * `data` - Must be valid data verified via `BitVMClient::validate_data()` function
-    pub fn merge_data(&mut self, data: BitVMClientPublicData) {
+    pub fn merge_data(&mut self, mut data: BitVMClientPublicData<'cache>) {
         // peg-in graphs
         let mut peg_in_graphs_by_id: HashMap<String, &mut PegInGraph> = HashMap::new();
         for peg_in_graph in self.data.peg_in_graphs.iter_mut() {
@@ -607,19 +606,29 @@ impl BitVMClient {
             peg_out_graphs_by_id.insert(id, peg_out_graph);
         }
 
-        let mut peg_out_graphs_to_add: Vec<&PegOutGraph> = Vec::new();
-        for peg_out_graph in data.peg_out_graphs.iter() {
+        let mut peg_out_graphs_to_add: Vec<PegOutGraph<'cache>> = Vec::new();
+        let mut peg_out_graph_indices_to_add: Vec<usize> = Vec::new();
+        for (i, peg_out_graph) in data.peg_out_graphs.iter().enumerate() {
             let graph = peg_out_graphs_by_id.get_mut(peg_out_graph.id());
             if let Some(graph) = graph {
                 graph.merge(peg_out_graph);
             } else {
-                peg_out_graphs_to_add.push(peg_out_graph);
+                peg_out_graph_indices_to_add.push(i);
             }
         }
 
-        for graph in peg_out_graphs_to_add.into_iter() {
-            self.data.peg_out_graphs.push(graph.clone());
+        // prevent clone
+        peg_out_graph_indices_to_add.sort();
+        peg_out_graph_indices_to_add.reverse();
+        let last_index = peg_out_graph_indices_to_add.len() - 1;
+        for (current, graph_index) in peg_out_graph_indices_to_add.iter().enumerate() {
+            let graph = data.peg_out_graphs.pop().unwrap();
+            if *graph_index == last_index - current {
+                peg_out_graphs_to_add.push(graph);
+            }
         }
+
+        self.data.peg_out_graphs.append(&mut peg_out_graphs_to_add);
     }
 
     // fn process(&self) {
@@ -820,49 +829,50 @@ impl BitVMClient {
     }
 
     // TODO: handle internal errors
-    pub async fn process_peg_outs(&mut self) {
-        let peg_out_graphs = self.data().peg_out_graphs.clone();
-        for peg_out_graph in peg_out_graphs.iter() {
-            let status = peg_out_graph.operator_status(&self.esplora).await;
-            match status {
-                PegOutOperatorStatus::PegOutStartTimeAvailable => {
-                    let _ = self.broadcast_start_time(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutPegOutConfirmAvailable => {
-                    let _ = self.broadcast_peg_out_confirm(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutKickOff1Available => {
-                    let _ = self.broadcast_kick_off_1(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutKickOff2Available => {
-                    let _ = self.broadcast_kick_off_2(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutAssertInitialAvailable => {
-                    let _ = self.broadcast_assert_initial(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutAssertCommit1Available => {
-                    let _ = self
-                        .broadcast_assert_commit_1(peg_out_graph.id(), &get_proof())
-                        .await;
-                }
-                PegOutOperatorStatus::PegOutAssertCommit2Available => {
-                    let _ = self
-                        .broadcast_assert_commit_2(peg_out_graph.id(), &get_proof())
-                        .await;
-                }
-                PegOutOperatorStatus::PegOutAssertFinalAvailable => {
-                    let _ = self.broadcast_assert_final(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutTake1Available => {
-                    let _ = self.broadcast_take_1(peg_out_graph.id()).await;
-                }
-                PegOutOperatorStatus::PegOutTake2Available => {
-                    let _ = self.broadcast_take_2(peg_out_graph.id()).await;
-                }
-                _ => {}
-            }
-        }
-    }
+    // TPDO: revisit here for not using peg_out_graphs.clone()
+    // pub async fn process_peg_outs(&mut self) {
+    //     let peg_out_graphs = self.data().peg_out_graphs.clone();
+    //     for peg_out_graph in peg_out_graphs.iter() {
+    //         let status = peg_out_graph.operator_status(&self.esplora).await;
+    //         match status {
+    //             PegOutOperatorStatus::PegOutStartTimeAvailable => {
+    //                 let _ = self.broadcast_start_time(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutPegOutConfirmAvailable => {
+    //                 let _ = self.broadcast_peg_out_confirm(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutKickOff1Available => {
+    //                 let _ = self.broadcast_kick_off_1(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutKickOff2Available => {
+    //                 let _ = self.broadcast_kick_off_2(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutAssertInitialAvailable => {
+    //                 let _ = self.broadcast_assert_initial(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutAssertCommit1Available => {
+    //                 let _ = self
+    //                     .broadcast_assert_commit_1(peg_out_graph.id(), &get_proof())
+    //                     .await;
+    //             }
+    //             PegOutOperatorStatus::PegOutAssertCommit2Available => {
+    //                 let _ = self
+    //                     .broadcast_assert_commit_2(peg_out_graph.id(), &get_proof())
+    //                     .await;
+    //             }
+    //             PegOutOperatorStatus::PegOutAssertFinalAvailable => {
+    //                 let _ = self.broadcast_assert_final(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutTake1Available => {
+    //                 let _ = self.broadcast_take_1(peg_out_graph.id()).await;
+    //             }
+    //             PegOutOperatorStatus::PegOutTake2Available => {
+    //                 let _ = self.broadcast_take_2(peg_out_graph.id()).await;
+    //             }
+    //             _ => {}
+    //         }
+    //     }
+    // }
 
     async fn verifier_status(&self) {
         if self.verifier_context.is_none() {
@@ -1341,9 +1351,9 @@ impl BitVMClient {
     }
 
     fn find_peg_out_or_fail<'a>(
-        data: &'a mut BitVMClientPublicData,
+        data: &'a mut BitVMClientPublicData<'cache>,
         peg_out_graph_id: &'a String,
-    ) -> Result<&'a mut PegOutGraph, Error> {
+    ) -> Result<&'a mut PegOutGraph<'cache>, Error> {
         if let Some(graph) = data
             .peg_out_graphs
             .iter_mut()
@@ -1619,7 +1629,7 @@ impl BitVMClient {
     // }
 }
 
-impl ClientCliQuery for BitVMClient {
+impl ClientCliQuery for BitVMClient<'_> {
     async fn get_unused_peg_in_graphs(&self) -> Vec<Value> {
         join_all(self.data.peg_in_graphs.iter().filter_map(|peg_in| {
             Some(async move {

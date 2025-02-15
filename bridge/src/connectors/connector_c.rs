@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    client::files::BRIDGE_DATA_DIRECTORY_NAME,
+    client::{cache::{Cache, TAPROOT_SPEND_INFO_CACHE}, files::BRIDGE_DATA_DIRECTORY_NAME},
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::base::*,
@@ -66,16 +66,22 @@ pub struct TaprootSpendInfoCache {
     pub output_key: TweakedPublicKey,
 }
 
-#[derive(Eq, PartialEq, Clone)]
-pub struct ConnectorC {
+#[derive(PartialEq)]
+pub struct ConnectorC<'c> {
     pub network: Network,
     pub operator_taproot_public_key: XOnlyPublicKey,
     pub lock_scripts_bytes: Vec<Vec<u8>>, // using primitive type for binary serialization, convert to ScriptBuf when using it
     pub(crate) taproot_spend_info_cache: Option<TaprootSpendInfoCache>,
     commitment_public_keys: BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
+    cache_in_client: &'c mut Cache<String, TaprootSpendInfoCache>,
 }
 
-impl Serialize for ConnectorC {
+// impl<'c> Clone for ConnectorC<'c> {
+//     fn clone(&self) -> ConnectorC<'c> {
+//     }
+// }
+
+impl Serialize for ConnectorC<'_> {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -100,14 +106,14 @@ impl Serialize for ConnectorC {
     }
 }
 
-impl<'de> Deserialize<'de> for ConnectorC {
+impl<'c> Deserialize<'c> for ConnectorC<'c> {
     fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
-        D: Deserializer<'de>,
+        D: Deserializer<'c>,
     {
         struct JsonConnectorCVisitor;
-        impl<'de> de::Visitor<'de> for JsonConnectorCVisitor {
-            type Value = ConnectorC;
+        impl<'c> de::Visitor<'c> for JsonConnectorCVisitor {
+            type Value = ConnectorC<'c>;
 
             fn expecting(&self, formatter: &mut Formatter) -> FmtResult {
                 formatter.write_str("a string containing ConnectorC data")
@@ -115,7 +121,7 @@ impl<'de> Deserialize<'de> for ConnectorC {
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
-                A: de::MapAccess<'de>,
+                A: de::MapAccess<'c>,
             {
                 let mut operator_taproot_public_key = None;
                 let mut commitment_public_keys = None;
@@ -151,7 +157,7 @@ impl<'de> Deserialize<'de> for ConnectorC {
                         Some(operator_taproot_public_key),
                         Some(commitment_public_keys),
                         Some(taproot_spend_info_cache),
-                    ) => Ok(ConnectorC::new_with_cache(
+                    ) => Ok(ConnectorC::with_cache(
                         network,
                         &operator_taproot_public_key,
                         &commitment_public_keys,
@@ -176,7 +182,7 @@ impl<'de> Deserialize<'de> for ConnectorC {
     }
 }
 
-impl ConnectorC {
+impl ConnectorC<'_> {
     pub fn new(
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
@@ -202,10 +208,11 @@ impl ConnectorC {
                 .unwrap_or_else(|| generate_assert_leaves(commitment_public_keys)),
             commitment_public_keys: commitment_public_keys.clone(),
             taproot_spend_info_cache: None,
+            cache_in_client: None,
         }
     }
 
-    pub(crate) fn new_with_cache(
+    pub(crate) fn with_cache(
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
@@ -279,7 +286,7 @@ impl ConnectorC {
     }
 }
 
-impl TaprootConnector for ConnectorC {
+impl TaprootConnector for ConnectorC<'_> {
     fn generate_taproot_leaf_script(&self, leaf_index: u32) -> ScriptBuf {
         let index = leaf_index.to_usize().unwrap();
         if index >= self.lock_scripts_bytes.len() {
@@ -315,12 +322,58 @@ impl TaprootConnector for ConnectorC {
     }
 
     fn generate_taproot_address(&self) -> Address {
-        // with spend info output key cached, this should not be called
-        unreachable!()
+        // let output_key = match self.taproot_spend_info_cache.as_ref().map(|cache| cache.output_key) {
+        //     Some(output_key) => output_key,
+        //     None => self.generate_taproot_spend_info().output_key(),
+        // };
+
+         let mut cache = &self.cache_in_client;
+        let (output_key, _) = match Self::cache_id(&self.commitment_public_keys).map(|cache_id| {
+            (cache
+                .get(&cache_id)
+                .map(|cache| cache.output_key), cache_id)
+        }) {
+            Ok((Some(output_key), cache_id)) => (output_key, Some(cache_id)),
+            Ok((None, cache_id)) => {
+                let spend_info = self.generate_taproot_spend_info();
+                let output_key = spend_info.output_key();
+                cache.push(cache_id.clone(), TaprootSpendInfoCache {
+                    merkle_root: spend_info.merkle_root(),
+                    output_key,
+                });
+                (output_key, Some(cache_id))
+            },
+            _ => (self.generate_taproot_spend_info().output_key(), None),
+        };
+        Address::p2tr_tweaked(output_key, self.network)
+
+            // if self.cache_in_client.is_none() {
+        //     Address::p2tr_tweaked(output_key, self.network)
+        // } else {
+        //     // let cache = self.cache_in_client.unwrap();
+        //     let (output_key, _) = match Self::cache_id(&self.commitment_public_keys).map(|cache_id| {
+        //         (cache
+        //             .get(&cache_id)
+        //             .map(|cache| cache.output_key), cache_id)
+        //     }) {
+        //         Ok((Some(output_key), cache_id)) => (output_key, Some(cache_id)),
+        //         Ok((None, cache_id)) => {
+        //             let spend_info = self.generate_taproot_spend_info();
+        //             let output_key = spend_info.output_key();
+        //             cache.push(cache_id.clone(), TaprootSpendInfoCache {
+        //                 merkle_root: spend_info.merkle_root(),
+        //                 output_key,
+        //             });
+        //             (output_key, Some(cache_id))
+        //         },
+        //         _ => (self.generate_taproot_spend_info().output_key(), None),
+        //     };
+        //     Address::p2tr_tweaked(output_key, self.network)
+        // }
     }
 }
 
-impl TaprootConnectorWithCache for ConnectorC {
+impl TaprootConnectorWithCache for ConnectorC<'_> {
     fn generate_taproot_spend_info_cached(&mut self) -> TaprootSpendInfo {
         let spend_info = self.generate_taproot_spend_info();
         self.taproot_spend_info_cache = Some(TaprootSpendInfoCache {

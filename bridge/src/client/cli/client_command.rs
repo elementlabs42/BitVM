@@ -25,11 +25,11 @@ pub struct CommonArgs {
     pub path_prefix: Option<String>,
 }
 
-pub struct ClientCommand {
-    client: BitVMClient,
+pub struct ClientCommand<'cache> {
+    client: BitVMClient<'cache>,
 }
 
-impl ClientCommand {
+impl<'cache> ClientCommand<'cache> {
     pub async fn new(common_args: CommonArgs) -> Self {
         let (source_network, destination_network) = match common_args.environment.as_deref() {
             Some("mainnet") => (Network::Bitcoin, DestinationNetwork::Ethereum),
@@ -149,17 +149,18 @@ impl ClientCommand {
             .about("Automatic mode: Poll for status updates and sign or broadcast transactions")
     }
 
+    // TODO: revisit here when process_peg_outs are fixed
     pub async fn handle_automatic_command(&mut self) -> io::Result<()> {
         loop {
             self.client.sync().await;
 
             let old_data = self.client.data().clone();
 
-            self.client.process_peg_ins().await;
-            self.client.process_peg_outs().await;
+            // self.client.process_peg_ins().await;
+            // self.client.process_peg_outs().await;
 
             // A bit inefficient, but fine for now: only flush if data changed
-            if self.client.data() != &old_data {
+            if self.client.data() != old_data {
                 self.client.flush().await;
             } else {
                 sleep(Duration::from_millis(250)).await;

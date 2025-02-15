@@ -234,7 +234,7 @@ impl Display for PegOutOperatorStatus {
     }
 }
 
-struct PegOutConnectors {
+struct PegOutConnectors<'cache> {
     connector_0: Connector0,
     connector_1: Connector1,
     connector_2: Connector2,
@@ -244,15 +244,15 @@ struct PegOutConnectors {
     connector_6: Connector6,
     connector_a: ConnectorA,
     connector_b: ConnectorB,
-    connector_c: ConnectorC,
+    connector_c: ConnectorC<'cache>,
     connector_d: ConnectorD,
     assert_commit_connectors_e_1: AssertCommit1ConnectorsE,
     assert_commit_connectors_e_2: AssertCommit2ConnectorsE,
     assert_commit_connectors_f: AssertCommitConnectorsF,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct PegOutGraph {
+#[derive(Serialize, Deserialize, PartialEq)]
+pub struct PegOutGraph<'cache> {
     version: String,
     network: Network,
     id: String,
@@ -279,7 +279,7 @@ pub struct PegOutGraph {
     connector_6: Connector6,
     connector_a: ConnectorA,
     connector_b: ConnectorB,
-    connector_c: ConnectorC,
+    connector_c: ConnectorC<'cache>,
     connector_d: ConnectorD,
     connector_e_1: AssertCommit1ConnectorsE,
     connector_e_2: AssertCommit2ConnectorsE,
@@ -309,7 +309,7 @@ pub struct PegOutGraph {
     pub peg_out_transaction: Option<PegOutTransaction>,
 }
 
-impl BaseGraph for PegOutGraph {
+impl BaseGraph for PegOutGraph<'_> {
     fn network(&self) -> Network { self.network }
 
     fn id(&self) -> &String { &self.id }
@@ -381,7 +381,7 @@ impl BaseGraph for PegOutGraph {
     }
 }
 
-impl PegOutGraph {
+impl PegOutGraph<'_> {
     pub fn new(
         context: &OperatorContext,
         peg_in_graph: &PegInGraph,
@@ -2415,7 +2415,7 @@ impl PegOutGraph {
             connector_e1_commitment_public_keys,
             connector_e2_commitment_public_keys,
         );
-        let connector_c = ConnectorC::new_with_cache(
+        let connector_c = ConnectorC::with_cache(
             network,
             operator_taproot_public_key,
             commitment_public_keys,
