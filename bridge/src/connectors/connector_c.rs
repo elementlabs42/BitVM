@@ -170,6 +170,7 @@ impl<'de> Deserialize<'de> for ConnectorC {
                 "network",
                 "operator_taproot_public_key",
                 "commitment_public_keys",
+                "taproot_spend_info_cache",
                 "lock_scripts",
             ],
             JsonConnectorCVisitor,
