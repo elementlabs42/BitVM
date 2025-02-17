@@ -1,4 +1,5 @@
 #![allow(clippy::module_inception)]
+pub mod cache;
 pub mod chain;
 pub mod cli;
 pub mod client;
