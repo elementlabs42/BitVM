@@ -297,6 +297,7 @@ impl TaprootConnector for ConnectorC {
     }
 
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
+        println!("Generating new taproot spend info for connector C...");
         let script_weights = self
             .lock_scripts_bytes
             .iter()
