@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::{
-    client::files::DEFAULT_PATH_PREFIX,
+    client::{chain::chain_adaptor::get_chain_adaptor, files::DEFAULT_PATH_PREFIX},
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::{base::TaprootConnector, connector_0::Connector0, connector_z::ConnectorZ},
@@ -123,7 +123,7 @@ pub struct BitVMClient {
 
     private_data: BitVMClientPrivateData,
 
-    chain_adaptor: Chain,
+    chain_service: Chain,
 
     zkproof_verifying_key: Option<ZkProofVerifyingKey>,
 }
@@ -205,7 +205,8 @@ impl BitVMClient {
         let private_data =
             get_private_data_from_file(&get_private_data_file_path(&local_file_path));
 
-        let chain_adaptor = Chain::new();
+        let adaptor = get_chain_adaptor(destination_network, None, None); // TODO: get Ethereum configuration
+        let chain_service = Chain::new(adaptor);
 
         Self {
             esplora: Builder::new(esplora_url.unwrap_or(ESPLORA_URL))
@@ -226,7 +227,7 @@ impl BitVMClient {
 
             private_data,
 
-            chain_adaptor,
+            chain_service,
 
             zkproof_verifying_key,
         }
@@ -303,12 +304,12 @@ impl BitVMClient {
         }
     }
 
-    pub fn set_chain_adaptor(&mut self, chain_adaptor: Chain) {
-        self.chain_adaptor = chain_adaptor;
+    pub fn set_chain_service(&mut self, chain_service: Chain) {
+        self.chain_service = chain_service;
     }
 
     async fn read_from_l2(&mut self) {
-        let peg_out_result = self.chain_adaptor.get_peg_out_init().await;
+        let peg_out_result = self.chain_service.get_peg_out_init().await;
         if peg_out_result.is_ok() {
             let mut events = peg_out_result.unwrap();
             for peg_out_graph in self.data.peg_out_graphs.iter_mut() {

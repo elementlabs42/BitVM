@@ -134,7 +134,7 @@ async fn test_e2e_1_simulate_peg_out() {
 #[tokio::test]
 #[serial]
 async fn test_e2e_2_verify_burn_event_and_simulate_peg_out_process() {
-    let chain_adaptor = Chain::new();
+    let chain_adaptor = Chain::default();
     let burnt_events = chain_adaptor.get_peg_out_burnt().await;
     assert!(burnt_events.is_ok());
     let burnt_events = burnt_events.unwrap();
