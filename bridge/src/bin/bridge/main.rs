@@ -6,6 +6,9 @@ use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    // Load environment variables from .env file
+    dotenv::dotenv().ok();
+
     let command = command!() // requires `cargo` feature
         .propagate_version(true)
         .subcommand_required(true)
@@ -22,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .env("VERIFIERS"),
         )
         .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet). Defaults to testnet.").required(false).default_value("testnet").env("ENVIRONMENT"))
-        .arg(arg!(-p --prefix <PREFIX> "Prefix for local file cache path").required(false))
+        .arg(arg!(-p --prefix <PREFIX> "Prefix for local file cache path").required(false).env("PREFIX"))
         .subcommand(KeysCommand::get_command())
         .subcommand(ClientCommand::get_depositor_address_command())
         .subcommand(ClientCommand::get_depositor_utxos_command())

@@ -1,5 +1,6 @@
 use super::key_command::KeysCommand;
 use crate::client::client::BitVMClient;
+use crate::client::esplora::get_esplora_url;
 use crate::common::ZkProofVerifyingKey;
 use crate::constants::DestinationNetwork;
 use crate::contexts::base::generate_keys_from_secret;
@@ -34,8 +35,9 @@ impl ClientCommand {
         let (source_network, destination_network) = match common_args.environment.as_deref() {
             Some("mainnet") => (Network::Bitcoin, DestinationNetwork::Ethereum),
             Some("testnet") => (Network::Testnet, DestinationNetwork::EthereumSepolia),
+            Some("regtest") => (Network::Regtest, DestinationNetwork::Local),
             _ => {
-                eprintln!("Invalid environment. Use mainnet, testnet.");
+                eprintln!("Invalid environment. Use mainnet, testnet or regtest.");
                 std::process::exit(1);
             }
         };
@@ -58,7 +60,7 @@ impl ClientCommand {
         }
 
         let bitvm_client = BitVMClient::new(
-            None,
+            Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
             &n_of_n_public_keys,
@@ -108,7 +110,7 @@ impl ClientCommand {
         .short_flag('n')
         .about("Initiate a peg-in")
         .after_help("Initiate a peg-in by creating a peg-in graph")
-        .arg(arg!(-u --utxo <UTXO> "Specify the uxo to spend from. Format: <TXID>:<VOUT>")
+        .arg(arg!(-u --utxo <UTXO> "Specify the utxo to spend from. Format: <TXID>:<VOUT>")
         .required(true))
         .arg(arg!(-d --destination_address <EVM_ADDRESS> "The evm-address to send the wrapped bitcoin to")
             .required(true))
