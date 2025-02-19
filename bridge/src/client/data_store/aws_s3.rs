@@ -60,25 +60,21 @@ impl AwsS3 {
             key_with_prefix = key.to_string();
         }
 
-        let object = self
+        let mut data = self
             .client
             .get_object()
             .bucket(&self.bucket)
             .key(key_with_prefix)
             .send()
-            .await;
+            .await
+            .map_err(err_to_string)?;
 
-        match object {
-            Ok(mut data) => {
-                let mut buffer: Vec<u8> = vec![];
-                while let Some(bytes) = data.body.try_next().await.map_err(err_to_string)? {
-                    buffer.append(&mut bytes.to_vec());
-                }
-
-                Ok(buffer)
-            }
-            Err(err) => Err(err.to_string()),
+        let mut buffer: Vec<u8> = vec![];
+        while let Some(bytes) = data.body.try_next().await.map_err(err_to_string)? {
+            buffer.append(&mut bytes.to_vec());
         }
+
+        Ok(buffer)
     }
 
     async fn upload_object(

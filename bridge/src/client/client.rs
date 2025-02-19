@@ -31,7 +31,7 @@ use crate::{
     },
     proof::get_proof,
     scripts::generate_pay_to_pubkey_script_address,
-    serialization::{try_deserialize_slice, try_serialize},
+    serialization::{serialize, try_deserialize_slice},
     transactions::{
         peg_in_confirm::PegInConfirmTransaction, peg_in_deposit::PegInDepositTransaction,
         peg_in_refund::PegInRefundTransaction, pre_signed_musig2::PreSignedMusig2Transaction,
@@ -241,12 +241,7 @@ impl BitVMClient {
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
 
     fn save_private_data(&self) {
-        let result = try_serialize(&self.private_data);
-        let Ok(contents) = result else {
-            eprintln!("{}", result.err().unwrap());
-            return;
-        };
-        save_local_private_file(&self.local_file_path, &contents);
+        save_local_private_file(&self.local_file_path, &serialize(&self.private_data));
     }
 
     pub async fn sync(&mut self) { self.read_from_data_store().await; }
@@ -285,15 +280,10 @@ impl BitVMClient {
                 )
                 .await;
                 if latest_file.is_some() && latest_file_name.is_some() {
-                    let result = try_serialize(&latest_file.as_ref().unwrap());
-                    let Ok(contents) = result else {
-                        eprintln!("{}", result.err().unwrap());
-                        return;
-                    };
                     save_local_public_file(
                         &self.local_file_path,
                         latest_file_name.as_ref().unwrap(),
-                        &contents,
+                        &serialize(&latest_file.as_ref().unwrap()),
                     );
                     self.latest_processed_file_name = latest_file_name;
 
@@ -526,11 +516,7 @@ impl BitVMClient {
         // push data
         self.data.version += 1;
 
-        let result = try_serialize(&self.data);
-        let Ok(contents) = result else {
-            eprintln!("{}", result.err().unwrap());
-            return;
-        };
+        let contents = serialize(&self.data);
         let result = self
             .data_store
             .write_compressed_data(&contents.as_bytes().to_vec(), Some(&self.remote_file_path))
