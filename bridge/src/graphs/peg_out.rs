@@ -1886,7 +1886,7 @@ impl PegOutGraph {
                         )?;
                     self.disprove_transaction.add_input_output(
                         &self.connector_c,
-                        input_script_index as u32,
+                        input_script_index,
                         disprove_witness,
                         output_script_pubkey,
                     );
