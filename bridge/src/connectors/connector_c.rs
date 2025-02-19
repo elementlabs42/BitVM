@@ -12,7 +12,7 @@ use crate::{
     error::{ChunkerError, ConnectorError, Error},
     transactions::base::Input,
     utils::{
-        cleanup_cache_files, encode_disk_cache, read_disk_cache,
+        cleanup_cache_files, write_disk_cache, read_disk_cache,
         remove_script_and_control_block_from_witness,
     },
 };
@@ -87,7 +87,7 @@ impl Serialize for ConnectorC {
 
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
         if !lock_scripts_cache_path.exists() {
-            encode_disk_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes)
+            write_disk_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes)
                 .map_err(SerError::custom)?;
         }
 

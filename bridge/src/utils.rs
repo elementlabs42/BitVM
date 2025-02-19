@@ -103,7 +103,7 @@ pub fn sb_hash_from_bytes() -> Script {
     }
 }
 
-pub fn encode_disk_cache(file_path: &Path, data: &impl Encode) -> std::io::Result<()> {
+pub fn write_disk_cache(file_path: &Path, data: &impl Encode) -> std::io::Result<()> {
     println!("Writing cache to {}...", file_path.display());
     if let Some(parent) = file_path.parent() {
         if !parent.exists() {
