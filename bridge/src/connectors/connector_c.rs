@@ -237,29 +237,25 @@ impl ConnectorC {
 
     // read from cache or generate from [`TaprootConnector`]
     fn taproot_spend_info_cache(&self) -> Option<TaprootSpendInfoCache> {
-        let (spend_info_cache, _) =
-            match Self::cache_id(&self.commitment_public_keys).map(|cache_id| {
-                (
-                    TAPROOT_SPEND_INFO_CACHE
-                        .read()
-                        .unwrap()
-                        .get(&cache_id)
-                        .cloned(),
-                    cache_id,
-                )
-            }) {
-                Ok((Some(spend_info), cache_id)) => (Some(spend_info), Some(cache_id)),
-                Ok((None, cache_id)) => {
-                    let spend_info = self.generate_taproot_spend_info();
-                    let output_key = spend_info.output_key();
-                    let spend_info_cache = TaprootSpendInfoCache {
-                        merkle_root: spend_info.merkle_root(),
-                        output_key,
-                    };
-                    (Some(spend_info_cache), Some(cache_id))
-                }
-                _ => (None, None),
-            };
+        let spend_info_cache = match Self::cache_id(&self.commitment_public_keys).map(|cache_id| {
+            TAPROOT_SPEND_INFO_CACHE
+                .read()
+                .unwrap()
+                .get(&cache_id)
+                .cloned()
+        }) {
+            Ok(Some(spend_info_cache)) => Some(spend_info_cache),
+            Ok(None) => {
+                let spend_info = self.generate_taproot_spend_info();
+                let output_key = spend_info.output_key();
+                let spend_info_cache = TaprootSpendInfoCache {
+                    merkle_root: spend_info.merkle_root(),
+                    output_key,
+                };
+                Some(spend_info_cache)
+            }
+            _ => None,
+        };
 
         spend_info_cache
     }
