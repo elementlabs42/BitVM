@@ -12,7 +12,7 @@ use crate::{
     error::{ChunkerError, ConnectorError, Error},
     transactions::base::Input,
     utils::{
-        cleanup_cache_files, read_cache, remove_script_and_control_block_from_witness, write_cache,
+        cleanup_cache_files, decode_from_disk, remove_script_and_control_block_from_witness, encode_to_disk,
     },
 };
 use bitcoin::{
@@ -86,7 +86,7 @@ impl Serialize for ConnectorC {
 
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
         if !lock_scripts_cache_path.exists() {
-            write_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes)
+            encode_to_disk(&lock_scripts_cache_path, &self.lock_scripts_bytes)
                 .map_err(SerError::custom)?;
         }
 
@@ -174,7 +174,7 @@ impl ConnectorC {
     ) -> Self {
         let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
             let file_path = get_lock_scripts_cache_path(&cache_id);
-            read_cache(&file_path)
+            decode_from_disk(&file_path)
                 .inspect_err(|e| {
                     eprintln!(
                         "Failed to read lock scripts cache from expected location: {}",
