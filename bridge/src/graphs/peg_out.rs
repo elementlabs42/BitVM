@@ -2405,16 +2405,8 @@ impl PegOutGraph {
             connector_e1_commitment_public_keys,
             connector_e2_commitment_public_keys,
         );
-        let connector_c = ConnectorC::new(
-            network,
-            operator_taproot_public_key,
-            commitment_public_keys,
-            ConnectorC::cache_id(commitment_public_keys)
-                .inspect_err(|e| {
-                    eprintln!("Failed to generate cache id: {}", e);
-                })
-                .ok(),
-        );
+        let connector_c =
+            ConnectorC::new(network, operator_taproot_public_key, commitment_public_keys);
         let connector_d = ConnectorD::new(network, n_of_n_taproot_public_key);
 
         let assert_commit_connectors_e_1 = AssertCommit1ConnectorsE {

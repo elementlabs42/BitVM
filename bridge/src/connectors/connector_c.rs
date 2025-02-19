@@ -12,8 +12,8 @@ use crate::{
     error::{ChunkerError, ConnectorError, Error},
     transactions::base::Input,
     utils::{
-        cleanup_cache_files, write_disk_cache, read_disk_cache,
-        remove_script_and_control_block_from_witness,
+        cleanup_cache_files, read_disk_cache, remove_script_and_control_block_from_witness,
+        write_disk_cache,
     },
 };
 use bitcoin::{
@@ -83,8 +83,6 @@ impl Serialize for ConnectorC {
         c.serialize_field("commitment_public_keys", &self.commitment_public_keys)?;
 
         let cache_id = Self::cache_id(&self.commitment_public_keys).map_err(SerError::custom)?;
-        c.serialize_field("lock_scripts", &cache_id)?;
-
         let lock_scripts_cache_path = get_lock_scripts_cache_path(&cache_id);
         if !lock_scripts_cache_path.exists() {
             write_disk_cache(&lock_scripts_cache_path, &self.lock_scripts_bytes)
@@ -121,7 +119,6 @@ impl<'de> Deserialize<'de> for ConnectorC {
                 let mut operator_taproot_public_key = None;
                 let mut commitment_public_keys = None;
                 let mut network = None;
-                let mut lock_scripts_cache_id = None;
 
                 while let Some(key) = map.next_key()? {
                     match key {
@@ -132,7 +129,6 @@ impl<'de> Deserialize<'de> for ConnectorC {
                         "commitment_public_keys" => {
                             commitment_public_keys = Some(map.next_value()?)
                         }
-                        "lock_scripts" => lock_scripts_cache_id = Some(map.next_value()?),
                         _ => (),
                     }
                 }
@@ -146,7 +142,6 @@ impl<'de> Deserialize<'de> for ConnectorC {
                         network,
                         &operator_taproot_public_key,
                         &commitment_public_keys,
-                        lock_scripts_cache_id,
                     )),
                     _ => Err(de::Error::custom("Invalid ConnectorC data")),
                 }
@@ -159,7 +154,6 @@ impl<'de> Deserialize<'de> for ConnectorC {
                 "network",
                 "operator_taproot_public_key",
                 "commitment_public_keys",
-                "lock_scripts",
             ],
             JsonConnectorCVisitor,
         )
@@ -171,19 +165,20 @@ impl ConnectorC {
         network: Network,
         operator_taproot_public_key: &XOnlyPublicKey,
         commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-        lock_scripts_cache_id: Option<String>,
     ) -> Self {
-        let lock_scripts_cache = lock_scripts_cache_id.and_then(|cache_id| {
-            let file_path = get_lock_scripts_cache_path(&cache_id);
-            read_disk_cache(&file_path)
-                .inspect_err(|e| {
-                    eprintln!(
-                        "Failed to read lock scripts cache from expected location: {}",
-                        e
-                    );
-                })
-                .ok()
-        });
+        let lock_scripts_cache = Self::cache_id(commitment_public_keys)
+            .ok()
+            .and_then(|cache_id| {
+                let file_path = get_lock_scripts_cache_path(&cache_id);
+                read_disk_cache(&file_path)
+                    .inspect_err(|e| {
+                        eprintln!(
+                            "Failed to read lock scripts cache from expected location: {}",
+                            e
+                        );
+                    })
+                    .ok()
+            });
 
         ConnectorC {
             network,
