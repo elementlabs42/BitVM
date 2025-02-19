@@ -306,16 +306,16 @@ impl TaprootConnector for ConnectorC {
 
         // write to cache
         if let Ok(cache_id) = Self::cache_id(&self.commitment_public_keys) {
+            let output_key = spend_info.output_key();
+            let spend_info_cache = TaprootSpendInfoCache {
+                merkle_root: spend_info.merkle_root(),
+                output_key,
+            };
             if !TAPROOT_SPEND_INFO_CACHE.read().unwrap().contains(&cache_id) {
-                let output_key = spend_info.output_key();
-                let spend_info_cache = TaprootSpendInfoCache {
-                    merkle_root: spend_info.merkle_root(),
-                    output_key,
-                };
                 TAPROOT_SPEND_INFO_CACHE
                     .write()
                     .unwrap()
-                    .push(cache_id.clone(), spend_info_cache.clone());
+                    .push(cache_id, spend_info_cache);
             }
         }
 
