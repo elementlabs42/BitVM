@@ -24,12 +24,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .value_parser(clap::value_parser!(PublicKey))
                 .env("VERIFIERS"),
         )
-        .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet). Defaults to testnet.").required(false).default_value("testnet").env("ENVIRONMENT"))
+        .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet, regtest). Defaults to testnet.").required(false).default_value("testnet").env("ENVIRONMENT"))
         .arg(arg!(-p --prefix <PREFIX> "Prefix for local file cache path").required(false).env("PREFIX"))
         .subcommand(KeysCommand::get_command())
         .subcommand(ClientCommand::get_depositor_address_command())
         .subcommand(ClientCommand::get_depositor_utxos_command())
         .subcommand(ClientCommand::get_initiate_peg_in_command())
+        .subcommand(ClientCommand::get_create_peg_out_graph_command())
+        .subcommand(ClientCommand::get_push_nonces_command())
+        .subcommand(ClientCommand::get_push_signature_command())
         .subcommand(ClientCommand::get_status_command())
         .subcommand(ClientCommand::get_broadcast_command())
         .subcommand(ClientCommand::get_automatic_command())
@@ -62,6 +65,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut client_command = ClientCommand::new(global_args).await;
         let _ = client_command
             .handle_initiate_peg_in_command(sub_matches)
+            .await;
+    } else if let Some(sub_matches) = matches.subcommand_matches("create-peg-out") {
+        let mut client_command = ClientCommand::new(global_args).await;
+        let _ = client_command
+            .handle_create_peg_out_graph_command(sub_matches)
+            .await;
+    } else if let Some(sub_matches) = matches.subcommand_matches("push-nonces") {
+        let mut client_command = ClientCommand::new(global_args).await;
+        let _ = client_command.handle_push_nonces_command(sub_matches).await;
+    } else if let Some(sub_matches) = matches.subcommand_matches("push-signatures") {
+        let mut client_command = ClientCommand::new(global_args).await;
+        let _ = client_command
+            .handle_push_signature_command(sub_matches)
             .await;
     } else if matches.subcommand_matches("status").is_some() {
         let mut client_command = ClientCommand::new(global_args).await;

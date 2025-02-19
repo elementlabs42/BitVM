@@ -659,7 +659,11 @@ impl BitVMClient {
         for peg_in_graph in self.data.peg_in_graphs.iter() {
             if peg_in_graph.depositor_public_key.eq(depositor_public_key) {
                 let status = peg_in_graph.depositor_status(&self.esplora).await;
-                println!("Graph id: {} status: {}\n", peg_in_graph.id(), status);
+                println!(
+                    "[DEPOSITOR]: Graph id: {} status: {}\n",
+                    peg_in_graph.id(),
+                    status
+                );
             }
         }
     }
@@ -679,13 +683,17 @@ impl BitVMClient {
             let peg_out_graph_id = peg_out_generate_id(peg_in_graph, operator_public_key);
             if !peg_out_graphs_by_id.contains_key(&peg_out_graph_id) {
                 println!(
-                    "Graph id: {} status: Missing peg out graph\n",
+                    "[OPERATOR]: Graph id: {} status: Missing peg out graph.\n",
                     peg_in_graph.id() // TODO update this to ask the operator to create a new peg out graph
                 );
             } else {
                 let peg_out_graph = peg_out_graphs_by_id.get(&peg_out_graph_id).unwrap();
                 let status = peg_out_graph.operator_status(&self.esplora).await;
-                println!("Graph id: {} status: {}\n", peg_out_graph.id(), status);
+                println!(
+                    "[OPERATOR]: Graph id: {} status: {}\n",
+                    peg_out_graph.id(),
+                    status
+                );
             }
         }
     }
@@ -721,7 +729,7 @@ impl BitVMClient {
                     .filter(|peg_out| peg_in_graph.peg_out_graphs.contains(peg_out.id()))
                     .collect::<Vec<_>>();
                 let status = peg_in_graph
-                    .verifier_status(&self.esplora, Some(context), &peg_outs_for_this_peg_in)
+                    .verifier_status(&self.esplora, context, &peg_outs_for_this_peg_in)
                     .await;
                 match status {
                     PegInVerifierStatus::PendingOurNonces(graph_ids) => {
@@ -868,10 +876,31 @@ impl BitVMClient {
                         .unwrap()
                 })
                 .collect::<Vec<_>>();
-            let status = peg_in_graph
-                .verifier_status(&self.esplora, self.verifier_context.as_ref(), &peg_outs)
+            let peg_in_status = peg_in_graph
+                .verifier_status(
+                    &self.esplora,
+                    self.verifier_context.as_ref().unwrap(),
+                    &peg_outs,
+                )
                 .await;
-            println!("Graph id: {} status: {}\n", peg_in_graph.id(), status);
+
+            if peg_in_status == PegInVerifierStatus::Complete {
+                for peg_out_graph in peg_outs {
+                    let peg_out_status = peg_out_graph
+                        .verifier_status(&self.esplora, self.verifier_context.as_ref().unwrap())
+                        .await;
+                    println!(
+                        "[VERIFIER]: Graph id: {} status: {}\n",
+                        peg_out_graph.id(),
+                        peg_out_status
+                    );
+                }
+            }
+            println!(
+                "[VERIFIER]: Graph id: {} status: {}\n",
+                peg_in_graph.id(),
+                peg_in_status
+            );
         }
     }
 

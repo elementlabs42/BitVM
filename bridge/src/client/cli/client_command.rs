@@ -1,6 +1,7 @@
 use super::key_command::KeysCommand;
 use crate::client::client::BitVMClient;
 use crate::client::esplora::get_esplora_url;
+use crate::commitments::CommitmentMessageId;
 use crate::common::ZkProofVerifyingKey;
 use crate::constants::DestinationNetwork;
 use crate::contexts::base::generate_keys_from_secret;
@@ -113,7 +114,7 @@ impl ClientCommand {
         .arg(arg!(-u --utxo <UTXO> "Specify the utxo to spend from. Format: <TXID>:<VOUT>")
         .required(true))
         .arg(arg!(-d --destination_address <EVM_ADDRESS> "The evm-address to send the wrapped bitcoin to")
-            .required(true))
+        .required(true))
     }
 
     pub async fn handle_initiate_peg_in_command(
@@ -142,6 +143,86 @@ impl ClientCommand {
             Ok(txid) => println!("Broadcasted peg-in deposit with txid {txid}"),
             Err(e) => println!("Failed to broadcast peg-in deposit: {}", e),
         }
+        Ok(())
+    }
+
+    pub fn get_create_peg_out_graph_command() -> Command {
+        Command::new("create-peg-out")
+            .short_flag('o')
+            .about("Create peg-out graph for specified peg-in graph")
+            .after_help("")
+            .arg(
+                arg!(-u --utxo <UTXO> "Specify the utxo to spend from. Format: <TXID>:<VOUT>")
+                    .required(true),
+            )
+            .arg(
+                arg!(-i --peg_in_id <PEG_IN_GRAPH_ID> "Specify the peg-in graph ID").required(true),
+            )
+    }
+
+    pub async fn handle_create_peg_out_graph_command(
+        &mut self,
+        sub_matches: &ArgMatches,
+    ) -> io::Result<()> {
+        let utxo = sub_matches.get_one::<String>("utxo").unwrap();
+        let peg_in_id = sub_matches.get_one::<String>("peg_in_id").unwrap();
+        let outpoint = OutPoint::from_str(utxo).unwrap();
+
+        let tx = self.client.esplora.get_tx(&outpoint.txid).await.unwrap();
+        let tx = tx.unwrap();
+        let input = Input {
+            outpoint,
+            amount: tx.output[outpoint.vout as usize].value,
+        };
+
+        let peg_out_id = self.client.create_peg_out_graph(
+            peg_in_id,
+            input,
+            CommitmentMessageId::generate_commitment_secrets(),
+        );
+
+        self.client.flush().await;
+
+        println!("Created peg-out with ID {peg_out_id}.");
+        Ok(())
+    }
+
+    pub fn get_push_nonces_command() -> Command {
+        Command::new("push-nonces")
+            .short_flag('c')
+            .about("Push nonces for peg-out or peg-in graph")
+            .after_help("")
+            .arg(arg!(-i --id <GRAPH_ID> "Specify the peg-in or peg-out graph ID").required(true))
+    }
+
+    pub async fn handle_push_nonces_command(&mut self, sub_matches: &ArgMatches) -> io::Result<()> {
+        let graph_id = sub_matches.get_one::<String>("id").unwrap();
+
+        self.client.sync().await;
+        self.client.push_verifier_nonces(graph_id);
+        self.client.flush().await;
+
+        Ok(())
+    }
+
+    pub fn get_push_signature_command() -> Command {
+        Command::new("push-signatures")
+            .short_flag('g')
+            .about("Push signatures for peg-out or peg-in graph")
+            .after_help("")
+            .arg(arg!(-i --id <GRAPH_ID> "Specify the peg-in or peg-out graph ID").required(true))
+    }
+
+    pub async fn handle_push_signature_command(
+        &mut self,
+        sub_matches: &ArgMatches,
+    ) -> io::Result<()> {
+        let graph_id = sub_matches.get_one::<String>("id").unwrap();
+
+        self.client.sync().await;
+        self.client.push_verifier_signature(graph_id);
+        self.client.flush().await;
+
         Ok(())
     }
 
@@ -187,6 +268,8 @@ impl ClientCommand {
                 Command::new("tx")
                     .about("Broadcast transactions")
                     .arg(arg!(-g --graph_id <GRAPH_ID> "Peg-out graph ID").required(true))
+                    .arg(arg!(-u --utxo <UTXO> "Specify the utxo to spend from. Format: <TXID>:<VOUT>").required(false))
+                    .subcommand(Command::new("peg_out").about("Broadcast peg-out"))
                     .subcommand(Command::new("peg_out_confirm").about("Broadcast peg-out confirm"))
                     .subcommand(Command::new("kick_off_1").about("Broadcast kick off 1"))
                     .subcommand(Command::new("kick_off_2").about("Broadcast kick off 2"))
@@ -214,6 +297,17 @@ impl ClientCommand {
             Some(("deposit", _)) => self.client.broadcast_peg_in_deposit(graph_id).await,
             Some(("refund", _)) => self.client.broadcast_peg_in_refund(graph_id).await,
             Some(("confirm", _)) => self.client.broadcast_peg_in_confirm(graph_id).await,
+            Some(("peg_out", _)) => {
+                let utxo = subcommand.unwrap().1.get_one::<String>("utxo").unwrap();
+                let outpoint = OutPoint::from_str(utxo).unwrap();
+                let tx = self.client.esplora.get_tx(&outpoint.txid).await.unwrap();
+                let tx = tx.unwrap();
+                let input = Input {
+                    outpoint,
+                    amount: tx.output[outpoint.vout as usize].value,
+                };
+                self.client.broadcast_peg_out(graph_id, input).await
+            }
             Some(("peg_out_confirm", _)) => self.client.broadcast_peg_out_confirm(graph_id).await,
             Some(("kick_off_1", _)) => self.client.broadcast_kick_off_1(graph_id).await,
             Some(("kick_off_2", _)) => self.client.broadcast_kick_off_2(graph_id).await,
@@ -310,6 +404,13 @@ impl ClientCommand {
                 self.handle_get_depositor_utxos().await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("initiate-peg-in") {
                 self.handle_initiate_peg_in_command(sub_matches).await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("create-peg-out") {
+                self.handle_create_peg_out_graph_command(sub_matches)
+                    .await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("push-nonces") {
+                self.handle_push_nonces_command(sub_matches).await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("push-signatures") {
+                self.handle_push_signature_command(sub_matches).await?;
             } else if matches.subcommand_matches("status").is_some() {
                 self.handle_status_command().await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("broadcast") {
