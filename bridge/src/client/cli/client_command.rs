@@ -133,7 +133,11 @@ impl ClientCommand {
         let outpoint = OutPoint::from_str(utxo).unwrap();
 
         let tx = self.client.esplora.get_tx(&outpoint.txid).await.unwrap();
-        let tx = tx.unwrap();
+        let tx = tx.expect(&format!(
+            "Error: {} did not return any tx for txid {}",
+            self.client.esplora.url(),
+            outpoint.txid
+        ));
         let input = Input {
             outpoint,
             amount: tx.output[outpoint.vout as usize].value,
