@@ -306,6 +306,7 @@ impl BitVMClient {
         }
     }
 
+    // TODO: This fn is only used in tests. Consider refactoring, so it can be removed.
     pub fn set_chain_service(&mut self, chain_service: Chain) {
         self.chain_service = chain_service;
     }
