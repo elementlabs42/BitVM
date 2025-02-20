@@ -1,4 +1,5 @@
-use super::key_command::KeysCommand;
+use super::key_command::{Config, KeysCommand};
+use super::utils::get_mock_chain_service;
 use crate::client::client::BitVMClient;
 use crate::client::esplora::get_esplora_url;
 use crate::commitments::CommitmentMessageId;
@@ -10,7 +11,7 @@ use crate::proof::get_proof;
 use crate::transactions::base::Input;
 use ark_serialize::CanonicalDeserialize;
 
-use bitcoin::PublicKey;
+use bitcoin::{Address, PublicKey};
 use bitcoin::{Network, OutPoint};
 use clap::{arg, ArgMatches, Command};
 use colored::Colorize;
@@ -29,6 +30,7 @@ pub struct CommonArgs {
 
 pub struct ClientCommand {
     client: BitVMClient,
+    config: Config,
 }
 
 impl ClientCommand {
@@ -55,21 +57,16 @@ impl ClientCommand {
         });
 
         let mut verifying_key = None;
-        if let Some(vk) = config.keys.verifying_key {
+        if let Some(vk) = config.keys.verifying_key.clone() {
             let bytes = hex::decode(vk).unwrap();
             verifying_key = Some(ZkProofVerifyingKey::deserialize_compressed(&*bytes).unwrap());
         }
-
-        // TODO: If user specified a peg-out UTXO via a special CLI command, use that to construct
-        // a `MockAdaptor` with the corresponding `PegOutEvent` and the operator pub key.
-        // Only to be used for test or demonstration purposes.
-        let chain_adaptor = None;
 
         let bitvm_client = BitVMClient::new(
             Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
-            chain_adaptor,
+            None,
             &n_of_n_public_keys,
             config.keys.depositor.as_deref(),
             config.keys.operator.as_deref(),
@@ -82,6 +79,7 @@ impl ClientCommand {
 
         Self {
             client: bitvm_client,
+            config,
         }
     }
 
@@ -232,6 +230,41 @@ impl ClientCommand {
         Ok(())
     }
 
+    pub fn get_set_chain_service_command() -> Command {
+        Command::new("set-chain-service")
+            .short_flag('r')
+            .about("Set mock chain service with specified peg-in-confirm transaction")
+            .after_help("")
+            .arg(
+                arg!(-u --utxo <UTXO> "Specify the peg-in confirm utxo. Format: <TXID>:<VOUT>")
+                    .required(true),
+            )
+    }
+
+    pub async fn handle_set_chain_service_command(
+        &mut self,
+        sub_matches: &ArgMatches,
+    ) -> io::Result<()> {
+        let utxo = sub_matches.get_one::<String>("utxo").unwrap();
+        let outpoint = OutPoint::from_str(utxo).unwrap();
+
+        if let Some(operator_secret) = &self.config.keys.operator {
+            let (_, operator_public_key) =
+                generate_keys_from_secret(self.client.source_network, operator_secret);
+
+            let mock_chain_service = get_mock_chain_service(outpoint, operator_public_key);
+            self.client.set_chain_service(mock_chain_service);
+            self.client.sync_l2().await;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to set chain service, missing operator configuration",
+            ));
+        }
+
+        Ok(())
+    }
+
     pub fn get_automatic_command() -> Command {
         Command::new("automatic")
             .short_flag('a')
@@ -256,6 +289,7 @@ impl ClientCommand {
         }
     }
 
+    // TODO: there are verifier's commands missing here
     pub fn get_broadcast_command() -> Command {
         Command::new("broadcast")
             .short_flag('b')
@@ -275,6 +309,7 @@ impl ClientCommand {
                     .about("Broadcast transactions")
                     .arg(arg!(-g --graph_id <GRAPH_ID> "Peg-out graph ID").required(true))
                     .arg(arg!(-u --utxo <UTXO> "Specify the utxo to spend from. Format: <TXID>:<VOUT>").required(false))
+                    .arg(arg!(-a --address <ADDRESS> "Specify the reward address to receive BTC reward").required(false))
                     .subcommand(Command::new("peg_out").about("Broadcast peg-out"))
                     .subcommand(Command::new("peg_out_confirm").about("Broadcast peg-out confirm"))
                     .subcommand(Command::new("kick_off_1").about("Broadcast kick off 1"))
@@ -290,6 +325,7 @@ impl ClientCommand {
                     .subcommand(Command::new("assert_final").about("Broadcast assert final"))
                     .subcommand(Command::new("take_1").about("Broadcast take 1"))
                     .subcommand(Command::new("take_2").about("Broadcast take 2"))
+                    .subcommand(Command::new("disprove").about("Broadcast disprove"))
                     .subcommand_required(true),
             )
             .subcommand_required(true)
@@ -332,6 +368,15 @@ impl ClientCommand {
             Some(("assert_final", _)) => self.client.broadcast_assert_final(graph_id).await,
             Some(("take_1", _)) => self.client.broadcast_take_1(graph_id).await,
             Some(("take_2", _)) => self.client.broadcast_take_2(graph_id).await,
+            Some(("disprove", _)) => {
+                let address = subcommand.unwrap().1.get_one::<String>("address").unwrap();
+                let reward_address = Address::from_str(address).unwrap();
+                let reward_script = reward_address.assume_checked().script_pubkey(); // TODO: verify checked/unchecked address
+
+                self.client
+                    .broadcast_disprove(graph_id, reward_script)
+                    .await
+            }
             _ => unreachable!(),
         };
 
@@ -417,6 +462,8 @@ impl ClientCommand {
                 self.handle_push_nonces_command(sub_matches).await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("push-signatures") {
                 self.handle_push_signature_command(sub_matches).await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("set-chain-service") {
+                self.handle_set_chain_service_command(sub_matches).await?;
             } else if matches.subcommand_matches("status").is_some() {
                 self.handle_status_command().await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("broadcast") {

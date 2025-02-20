@@ -242,6 +242,11 @@ impl BitVMClient {
     // TODO: This should be private. Currently used in the fees test. See if it can be refactored.
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
 
+    // TODO: This fn is only used in tests. Consider refactoring, so it can be removed.
+    pub fn set_chain_service(&mut self, chain_service: Chain) {
+        self.chain_service = chain_service;
+    }
+
     fn save_private_data(&self) {
         save_local_private_file(&self.local_file_path, &serialize(&self.private_data));
     }
@@ -304,11 +309,6 @@ impl BitVMClient {
         } else {
             println!("Error: {}", latest_file_names_result.unwrap_err());
         }
-    }
-
-    // TODO: This fn is only used in tests. Consider refactoring, so it can be removed.
-    pub fn set_chain_service(&mut self, chain_service: Chain) {
-        self.chain_service = chain_service;
     }
 
     async fn read_from_l2(&mut self) {
