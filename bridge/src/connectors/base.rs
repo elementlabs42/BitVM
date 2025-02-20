@@ -56,12 +56,12 @@ pub struct TaprootSpendInfoCache {
     pub scripts_length: usize,
 }
 
-impl From<&TaprootSpendInfo> for TaprootSpendInfoCache {
-    fn from(spend_info: &TaprootSpendInfo) -> Self {
+impl TaprootSpendInfoCache {
+    pub fn new(spend_info: &TaprootSpendInfo, scripts_length: usize) -> Self {
         Self {
             merkle_root: spend_info.merkle_root(),
             output_key: spend_info.output_key(),
-            scripts_length: spend_info.script_map().len(),
+            scripts_length,
         }
     }
 }

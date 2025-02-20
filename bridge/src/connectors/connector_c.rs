@@ -113,19 +113,31 @@ impl ConnectorC {
     pub fn taproot_merkle_root(&self) -> Option<TapNodeHash> {
         self.taproot_spend_info_cache()
             .map(|cache| cache.merkle_root)
-            .unwrap_or_else(|| self.generate_taproot_spend_info().merkle_root())
+            .unwrap_or_else(|| {
+                generate_taproot_spend_info(
+                    self.operator_taproot_public_key,
+                    &self.lock_scripts_bytes(),
+                )
+                .merkle_root()
+            })
     }
 
     pub fn taproot_output_key(&self) -> TweakedPublicKey {
         self.taproot_spend_info_cache()
             .map(|cache| cache.output_key)
-            .unwrap_or_else(|| self.generate_taproot_spend_info().output_key())
+            .unwrap_or_else(|| {
+                generate_taproot_spend_info(
+                    self.operator_taproot_public_key,
+                    &self.lock_scripts_bytes(),
+                )
+                .output_key()
+            })
     }
 
     pub fn taproot_scripts_len(&self) -> usize {
         self.taproot_spend_info_cache()
             .map(|cache| cache.scripts_length)
-            .unwrap_or_else(|| self.generate_taproot_spend_info().script_map().len())
+            .unwrap_or_else(|| self.lock_scripts_bytes().len())
     }
 
     pub fn taproot_script_and_control_block(&self, leaf_index: usize) -> (ScriptBuf, ControlBlock) {
@@ -142,33 +154,61 @@ impl ConnectorC {
             })
             .unwrap_or_else(|| {
                 generate_script_and_control_block(
-                    &self.generate_taproot_spend_info(),
+                    self.operator_taproot_public_key,
                     &self.lock_scripts_bytes(),
                     leaf_index,
                 )
             })
     }
 
-    // read from cache or generate from [`TaprootConnector`]
     fn taproot_spend_info_cache(&self) -> Option<TaprootSpendInfoCache> {
-        match Self::spend_info_cache_id(&self.commitment_public_keys).map(|cache_id| {
-            TAPROOT_SPEND_INFO_CACHE
-                .write()
-                .unwrap()
-                .get(&cache_id)
-                .cloned()
-        }) {
-            Ok(Some(cache)) => Some(cache),
-            Ok(None) => {
-                let spend_info = self.generate_taproot_spend_info();
-                Some(TaprootSpendInfoCache::from(&spend_info))
-            }
+        match spend_info_cache_id(&self.commitment_public_keys) {
+            Ok(cache_id) => Some(
+                TAPROOT_SPEND_INFO_CACHE
+                    .write()
+                    .unwrap()
+                    .get_or_put(cache_id, || {
+                        let lock_scripts_bytes = &self.lock_scripts_bytes();
+                        let spend_info = generate_taproot_spend_info(
+                            self.operator_taproot_public_key,
+                            lock_scripts_bytes,
+                        );
+                        TaprootSpendInfoCache::new(&spend_info, lock_scripts_bytes.len())
+                    })
+                    .clone(),
+            ),
+            _ => None,
+        }
+    }
+
+    fn lock_script_cache(&self, leaf_index: usize) -> Option<LockScriptCache> {
+        match lock_script_cache_id(&self.commitment_public_keys, leaf_index) {
+            Ok(cache_id) => Some(
+                TAPROOT_LOCK_SCRIPTS_CACHE
+                    .write()
+                    .unwrap()
+                    .get_or_put(cache_id, || {
+                        let (script, control_block) = generate_script_and_control_block(
+                            self.operator_taproot_public_key,
+                            &self.lock_scripts_bytes(),
+                            leaf_index,
+                        );
+                        let encoded_data = bitcode::encode(script.as_bytes());
+                        let compressed_data = compress(&encoded_data, DEFAULT_COMPRESSION_LEVEL)
+                            .expect("Unable to compress script for caching");
+                        LockScriptCache {
+                            control_block,
+                            encoded_script: compressed_data,
+                        }
+                    })
+                    .clone(),
+            ),
             _ => None,
         }
     }
 
     fn lock_scripts_bytes(&self) -> Vec<Vec<u8>> {
-        match Self::spend_info_cache_id(&self.commitment_public_keys) {
+        match spend_info_cache_id(&self.commitment_public_keys) {
             Ok(cache_id) => {
                 let file_path = get_lock_scripts_cache_path(&cache_id);
                 let lock_scripts_bytes = read_disk_cache(&file_path)
@@ -196,66 +236,11 @@ impl ConnectorC {
             _ => generate_assert_leaves(&self.commitment_public_keys),
         }
     }
-
-    fn lock_script_cache(&self, leaf_index: usize) -> Option<LockScriptCache> {
-        match Self::lock_script_cache_id(&self.commitment_public_keys, leaf_index).map(|cache_id| {
-            (
-                TAPROOT_LOCK_SCRIPTS_CACHE
-                    .write()
-                    .unwrap()
-                    .get(&cache_id)
-                    .cloned(),
-                cache_id,
-            )
-        }) {
-            Ok((Some(cache), _)) => Some(cache),
-            Ok((None, cache_id)) => {
-                let spend_info = self.generate_taproot_spend_info();
-                let (script, control_block) = generate_script_and_control_block(
-                    &spend_info,
-                    &self.lock_scripts_bytes(),
-                    leaf_index,
-                );
-                let encoded_data = bitcode::encode(script.as_bytes());
-                let compressed_data = compress(&encoded_data, DEFAULT_COMPRESSION_LEVEL)
-                    .expect("Unable to compress script for caching");
-
-                let saved_cache = TAPROOT_LOCK_SCRIPTS_CACHE.write().unwrap().put(
-                    cache_id,
-                    LockScriptCache {
-                        control_block,
-                        encoded_script: compressed_data,
-                    },
-                );
-
-                saved_cache
-            }
-            _ => None,
-        }
-    }
-
-    fn spend_info_cache_id(
-        commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-    ) -> Result<String, ConnectorError> {
-        let bytes = first_winternitz_public_key_bytes(commitment_public_keys)?;
-        let hash = hash160::Hash::hash(&bytes);
-        Ok(hex::encode(hash))
-    }
-
-    fn lock_script_cache_id(
-        commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
-        leaf_index: usize,
-    ) -> Result<String, ConnectorError> {
-        let mut bytes = first_winternitz_public_key_bytes(commitment_public_keys)?;
-        bytes.append(leaf_index.to_be_bytes().to_vec().as_mut());
-        let hash = hash160::Hash::hash(&bytes);
-        Ok(hex::encode(hash))
-    }
 }
 
 impl TaprootConnector for ConnectorC {
     fn generate_taproot_leaf_script(&self, _: u32) -> ScriptBuf {
-        // use taproot_script_and_control_block to return cached script and control block
+        // use taproot_script_and_control_block to get cached script and control block
         unreachable!("Cache is not used for leaf scripts");
     }
 
@@ -268,29 +253,8 @@ impl TaprootConnector for ConnectorC {
     }
 
     fn generate_taproot_spend_info(&self) -> TaprootSpendInfo {
-        println!("Generating new taproot spend info for connector C...");
-        let lock_script_bytes = self.lock_scripts_bytes();
-        let script_weights = lock_script_bytes
-            .iter()
-            .map(|b| (1, ScriptBuf::from_bytes(b.clone())));
-
-        let spend_info = TaprootBuilder::with_huffman_tree(script_weights)
-            .expect("Unable to add assert leaves")
-            .finalize(SECP256K1, self.operator_taproot_public_key)
-            .expect("Unable to finalize assert transaction connector c taproot");
-
-        // write to cache
-        if let Ok(cache_id) = Self::spend_info_cache_id(&self.commitment_public_keys) {
-            let spend_info_cache = TaprootSpendInfoCache::from(&spend_info);
-            if !TAPROOT_SPEND_INFO_CACHE.read().unwrap().contains(&cache_id) {
-                TAPROOT_SPEND_INFO_CACHE
-                    .write()
-                    .unwrap()
-                    .push(cache_id, spend_info_cache);
-            }
-        }
-
-        spend_info
+        // use taproot_merkle_root/taproot_output_key/taproot_scripts_len to get cached spend info fields
+        unreachable!("Cache is not used for taproot spend info");
     }
 
     fn generate_taproot_address(&self) -> Address {
@@ -311,11 +275,30 @@ fn first_winternitz_public_key_bytes(
         .to_vec())
 }
 
+fn spend_info_cache_id(
+    commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
+) -> Result<String, ConnectorError> {
+    let bytes = first_winternitz_public_key_bytes(commitment_public_keys)?;
+    let hash = hash160::Hash::hash(&bytes);
+    Ok(hex::encode(hash))
+}
+
+fn lock_script_cache_id(
+    commitment_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
+    leaf_index: usize,
+) -> Result<String, ConnectorError> {
+    let mut bytes = first_winternitz_public_key_bytes(commitment_public_keys)?;
+    bytes.append(leaf_index.to_be_bytes().to_vec().as_mut());
+    let hash = hash160::Hash::hash(&bytes);
+    Ok(hex::encode(hash))
+}
+
 fn generate_script_and_control_block(
-    spend_info: &TaprootSpendInfo,
+    operator_taproot_public_key: XOnlyPublicKey,
     lock_scripts_bytes: &Vec<Vec<u8>>,
     leaf_index: usize,
 ) -> (ScriptBuf, ControlBlock) {
+    let spend_info = generate_taproot_spend_info(operator_taproot_public_key, lock_scripts_bytes);
     let script = ScriptBuf::from(lock_scripts_bytes[leaf_index].clone());
     let prevout_leaf = (script, LeafVersion::TapScript);
     let control_block = spend_info
@@ -324,7 +307,21 @@ fn generate_script_and_control_block(
     (prevout_leaf.0, control_block)
 }
 
-pub fn generate_assert_leaves(
+fn generate_taproot_spend_info(
+    operator_taproot_public_key: XOnlyPublicKey,
+    lock_scripts_bytes: &Vec<Vec<u8>>,
+) -> TaprootSpendInfo {
+    println!("Generating new taproot spend info for connector C...");
+    let script_weights = lock_scripts_bytes
+        .iter()
+        .map(|b| (1, ScriptBuf::from_bytes(b.clone())));
+    TaprootBuilder::with_huffman_tree(script_weights)
+        .expect("Unable to add assert leaves")
+        .finalize(SECP256K1, operator_taproot_public_key)
+        .expect("Unable to finalize assert transaction connector c taproot")
+}
+
+fn generate_assert_leaves(
     commits_public_keys: &BTreeMap<CommitmentMessageId, WinternitzPublicKey>,
 ) -> Vec<Vec<u8>> {
     println!("Generating new lock scripts...");

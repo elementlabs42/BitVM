@@ -36,6 +36,13 @@ where
         self.0.get(key)
     }
 
+    pub fn get_or_put<F>(&mut self, key: K, f: F) -> &V
+    where
+        F: FnOnce() -> V,
+    {
+        self.0.get_or_insert(key, f)
+    }
+
     pub fn contains<Q: ?Sized>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
