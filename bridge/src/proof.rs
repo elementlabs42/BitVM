@@ -1,10 +1,82 @@
-use ark_serialize::CanonicalDeserialize;
+use ark_bn254::Bn254;
+use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
+use ark_ec::pairing::Pairing;
+use ark_ff::PrimeField;
+use ark_groth16::Groth16;
+use ark_relations::lc;
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_std::{test_rng, UniformRand};
+
 use bitvm::chunker::disprove_execution::RawProof;
+use rand::{RngCore, SeedableRng};
 
 // TODO: replace with actual implementation
 pub fn get_proof() -> RawProof {
-    // RawProof::default()
-    let serialized_data = "687a30a694bb4fb69f2286196ad0d811e702488557c92a923c19499e9c1b3f0105f749dae2cd41b2d9d3998421aa8e86965b1911add198435d50a08892c7cd01a47c01cbf65ccc3b4fc6695671734c3b631a374fbf616e58bcb0a3bd59a9030d7d17433d53adae2232f9ac3caa5c67053d7a728714c81272a8a51507d5c43906010000000000000043a510e31de87bdcda497dfb3ea3e8db414a10e7d4802fc5dddd26e18d2b3a279c3815c2ec66950b63e60c86dc9a2a658e0224d55ea45efe1f633be052dc7d867aff76a9e983210318f1b808aacbbba1dc04b6ac4e6845fa0cc887aeacaf5a068ab9aeaf8142740612ff2f3377ce7bfa7433936aaa23e3f3749691afaa06301fd03f043c097556e7efdf6862007edf3eb868c736d917896c014c54754f65182ae0c198157f92e667b6572ba60e6a52d58cb70dbeb3791206e928ea5e65c6199d25780cedb51796a8a43e40e192d1b23d0cfaf2ddd03e4ade7c327dbc427999244bf4b47b560cf65d672c86ef448eb5061870d3f617bd3658ad6917d0d32d9296020000000000000008f167c3f26c93dbfb91f3077b66bc0092473a15ef21c30f43d3aa96776f352a33622830e9cfcb48bdf8d3145aa0cf364bd19bbabfb3c73e44f56794ee65dc8a";
-    let bytes = hex::decode(serialized_data).unwrap();
-    RawProof::deserialize_compressed(&*bytes).unwrap()
+    type E = Bn254;
+    let k = 6;
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let circuit = DummyCircuit::<<E as Pairing>::ScalarField> {
+        a: Some(<E as Pairing>::ScalarField::rand(&mut rng)),
+        b: Some(<E as Pairing>::ScalarField::rand(&mut rng)),
+        num_variables: 10,
+        num_constraints: 1 << k,
+    };
+    let (pk, vk) = Groth16::<E>::setup(circuit, &mut rng).unwrap();
+
+    let c = circuit.a.unwrap() * circuit.b.unwrap();
+
+    let proof = Groth16::<E>::prove(&pk, circuit, &mut rng).unwrap();
+
+    RawProof {
+        proof,
+        public: vec![c],
+        vk,
+    }
+}
+
+// TODO: Consider importing `gen_correct_proof` fn from bitvm/src/chunker/disprove_execution.rs
+// It requires refactoring bitvm crate
+// Copied from bitvm/src/chunker/disprove_execution.rs
+#[derive(Copy)]
+pub struct DummyCircuit<F: PrimeField> {
+    pub a: Option<F>,
+    pub b: Option<F>,
+    pub num_variables: usize,
+    pub num_constraints: usize,
+}
+
+impl<F: PrimeField> Clone for DummyCircuit<F> {
+    fn clone(&self) -> Self {
+        DummyCircuit {
+            a: self.a,
+            b: self.b,
+            num_variables: self.num_variables,
+            num_constraints: self.num_constraints,
+        }
+    }
+}
+
+impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
+    fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+        let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+        let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
+        let c = cs.new_input_variable(|| {
+            let a = self.a.ok_or(SynthesisError::AssignmentMissing)?;
+            let b = self.b.ok_or(SynthesisError::AssignmentMissing)?;
+
+            Ok(a * b)
+        })?;
+
+        for _ in 0..(self.num_variables - 3) {
+            let _ = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
+        }
+
+        for _ in 0..self.num_constraints - 1 {
+            cs.enforce_constraint(lc!() + a, lc!() + b, lc!() + c)?;
+        }
+
+        cs.enforce_constraint(lc!(), lc!(), lc!())?;
+
+        Ok(())
+    }
 }
