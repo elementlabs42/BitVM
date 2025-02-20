@@ -1,5 +1,6 @@
 use super::key_command::{Config, KeysCommand};
 use super::utils::get_mock_chain_service;
+use crate::client::chain::chain_adaptor::get_chain_adaptor;
 use crate::client::client::BitVMClient;
 use crate::client::esplora::get_esplora_url;
 use crate::commitments::CommitmentMessageId;
@@ -67,6 +68,7 @@ impl ClientCommand {
             source_network,
             destination_network,
             None,
+            // Some(get_chain_adaptor(DestinationNetwork::Local, None, None)), // TODO: Will be replaced with a destination network specific adaptor once Ethereum support is added.
             &n_of_n_public_keys,
             config.keys.depositor.as_deref(),
             config.keys.operator.as_deref(),
@@ -232,7 +234,7 @@ impl ClientCommand {
 
     pub fn get_set_chain_service_command() -> Command {
         Command::new("set-chain-service")
-            .short_flag('r')
+            .short_flag('x')
             .about("Set mock chain service with specified peg-in-confirm transaction")
             .after_help("")
             .arg(
