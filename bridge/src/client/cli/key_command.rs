@@ -23,7 +23,7 @@ pub struct Keys {
     pub verifying_key: Option<String>,
 }
 
-const BRIDGE_KEY_DIR_NAME: &str = ".bitvm-bridge-config";
+const BRIDGE_KEY_DIR_NAME: &str = ".bitvm-bridge";
 const BRIDGE_TOML: &str = "bridge.toml";
 
 pub struct KeysCommand {
