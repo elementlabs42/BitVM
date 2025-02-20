@@ -62,7 +62,7 @@ impl ClientCommand {
 
         // TODO: If user specified a peg-out UTXO via a special CLI command, use that to construct
         // a `MockAdaptor` with the corresponding `PegOutEvent` and the operator pub key.
-        // Only be used for demonstration purposes.
+        // Only to be used for test or demonstration purposes.
         let chain_adaptor = None;
 
         let bitvm_client = BitVMClient::new(
