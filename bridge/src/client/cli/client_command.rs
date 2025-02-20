@@ -67,8 +67,7 @@ impl ClientCommand {
             Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
-            None,
-            // Some(get_chain_adaptor(DestinationNetwork::Local, None, None)), // TODO: Will be replaced with a destination network specific adaptor once Ethereum support is added.
+            Some(get_chain_adaptor(DestinationNetwork::Local, None, None)), // TODO: Will be replaced with a destination network specific adaptor once Ethereum support is added.
             &n_of_n_public_keys,
             config.keys.depositor.as_deref(),
             config.keys.operator.as_deref(),
