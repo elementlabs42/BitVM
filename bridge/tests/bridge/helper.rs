@@ -26,27 +26,13 @@ use bridge::{
         peg_in::PegInGraph,
         peg_out::PegOutGraph,
     },
-    utils::{write_disk_cache, num_blocks_per_network, read_disk_cache},
+    utils::{num_blocks_per_network, read_disk_cache, write_disk_cache},
 };
 
 use bitvm::chunker::{assigner::BridgeAssigner, disprove_execution::RawProof};
 use colored::Colorize;
 use rand::{RngCore, SeedableRng};
 use tokio::time::sleep;
-
-pub const REGTEST_ESPLORA_URL: &str = "http://localhost:8094/regtest/api/";
-pub const ALPEN_SIGNET_ESPLORA_URL: &str =
-    "https://esploraapi53d3659b.devnet-annapurna.stratabtc.org/";
-
-pub const ESPLORA_RETRIES: usize = 3;
-pub const ESPLORA_RETRY_WAIT_TIME: u64 = 5;
-
-pub fn get_esplora_url(network: Network) -> &'static str {
-    match network {
-        Network::Regtest => REGTEST_ESPLORA_URL,
-        _ => ALPEN_SIGNET_ESPLORA_URL,
-    }
-}
 
 // Test environment config file and its variables
 const TEST_ENV_FILE: &str = ".env.test";
@@ -143,7 +129,7 @@ pub async fn generate_stub_outpoint(
                 "Fund {:?} with {} sats at {}",
                 funding_utxo_address,
                 input_value.to_sat(),
-                ALPEN_SIGNET_ESPLORA_URL,
+                client.esplora.url(),
             );
         });
     OutPoint {
@@ -165,7 +151,7 @@ pub async fn generate_stub_outpoints(
                 "Fund {:?} with {} sats at {}",
                 funding_utxo_address,
                 input_value.to_sat(),
-                ALPEN_SIGNET_ESPLORA_URL,
+                client.esplora.url(),
             );
         });
     funding_utxos
@@ -195,7 +181,7 @@ pub async fn verify_funding_inputs(client: &BitVMClient, funding_inputs: &Vec<(&
             "Fund {:?} with {} sats at {}",
             input_to_fund.0,
             input_to_fund.1.to_sat(),
-            ALPEN_SIGNET_ESPLORA_URL,
+            client.esplora.url(),
         );
     }
     if !inputs_to_fund.is_empty() {

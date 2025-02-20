@@ -1,9 +1,6 @@
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
-    helper::{
-        find_peg_out_graph, generate_stub_outpoint, wait_for_confirmation_with_message,
-        REGTEST_ESPLORA_URL,
-    },
+    helper::{find_peg_out_graph, generate_stub_outpoint, wait_for_confirmation_with_message},
     setup::{setup_test, INITIAL_AMOUNT},
 };
 use bitcoin::{Address, Amount};
@@ -22,6 +19,8 @@ use bridge::{
 use esplora_client::Builder;
 use futures::StreamExt;
 use serial_test::serial;
+
+const REGTEST_ESPLORA_URL: &str = "http://localhost:8094/regtest/api/";
 
 #[ignore]
 #[tokio::test]

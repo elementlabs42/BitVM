@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use bitcoin::{Network, PublicKey};
 
-use super::helper::{
-    get_esplora_url, get_intermediate_variables_cached, get_valid_proof, invalidate_proof,
-};
+use super::helper::{get_intermediate_variables_cached, get_valid_proof, invalidate_proof};
 use bridge::{
-    client::client::BitVMClient,
+    client::{client::BitVMClient, esplora::get_esplora_url},
     commitments::CommitmentMessageId,
     connectors::{
         connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,

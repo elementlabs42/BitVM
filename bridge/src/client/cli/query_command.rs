@@ -10,6 +10,7 @@ use super::{
 use crate::{
     client::{
         client::BitVMClient,
+        esplora::get_esplora_url,
         sdk::{query::ClientCliQuery, query_contexts::depositor_signatures::DepositorSignatures},
     },
     constants::DestinationNetwork,
@@ -18,9 +19,6 @@ use crate::{
     scripts::generate_pay_to_pubkey_script_address,
     transactions::base::Input,
 };
-
-// TODO: This is Alpen signet. Verify what we need here and update accordingly.
-const ESPLORA_URL: &str = "https://esploraapi53d3659b.devnet-annapurna.stratabtc.org/";
 
 pub struct QueryCommand {
     client: BitVMClient,
@@ -43,7 +41,7 @@ impl QueryCommand {
         let n_of_n_public_keys: Vec<PublicKey> = vec![verifier_0_public_key];
 
         let bitvm_client = BitVMClient::new(
-            Some(ESPLORA_URL),
+            Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
             &n_of_n_public_keys,
@@ -557,7 +555,7 @@ impl QueryCommand {
                     "Fund {:?} with {} sats at {}",
                     funding_utxo_address,
                     input_value.to_sat(),
-                    ESPLORA_URL,
+                    client.esplora.url(),
                 );
             });
         OutPoint {

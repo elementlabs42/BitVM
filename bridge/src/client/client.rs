@@ -14,7 +14,10 @@ use std::{
 };
 
 use crate::{
-    client::{chain::chain_adaptor::get_chain_adaptor, files::DEFAULT_PATH_PREFIX},
+    client::{
+        chain::chain_adaptor::get_chain_adaptor, esplora::get_esplora_url,
+        files::DEFAULT_PATH_PREFIX,
+    },
     commitments::CommitmentMessageId,
     common::ZkProofVerifyingKey,
     connectors::{base::TaprootConnector, connector_0::Connector0, connector_z::ConnectorZ},
@@ -70,8 +73,6 @@ use super::{
     },
 };
 
-// TODO: Update for production.
-const ESPLORA_URL: &str = "https://esploraapi53d3659b.devnet-annapurna.stratabtc.org/";
 const TEN_MINUTES: u64 = 10 * 60;
 
 pub type UtxoSet = HashMap<OutPoint, Height>;
@@ -210,7 +211,7 @@ impl BitVMClient {
         let chain_service = Chain::new(adaptor);
 
         Self {
-            esplora: Builder::new(esplora_url.unwrap_or(ESPLORA_URL))
+            esplora: Builder::new(esplora_url.unwrap_or(get_esplora_url(source_network)))
                 .build_async()
                 .expect("Could not build esplora client"),
             source_network,
