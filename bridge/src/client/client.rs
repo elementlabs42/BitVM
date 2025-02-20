@@ -15,7 +15,7 @@ use std::{
 
 use crate::{
     client::{
-        chain::chain_adaptor::get_chain_adaptor, esplora::get_esplora_url,
+        chain::ethereum_adaptor::EthereumAdaptor, esplora::get_esplora_url,
         files::DEFAULT_PATH_PREFIX,
     },
     commitments::CommitmentMessageId,
@@ -61,7 +61,7 @@ use super::{
             pre_signed::PreSignedTransaction,
         },
     },
-    chain::chain::Chain,
+    chain::{chain::Chain, chain_adaptor::ChainAdaptor},
     data_store::data_store::DataStore,
     files::{
         get_private_data_file_path, get_private_data_from_file, save_local_private_file,
@@ -136,6 +136,7 @@ impl BitVMClient {
         esplora_url: Option<&str>,
         source_network: Network,
         destination_network: DestinationNetwork,
+        chain_adaptor: Option<Box<dyn ChainAdaptor>>,
         n_of_n_public_keys: &[PublicKey],
         depositor_secret: Option<&str>,
         operator_secret: Option<&str>,
@@ -207,9 +208,6 @@ impl BitVMClient {
         let private_data =
             get_private_data_from_file(&get_private_data_file_path(&local_file_path));
 
-        let adaptor = get_chain_adaptor(destination_network, None, None); // TODO: get Ethereum configuration
-        let chain_service = Chain::new(adaptor);
-
         Self {
             esplora: Builder::new(esplora_url.unwrap_or(get_esplora_url(source_network)))
                 .build_async()
@@ -229,7 +227,9 @@ impl BitVMClient {
 
             private_data,
 
-            chain_service,
+            chain_service: Chain::new(
+                chain_adaptor.unwrap_or_else(|| Box::new(EthereumAdaptor::new(None))),
+            ),
 
             zkproof_verifying_key,
         }

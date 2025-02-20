@@ -60,10 +60,16 @@ impl ClientCommand {
             verifying_key = Some(ZkProofVerifyingKey::deserialize_compressed(&*bytes).unwrap());
         }
 
+        // TODO: If user specified a peg-out UTXO via a special CLI command, use that to construct
+        // a `MockAdaptor` with the corresponding `PegOutEvent` and the operator pub key.
+        // Only be used for demonstration purposes.
+        let chain_adaptor = None;
+
         let bitvm_client = BitVMClient::new(
             Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
+            chain_adaptor,
             &n_of_n_public_keys,
             config.keys.depositor.as_deref(),
             config.keys.operator.as_deref(),

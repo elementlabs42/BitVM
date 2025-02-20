@@ -44,6 +44,7 @@ impl QueryCommand {
             Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
+            None,
             &n_of_n_public_keys,
             Some(FAKE_SECRET),
             Some(FAKE_SECRET),
