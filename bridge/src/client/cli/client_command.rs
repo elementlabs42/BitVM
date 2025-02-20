@@ -126,6 +126,8 @@ impl ClientCommand {
         &mut self,
         sub_matches: &ArgMatches,
     ) -> io::Result<()> {
+        self.client.sync().await;
+
         let utxo = sub_matches.get_one::<String>("utxo").unwrap();
         let evm_address = sub_matches
             .get_one::<String>("destination_address")
@@ -173,6 +175,8 @@ impl ClientCommand {
         &mut self,
         sub_matches: &ArgMatches,
     ) -> io::Result<()> {
+        self.client.sync().await;
+
         let utxo = sub_matches.get_one::<String>("utxo").unwrap();
         let peg_in_id = sub_matches.get_one::<String>("peg_in_id").unwrap();
         let outpoint = OutPoint::from_str(utxo).unwrap();
@@ -337,6 +341,8 @@ impl ClientCommand {
     }
 
     pub async fn handle_broadcast_command(&mut self, sub_matches: &ArgMatches) -> io::Result<()> {
+        self.client.sync().await;
+
         let subcommand = sub_matches.subcommand();
         let graph_id = subcommand.unwrap().1.get_one::<String>("graph_id").unwrap();
 

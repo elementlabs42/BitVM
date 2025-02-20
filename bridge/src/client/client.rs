@@ -258,14 +258,14 @@ impl BitVMClient {
     pub async fn flush(&mut self) { self.save_to_data_store().await; }
 
     /*
-    File syncing flow with data store
-     1. Fetch the latest file
-     2. Fetch all files within 10 minutes (use timestamp)
-     3. Merge files
-     4. Client modifies file and clicks save
-     5. Fetch files that were created after fetching 1-2.
-     6. Merge with your file
-     7. Push the file to the server
+    Expected file syncing flow with data store:
+     1. Fetch the latest file                               ⎫
+     2. Fetch all files within 10 minutes (use timestamp)   ⎬ BitVMClient::sync()
+     3. Merge files                                         ⎭
+     4. Client modifies file and clicks save                } BitVMClient::<mutating operation>
+     5. Fetch files that were created after fetching 1-2.   ⎫
+     6. Merge with your file                                ⎬ BitVMClient::flush()
+     7. Push the file to the server                         ⎭
     */
 
     async fn read_from_data_store(&mut self) {
