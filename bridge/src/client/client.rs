@@ -92,7 +92,7 @@ impl BitVMClientPublicData {
         if let Some(peg_out) = self.peg_out_graphs.iter_mut().find(|x| x.id() == graph_id) {
             return peg_out;
         }
-        panic!("graph id not found");
+        panic!("Graph ID not found");
     }
 }
 
@@ -321,7 +321,7 @@ impl BitVMClient {
                         Ok(_) => {
                             if peg_out_graph.peg_out_chain_event.is_some() {
                                 println!(
-                                    "Peg Out Graph id: {} Event Matched, Event: {:?}",
+                                    "Peg-out graph ID: {} Event Matched, Event: {:?}",
                                     peg_out_graph.id(),
                                     peg_out_graph.peg_out_chain_event
                                 )
@@ -543,7 +543,7 @@ impl BitVMClient {
         for peg_in_graph in data.peg_in_graphs.iter() {
             if !peg_in_graph.validate() {
                 println!(
-                    "Encountered invalid peg in graph (Graph id: {})",
+                    "Encountered invalid peg-in graph (graph ID: {})",
                     peg_in_graph.id()
                 );
                 return false;
@@ -552,7 +552,7 @@ impl BitVMClient {
         for peg_out_graph in data.peg_out_graphs.iter() {
             if !peg_out_graph.validate() {
                 println!(
-                    "Encountered invalid peg out graph (Graph id: {})",
+                    "Encountered invalid peg-out graph (graph ID: {})",
                     peg_out_graph.id()
                 );
                 return false;
@@ -662,7 +662,7 @@ impl BitVMClient {
             if peg_in_graph.depositor_public_key.eq(depositor_public_key) {
                 let status = peg_in_graph.depositor_status(&self.esplora).await;
                 println!(
-                    "[DEPOSITOR]: Graph id: {} status: {}\n",
+                    "[DEPOSITOR]: Peg-in graph ID: {} status: {}\n",
                     peg_in_graph.id(),
                     status
                 );
@@ -685,14 +685,14 @@ impl BitVMClient {
             let peg_out_graph_id = peg_out_generate_id(peg_in_graph, operator_public_key);
             if !peg_out_graphs_by_id.contains_key(&peg_out_graph_id) {
                 println!(
-                    "[OPERATOR]: Graph id: {} status: Missing peg out graph.\n",
+                    "[OPERATOR]: Peg-in graph ID: {} status: Missing peg out graph.\n",
                     peg_in_graph.id() // TODO update this to ask the operator to create a new peg out graph
                 );
             } else {
                 let peg_out_graph = peg_out_graphs_by_id.get(&peg_out_graph_id).unwrap();
                 let status = peg_out_graph.operator_status(&self.esplora).await;
                 println!(
-                    "[OPERATOR]: Graph id: {} status: {}\n",
+                    "[OPERATOR]: Peg-out graph ID: {} status: {}\n",
                     peg_out_graph.id(),
                     status
                 );
@@ -892,14 +892,14 @@ impl BitVMClient {
                         .verifier_status(&self.esplora, self.verifier_context.as_ref().unwrap())
                         .await;
                     println!(
-                        "[VERIFIER]: Graph id: {} status: {}\n",
+                        "[VERIFIER]: Peg-out graph ID: {} status: {}\n",
                         peg_out_graph.id(),
                         peg_out_status
                     );
                 }
             }
             println!(
-                "[VERIFIER]: Graph id: {} status: {}\n",
+                "[VERIFIER]: Peg-in graph ID: {} status: {}\n",
                 peg_in_graph.id(),
                 peg_in_status
             );
@@ -973,7 +973,7 @@ impl BitVMClient {
             .peg_in_graphs
             .iter_mut()
             .find(|peg_in_graph| peg_in_graph.id().eq(peg_in_graph_id))
-            .unwrap_or_else(|| panic!("Invalid graph id"));
+            .unwrap_or_else(|| panic!("Invalid graph ID"));
 
         let peg_out_graph_id = peg_out_generate_id(peg_in_graph, operator_public_key);
         let peg_out_graph = self
