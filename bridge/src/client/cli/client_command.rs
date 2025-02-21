@@ -211,7 +211,8 @@ impl ClientCommand {
 
         self.client.flush().await;
 
-        println!("Created peg-in with ID {peg_in_id}. Broadcasting deposit...");
+        println!("Created peg-in graph with ID: {peg_in_id}");
+        println!("Broadcasting deposit...");
 
         match self.client.broadcast_peg_in_deposit(&peg_in_id).await {
             Ok(txid) => println!("Broadcasted peg-in deposit with txid {txid}"),
@@ -259,7 +260,7 @@ impl ClientCommand {
 
         self.client.flush().await;
 
-        println!("Created peg-out with ID {peg_out_id}.");
+        println!("Created peg-out with ID: {peg_out_id}");
         Ok(())
     }
 
