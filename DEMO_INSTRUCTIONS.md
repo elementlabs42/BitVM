@@ -3,7 +3,7 @@ Explain how to run all the required clients from the same machine.
 
 #### Initiate peg-in
 
-`<TXID>:<VOUT>` = Bridge deposit UTXO spendable by depositor private key
+`<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2100000 sats`.
 
 ```
 -n -u <TXID>:<VOUT> -d <EVM_ADDRESS>
