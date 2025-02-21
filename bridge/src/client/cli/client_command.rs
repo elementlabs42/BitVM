@@ -191,10 +191,7 @@ impl ClientCommand {
                     .subcommand(Command::new("start_time").about("Broadcast start time"))
                     .subcommand(Command::new("assert_initial").about("Broadcast assert initial"))
                     .subcommand(
-                        Command::new("assert_commit_1").about("Broadcast assert commitment 1"),
-                    )
-                    .subcommand(
-                        Command::new("assert_commit_2").about("Broadcast assert commitment 2"),
+                        Command::new("assert_commits").about("Broadcast assert commitments"),
                     )
                     .subcommand(Command::new("assert_final").about("Broadcast assert final"))
                     .subcommand(Command::new("take_1").about("Broadcast take 1"))
@@ -208,34 +205,41 @@ impl ClientCommand {
         let subcommand = sub_matches.subcommand();
         let graph_id = subcommand.unwrap().1.get_one::<String>("graph_id").unwrap();
 
-        let result = match subcommand.unwrap().1.subcommand() {
-            Some(("deposit", _)) => self.client.broadcast_peg_in_deposit(graph_id).await,
-            Some(("refund", _)) => self.client.broadcast_peg_in_refund(graph_id).await,
-            Some(("confirm", _)) => self.client.broadcast_peg_in_confirm(graph_id).await,
-            Some(("peg_out_confirm", _)) => self.client.broadcast_peg_out_confirm(graph_id).await,
-            Some(("kick_off_1", _)) => self.client.broadcast_kick_off_1(graph_id).await,
-            Some(("kick_off_2", _)) => self.client.broadcast_kick_off_2(graph_id).await,
-            Some(("start_time", _)) => self.client.broadcast_start_time(graph_id).await,
-            Some(("assert_initial", _)) => self.client.broadcast_assert_initial(graph_id).await,
-            Some(("assert_commit_1", _)) => {
-                self.client
-                    .broadcast_assert_commit_1(graph_id, &get_proof())
-                    .await
+        match subcommand.unwrap().1.subcommand() {
+            Some(("assert_commits", _)) => {
+                let result = self
+                    .client
+                    .broadcast_assert_commits(graph_id, &get_proof())
+                    .await;
+                match result {
+                    Ok((txid1, txid2)) => {
+                        println!("Broadcasted transaction with txid {txid1}");
+                        println!("Broadcasted transaction with txid {txid2}");
+                    }
+                    Err(e) => println!("Failed to broadcast transaction: {}", e),
+                }
             }
-            Some(("assert_commit_2", _)) => {
-                self.client
-                    .broadcast_assert_commit_2(graph_id, &get_proof())
-                    .await
+            Some((others, _)) => {
+                let result = match others {
+                    "deposit" => self.client.broadcast_peg_in_deposit(graph_id).await,
+                    "refund" => self.client.broadcast_peg_in_refund(graph_id).await,
+                    "confirm" => self.client.broadcast_peg_in_confirm(graph_id).await,
+                    "peg_out_confirm" => self.client.broadcast_peg_out_confirm(graph_id).await,
+                    "kick_off_1" => self.client.broadcast_kick_off_1(graph_id).await,
+                    "kick_off_2" => self.client.broadcast_kick_off_2(graph_id).await,
+                    "start_time" => self.client.broadcast_start_time(graph_id).await,
+                    "assert_initial" => self.client.broadcast_assert_initial(graph_id).await,
+                    "assert_final" => self.client.broadcast_assert_final(graph_id).await,
+                    "take_1" => self.client.broadcast_take_1(graph_id).await,
+                    "take_2" => self.client.broadcast_take_2(graph_id).await,
+                    &_ => unreachable!(),
+                };
+                match result {
+                    Ok(txid) => println!("Broadcasted transaction with txid {txid}"),
+                    Err(e) => println!("Failed to broadcast transaction: {}", e),
+                }
             }
-            Some(("assert_final", _)) => self.client.broadcast_assert_final(graph_id).await,
-            Some(("take_1", _)) => self.client.broadcast_take_1(graph_id).await,
-            Some(("take_2", _)) => self.client.broadcast_take_2(graph_id).await,
             _ => unreachable!(),
-        };
-
-        match result {
-            Ok(txid) => println!("Broadcasted transaction with txid {txid}"),
-            Err(e) => println!("Failed to broadcast transaction: {}", e),
         }
 
         Ok(())
