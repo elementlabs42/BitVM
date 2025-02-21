@@ -92,8 +92,10 @@ impl ClientCommand {
     }
 
     pub async fn handle_get_depositor_address(&mut self) -> io::Result<()> {
-        let address = self.client.get_depositor_address().to_string();
-        println!("{address}");
+        println!(
+            "Depositor address: {}",
+            self.client.get_depositor_address().to_string().green()
+        );
         Ok(())
     }
 
