@@ -47,7 +47,9 @@ impl ClientCommand {
         };
 
         let keys_command = KeysCommand::new(common_args.key_dir);
-        let config = keys_command.read_config().expect("Failed to read config");
+        let config = keys_command
+            .read_config()
+            .expect("Failed to read config file");
 
         let n_of_n_public_keys = common_args.verifiers.unwrap_or_else(|| {
             let (_, verifier_0_public_key) =

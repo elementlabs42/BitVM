@@ -1297,7 +1297,7 @@ impl BitVMClient {
         if let Some(ref context) = self.depositor_context {
             generate_pay_to_pubkey_script_address(context.network, &context.depositor_public_key)
         } else {
-            panic!("No depositor key set");
+            panic!("Depositor private key not provided in configuration");
         }
     }
 
