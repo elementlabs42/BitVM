@@ -5,9 +5,7 @@ use bitcoin::{Network, PublicKey};
 use super::helper::{get_intermediate_variables_cached, get_valid_proof, invalidate_proof};
 use bridge::{
     client::{
-        chain::{chain_adaptor::get_chain_adaptor, mock_adaptor::MockAdaptor},
-        client::BitVMClient,
-        esplora::get_esplora_url,
+        chain::chain_adaptor::get_chain_adaptor, client::BitVMClient, esplora::get_esplora_url,
     },
     commitments::CommitmentMessageId,
     connectors::{
