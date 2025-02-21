@@ -1297,7 +1297,7 @@ impl BitVMClient {
         if let Some(ref context) = self.operator_context {
             generate_pay_to_pubkey_script_address(context.network, &context.operator_public_key)
         } else {
-            panic!("No operator key set");
+            panic!("Operator private key not provided in configuration");
         }
     }
 

@@ -89,8 +89,8 @@ impl ClientCommand {
     pub fn get_operator_address_command() -> Command {
         Command::new("get-operator-address")
             .short_flag('o')
-            .about("Get an address spendable by the registered operator key")
-            .after_help("Get an address spendable by the registered operator key")
+            .about("Get an address spendable by the configured operator private key")
+            .after_help("Get an address spendable by the configured operator private key")
     }
 
     pub async fn handle_get_operator_address(&mut self) -> io::Result<()> {
@@ -113,7 +113,11 @@ impl ClientCommand {
         match utxos.len() {
             0 => println!("No operator UTXOs found."),
             utxo_count => {
-                println!("{utxo_count} operator utxos found (<TXID>:<VOUT> <AMOUNT> <CONFIRMED>):");
+                println!(
+                    "{} operator UTXO{} found (<TXID>:<VOUT> <AMOUNT> <CONFIRMED>):",
+                    utxo_count,
+                    if utxo_count == 1 { "" } else { "s" }
+                );
                 for utxo in utxos {
                     println!(
                         "{}:{} {} {}",
@@ -129,8 +133,8 @@ impl ClientCommand {
     pub fn get_depositor_address_command() -> Command {
         Command::new("get-depositor-address")
             .short_flag('d')
-            .about("Get an address spendable by the registered depositor key")
-            .after_help("Get an address spendable by the registered depositor key")
+            .about("Get an address spendable by the configured depositor private key")
+            .after_help("Get an address spendable by the configured depositor private key")
     }
 
     pub async fn handle_get_depositor_address(&mut self) -> io::Result<()> {
@@ -154,7 +158,9 @@ impl ClientCommand {
             0 => println!("No depositor UTXOs found."),
             utxo_count => {
                 println!(
-                    "{utxo_count} depositor utxos found (<TXID>:<VOUT> <AMOUNT> <CONFIRMED>):"
+                    "{} operator UTXO{} found (<TXID>:<VOUT> <AMOUNT> <CONFIRMED>):",
+                    utxo_count,
+                    if utxo_count == 1 { "" } else { "s" }
                 );
                 for utxo in utxos {
                     println!(
