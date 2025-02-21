@@ -103,7 +103,7 @@ impl ClientCommand {
 
     pub fn get_operator_utxos_command() -> Command {
         Command::new("get-operator-utxos")
-            .short_flag('p')
+            .short_flag('r')
             .about("Get a list of the operator's utxos")
             .after_help("Get a list of the operator's utxos")
     }

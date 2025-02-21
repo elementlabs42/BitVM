@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             arg!(--"key-dir" <DIRECTORY> "The directory containing the private keys").required(false).env("KEY_DIR"),
         )
         .arg(
-            arg!(-r --verifiers [VERIFIER_PUBKEYS] "Pubkeys of the verifiers")
+            arg!(-f --verifiers [VERIFIER_PUBKEYS] "Pubkeys of the verifiers")
                 .required(false)
                 .num_args(0..1000)
                 .value_delimiter(',')
@@ -27,6 +27,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet, regtest). Defaults to testnet.").required(false).default_value("testnet").env("ENVIRONMENT"))
         .arg(arg!(-p --prefix <PREFIX> "Prefix for local file cache path").required(false).env("PREFIX"))
         .subcommand(KeysCommand::get_command())
+        .subcommand(ClientCommand::get_operator_address_command())
+        .subcommand(ClientCommand::get_operator_utxos_command())
         .subcommand(ClientCommand::get_depositor_address_command())
         .subcommand(ClientCommand::get_depositor_utxos_command())
         .subcommand(ClientCommand::get_initiate_peg_in_command())
