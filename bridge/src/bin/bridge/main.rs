@@ -53,6 +53,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(sub_matches) = matches.subcommand_matches("keys") {
         let keys_command = KeysCommand::new(global_args.key_dir);
         keys_command.handle_command(sub_matches)?;
+    } else if matches.subcommand_matches("get-operator-address").is_some() {
+        let mut client_command = ClientCommand::new(global_args).await;
+        let _ = client_command.handle_get_operator_address().await;
+    } else if matches.subcommand_matches("get-operator-utxos").is_some() {
+        let mut client_command = ClientCommand::new(global_args).await;
+        let _ = client_command.handle_get_operator_utxos().await;
     } else if matches
         .subcommand_matches("get-depositor-address")
         .is_some()

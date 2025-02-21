@@ -1293,6 +1293,21 @@ impl BitVMClient {
         }
     }
 
+    pub fn get_operator_address(&self) -> Address {
+        if let Some(ref context) = self.operator_context {
+            generate_pay_to_pubkey_script_address(context.network, &context.operator_public_key)
+        } else {
+            panic!("No operator key set");
+        }
+    }
+
+    pub async fn get_operator_utxos(&self) -> Vec<Utxo> {
+        self.esplora
+            .get_address_utxo(self.get_operator_address())
+            .await
+            .unwrap()
+    }
+
     pub fn get_depositor_address(&self) -> Address {
         if let Some(ref context) = self.depositor_context {
             generate_pay_to_pubkey_script_address(context.network, &context.depositor_public_key)

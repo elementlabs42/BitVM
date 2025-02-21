@@ -86,6 +86,46 @@ impl ClientCommand {
         }
     }
 
+    pub fn get_operator_address_command() -> Command {
+        Command::new("get-operator-address")
+            .short_flag('o')
+            .about("Get an address spendable by the registered operator key")
+            .after_help("Get an address spendable by the registered operator key")
+    }
+
+    pub async fn handle_get_operator_address(&mut self) -> io::Result<()> {
+        println!(
+            "Operator address: {}",
+            self.client.get_operator_address().to_string().green()
+        );
+        Ok(())
+    }
+
+    pub fn get_operator_utxos_command() -> Command {
+        Command::new("get-operator-utxos")
+            .short_flag('p')
+            .about("Get a list of the operator's utxos")
+            .after_help("Get a list of the operator's utxos")
+    }
+
+    pub async fn handle_get_operator_utxos(&mut self) -> io::Result<()> {
+        let utxos = self.client.get_operator_utxos().await;
+        match utxos.len() {
+            0 => println!("No operator UTXOs found."),
+            utxo_count => {
+                println!("{utxo_count} operator utxos found (<TXID>:<VOUT> <AMOUNT> <CONFIRMED>):");
+                for utxo in utxos {
+                    println!(
+                        "{}:{} {} {}",
+                        utxo.txid, utxo.vout, utxo.value, utxo.status.confirmed
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn get_depositor_address_command() -> Command {
         Command::new("get-depositor-address")
             .short_flag('d')
@@ -176,7 +216,7 @@ impl ClientCommand {
 
     pub fn get_create_peg_out_graph_command() -> Command {
         Command::new("create-peg-out")
-            .short_flag('o')
+            .short_flag('t')
             .about("Create peg-out graph for specified peg-in graph")
             .after_help("")
             .arg(
@@ -474,6 +514,10 @@ impl ClientCommand {
                 let key_dir = matches.get_one::<String>("key-dir").cloned();
                 let keys_command = KeysCommand::new(key_dir);
                 keys_command.handle_command(sub_matches)?;
+            } else if matches.subcommand_matches("get-operator-address").is_some() {
+                self.handle_get_operator_address().await?;
+            } else if matches.subcommand_matches("get-operator-utxos").is_some() {
+                self.handle_get_operator_utxos().await?;
             } else if matches
                 .subcommand_matches("get-depositor-address")
                 .is_some()
