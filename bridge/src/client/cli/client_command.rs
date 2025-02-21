@@ -474,7 +474,8 @@ impl ClientCommand {
             } else if let Some(sub_matches) = matches.subcommand_matches("push-signatures") {
                 self.handle_push_signature_command(sub_matches).await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("mock-l2-pegout-event") {
-                self.handle_mock_l2_pegout_event_command(sub_matches).await?;
+                self.handle_mock_l2_pegout_event_command(sub_matches)
+                    .await?;
             } else if matches.subcommand_matches("status").is_some() {
                 self.handle_status_command().await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("broadcast") {
