@@ -239,10 +239,10 @@ impl ClientCommand {
         Ok(())
     }
 
-    pub fn get_set_chain_service_command() -> Command {
-        Command::new("set-chain-service")
+    pub fn get_mock_l2_pegout_event_command() -> Command {
+        Command::new("mock-l2-pegout-event")
             .short_flag('x')
-            .about("Set mock chain service with specified peg-in-confirm transaction")
+            .about("Use mock L2 chain service with specified peg-in-confirm txid")
             .after_help("")
             .arg(
                 arg!(-u --utxo <UTXO> "Specify the peg-in confirm utxo. Format: <TXID>:<VOUT>")
@@ -250,7 +250,7 @@ impl ClientCommand {
             )
     }
 
-    pub async fn handle_set_chain_service_command(
+    pub async fn handle_mock_l2_pegout_event_command(
         &mut self,
         sub_matches: &ArgMatches,
     ) -> io::Result<()> {
@@ -473,8 +473,8 @@ impl ClientCommand {
                 self.handle_push_nonces_command(sub_matches).await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("push-signatures") {
                 self.handle_push_signature_command(sub_matches).await?;
-            } else if let Some(sub_matches) = matches.subcommand_matches("set-chain-service") {
-                self.handle_set_chain_service_command(sub_matches).await?;
+            } else if let Some(sub_matches) = matches.subcommand_matches("mock-l2-pegout-event") {
+                self.handle_mock_l2_pegout_event_command(sub_matches).await?;
             } else if matches.subcommand_matches("status").is_some() {
                 self.handle_status_command().await?;
             } else if let Some(sub_matches) = matches.subcommand_matches("broadcast") {
