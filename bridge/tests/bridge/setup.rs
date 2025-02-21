@@ -23,10 +23,7 @@ use bridge::{
         base::generate_keys_from_secret, depositor::DepositorContext, operator::OperatorContext,
         verifier::VerifierContext, withdrawer::WithdrawerContext,
     },
-    graphs::base::{
-        DEPOSITOR_EVM_ADDRESS, DEPOSITOR_SECRET, OPERATOR_SECRET, VERIFIER_0_SECRET,
-        VERIFIER_1_SECRET, WITHDRAWER_EVM_ADDRESS, WITHDRAWER_SECRET,
-    },
+    graphs::base::{VERIFIER_0_SECRET, VERIFIER_1_SECRET},
     serialization::serialize,
     superblock::{SUPERBLOCK_HASH_MESSAGE_LENGTH, SUPERBLOCK_MESSAGE_LENGTH},
     transactions::assert_transactions::utils::{
@@ -42,6 +39,13 @@ use bitvm::{
         winternitz::Parameters,
     },
 };
+
+const OPERATOR_SECRET: &str = "3076ca1dfc1e383be26d5dd3c0c427340f96139fa8c2520862cf551ec2d670ac";
+const DEPOSITOR_SECRET: &str = "b8f17ea979be24199e7c3fec71ee88914d92fd4ca508443f765d56ce024ef1d7";
+const WITHDRAWER_SECRET: &str = "fffd54f6d8f8ad470cb507fd4b6e9b3ea26b4221a4900cc5ad5916ce67c02f1e";
+
+const DEPOSITOR_EVM_ADDRESS: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // l2 local test network account 1
+const WITHDRAWER_EVM_ADDRESS: &str = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"; // l2 local test network account 2
 
 pub const INITIAL_AMOUNT: u64 = 2 << 20; // 2097152
 pub const ONE_HUNDRED: u64 = 2 << 26; // 134217728
