@@ -27,6 +27,7 @@ use bridge::{
     },
 };
 use num_traits::ToPrimitive;
+use serial_test::serial;
 
 use crate::bridge::{
     faucet::{Faucet, FaucetType},
@@ -39,6 +40,7 @@ use crate::bridge::{
 };
 
 #[tokio::test]
+#[serial]
 async fn test_peg_in_fees() {
     let mut config = setup_test().await;
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
@@ -101,6 +103,7 @@ async fn test_peg_in_fees() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_peg_out_fees() {
     let mut config = setup_test().await;
     let faucet = Faucet::new(FaucetType::EsploraRegtest);
