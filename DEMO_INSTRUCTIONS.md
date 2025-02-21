@@ -1,3 +1,6 @@
+TODO: Add example `bridge.toml` and say where to put it.
+Explain how to run all the required clients from the same machine.
+
 #### Initiate peg-in
 
 `<TXID>:<VOUT>` = Bridge deposit UTXO spendable by depositor private key
