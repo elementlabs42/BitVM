@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     client::{
+        chain::chain_adaptor::get_chain_adaptor,
         client::BitVMClient,
         esplora::get_esplora_url,
         sdk::{query::ClientCliQuery, query_contexts::depositor_signatures::DepositorSignatures},
@@ -44,6 +45,7 @@ impl QueryCommand {
             Some(get_esplora_url(source_network)),
             source_network,
             destination_network,
+            Some(get_chain_adaptor(DestinationNetwork::Local, None, None)), // TODO: Update this according to the requirements for query command.
             &n_of_n_public_keys,
             Some(FAKE_SECRET),
             Some(FAKE_SECRET),

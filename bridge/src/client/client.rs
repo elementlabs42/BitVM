@@ -15,7 +15,7 @@ use std::{
 
 use crate::{
     client::{
-        chain::chain_adaptor::get_chain_adaptor, esplora::get_esplora_url,
+        chain::ethereum_adaptor::EthereumAdaptor, esplora::get_esplora_url,
         files::DEFAULT_PATH_PREFIX,
     },
     commitments::CommitmentMessageId,
@@ -61,7 +61,7 @@ use super::{
             pre_signed::PreSignedTransaction,
         },
     },
-    chain::chain::Chain,
+    chain::{chain::Chain, chain_adaptor::ChainAdaptor},
     data_store::data_store::DataStore,
     files::{
         get_private_data_file_path, get_private_data_from_file, save_local_private_file,
@@ -136,6 +136,7 @@ impl BitVMClient {
         esplora_url: Option<&str>,
         source_network: Network,
         destination_network: DestinationNetwork,
+        chain_adaptor: Option<Box<dyn ChainAdaptor>>,
         n_of_n_public_keys: &[PublicKey],
         depositor_secret: Option<&str>,
         operator_secret: Option<&str>,
@@ -207,9 +208,6 @@ impl BitVMClient {
         let private_data =
             get_private_data_from_file(&get_private_data_file_path(&local_file_path));
 
-        let adaptor = get_chain_adaptor(destination_network, None, None); // TODO: get Ethereum configuration
-        let chain_service = Chain::new(adaptor);
-
         Self {
             esplora: Builder::new(esplora_url.unwrap_or(get_esplora_url(source_network)))
                 .build_async()
@@ -229,7 +227,9 @@ impl BitVMClient {
 
             private_data,
 
-            chain_service,
+            chain_service: Chain::new(
+                chain_adaptor.unwrap_or_else(|| Box::new(EthereumAdaptor::new(None))),
+            ),
 
             zkproof_verifying_key,
         }
@@ -242,6 +242,11 @@ impl BitVMClient {
     // TODO: This should be private. Currently used in the fees test. See if it can be refactored.
     pub fn private_data(&self) -> &BitVMClientPrivateData { &self.private_data }
 
+    // TODO: This fn is only used in tests. Consider refactoring, so it can be removed.
+    pub fn set_chain_service(&mut self, chain_service: Chain) {
+        self.chain_service = chain_service;
+    }
+
     fn save_private_data(&self) {
         save_local_private_file(&self.local_file_path, &serialize(&self.private_data));
     }
@@ -253,14 +258,14 @@ impl BitVMClient {
     pub async fn flush(&mut self) { self.save_to_data_store().await; }
 
     /*
-    File syncing flow with data store
-     1. Fetch the latest file
-     2. Fetch all files within 10 minutes (use timestamp)
-     3. Merge files
-     4. Client modifies file and clicks save
-     5. Fetch files that were created after fetching 1-2.
-     6. Merge with your file
-     7. Push the file to the server
+    Expected file syncing flow with data store:
+     1. Fetch the latest file                               ⎫
+     2. Fetch all files within 10 minutes (use timestamp)   ⎬ BitVMClient::sync()
+     3. Merge files                                         ⎭
+     4. Client modifies file and clicks save                } BitVMClient::<mutating operation>
+     5. Fetch files that were created after fetching 1-2.   ⎫
+     6. Merge with your file                                ⎬ BitVMClient::flush()
+     7. Push the file to the server                         ⎭
     */
 
     async fn read_from_data_store(&mut self) {
@@ -304,10 +309,6 @@ impl BitVMClient {
         } else {
             println!("Error: {}", latest_file_names_result.unwrap_err());
         }
-    }
-
-    pub fn set_chain_service(&mut self, chain_service: Chain) {
-        self.chain_service = chain_service;
     }
 
     async fn read_from_l2(&mut self) {

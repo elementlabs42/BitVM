@@ -4,7 +4,11 @@ use bitcoin::{Network, PublicKey};
 
 use super::helper::{get_intermediate_variables_cached, get_valid_proof, invalidate_proof};
 use bridge::{
-    client::{client::BitVMClient, esplora::get_esplora_url},
+    client::{
+        chain::{chain_adaptor::get_chain_adaptor, mock_adaptor::MockAdaptor},
+        client::BitVMClient,
+        esplora::get_esplora_url,
+    },
     commitments::CommitmentMessageId,
     connectors::{
         connector_0::Connector0, connector_1::Connector1, connector_2::Connector2,
@@ -210,6 +214,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(get_esplora_url(source_network)),
         source_network,
         destination_network,
+        Some(get_chain_adaptor(destination_network, None, None)),
         &n_of_n_public_keys,
         Some(DEPOSITOR_SECRET),
         Some(OPERATOR_SECRET),
@@ -224,6 +229,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(get_esplora_url(source_network)),
         source_network,
         destination_network,
+        Some(get_chain_adaptor(destination_network, None, None)),
         &n_of_n_public_keys,
         Some(DEPOSITOR_SECRET),
         Some(OPERATOR_SECRET),

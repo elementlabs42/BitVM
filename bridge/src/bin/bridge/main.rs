@@ -33,6 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .subcommand(ClientCommand::get_create_peg_out_graph_command())
         .subcommand(ClientCommand::get_push_nonces_command())
         .subcommand(ClientCommand::get_push_signature_command())
+        .subcommand(ClientCommand::get_mock_l2_pegout_event_command())
         .subcommand(ClientCommand::get_status_command())
         .subcommand(ClientCommand::get_broadcast_command())
         .subcommand(ClientCommand::get_automatic_command())
@@ -78,6 +79,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut client_command = ClientCommand::new(global_args).await;
         let _ = client_command
             .handle_push_signature_command(sub_matches)
+            .await;
+    } else if let Some(sub_matches) = matches.subcommand_matches("mock-l2-pegout-event") {
+        let mut client_command = ClientCommand::new(global_args).await;
+        let _ = client_command
+            .handle_mock_l2_pegout_event_command(sub_matches)
             .await;
     } else if matches.subcommand_matches("status").is_some() {
         let mut client_command = ClientCommand::new(global_args).await;
