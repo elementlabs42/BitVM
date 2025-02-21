@@ -107,9 +107,22 @@ impl ClientCommand {
     }
 
     pub async fn handle_get_depositor_utxos(&mut self) -> io::Result<()> {
-        for utxo in self.client.get_depositor_utxos().await {
-            println!("{}:{} {}", utxo.txid, utxo.vout, utxo.value);
+        let utxos = self.client.get_depositor_utxos().await;
+        match utxos.len() {
+            0 => println!("No depositor UTXOs found."),
+            utxo_count => {
+                println!(
+                    "{utxo_count} depositor utxos found (<TXID>:<VOUT> <AMOUNT> <CONFIRMED>):"
+                );
+                for utxo in utxos {
+                    println!(
+                        "{}:{} {} {}",
+                        utxo.txid, utxo.vout, utxo.value, utxo.status.confirmed
+                    );
+                }
+            }
         }
+
         Ok(())
     }
 
