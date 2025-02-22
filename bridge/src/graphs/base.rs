@@ -52,14 +52,6 @@ pub const PEG_OUT_FEE: u64 = MIN_RELAY_FEE_PEG_OUT_CONFIRM // depth 0
 pub const PEG_IN_FEE: u64 =
     MIN_RELAY_FEE_PEG_IN_DEPOSIT + max(MIN_RELAY_FEE_PEG_IN_CONFIRM, MIN_RELAY_FEE_PEG_IN_REFUND);
 
-// TODO delete
-// DEMO SECRETS
-pub const VERIFIER_0_SECRET: &str =
-    "ee0817eac0c13aa8ee2dd3256304041f09f0499d1089b56495310ae8093583e2";
-
-pub const VERIFIER_1_SECRET: &str =
-    "fc294c70faf210d4d0807ea7a3dba8f7e41700d90c119e1ae82a0687d89d297f";
-
 pub type GraphId = String;
 
 pub trait BaseGraph {

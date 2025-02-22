@@ -16,7 +16,6 @@ use crate::{
     },
     constants::DestinationNetwork,
     contexts::base::generate_keys_from_secret,
-    graphs::base::VERIFIER_0_SECRET,
     scripts::generate_pay_to_pubkey_script_address,
     transactions::base::Input,
 };
@@ -26,7 +25,8 @@ pub struct QueryCommand {
     network: Network,
 }
 
-pub const FAKE_SECRET: &str = "1000000000000000000000000000000000000000000000000000000000000000";
+const VERIFIER_0_SECRET: &str = "ee0817eac0c13aa8ee2dd3256304041f09f0499d1089b56495310ae8093583e2";
+const FAKE_SECRET: &str = "1000000000000000000000000000000000000000000000000000000000000000";
 
 const QUERY_COMMAND_PATH_PREFIX: &str = "query_command";
 

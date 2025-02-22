@@ -7,7 +7,6 @@ use crate::commitments::CommitmentMessageId;
 use crate::common::ZkProofVerifyingKey;
 use crate::constants::DestinationNetwork;
 use crate::contexts::base::generate_keys_from_secret;
-use crate::graphs::base::{VERIFIER_0_SECRET, VERIFIER_1_SECRET};
 use crate::proof::get_proof;
 use crate::transactions::base::Input;
 use ark_serialize::CanonicalDeserialize;
@@ -51,13 +50,7 @@ impl ClientCommand {
             .read_config()
             .expect("Failed to read config file");
 
-        let n_of_n_public_keys = common_args.verifiers.unwrap_or_else(|| {
-            let (_, verifier_0_public_key) =
-                generate_keys_from_secret(source_network, VERIFIER_0_SECRET);
-            let (_, verifier_1_public_key) =
-                generate_keys_from_secret(source_network, VERIFIER_1_SECRET);
-            vec![verifier_0_public_key, verifier_1_public_key]
-        });
+        let n_of_n_public_keys = common_args.verifiers.unwrap();
 
         let mut verifying_key = None;
         if let Some(vk) = config.keys.verifying_key.clone() {

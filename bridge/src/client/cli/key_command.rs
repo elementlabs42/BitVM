@@ -68,7 +68,6 @@ impl KeysCommand {
 
         if !sub_matches.args_present() {
             // If no arguments are specified, output the current key configuration.
-
             let keys = HashMap::from([
                 ("DEPOSITOR", &config.keys.depositor),
                 ("OPERATOR", &config.keys.operator),
