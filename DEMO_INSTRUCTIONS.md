@@ -57,7 +57,7 @@ export VERIFIERS="026cc14f56ad7e8fdb323378287895c6c0bcdbb37714c74fba175a0c5f0cd0
 ## Demo Steps
 The following is the list of command line arguments that are passed to the CLI tool in sequence by the respective actors. The arguments can be used either with `cargo run --bin bridge --` or when running the CLI binary directly.
 
-### Rejected Disprove Scenario (a.k.a. 'unhappy peg-out' execution path).
+### Rejected Disprove Scenario (a.k.a. 'happy peg-out' execution path).
 #### [DEPOSITOR] Initiate peg-in
 `<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2100000 sats`.
 ```
