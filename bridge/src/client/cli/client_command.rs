@@ -318,9 +318,11 @@ impl ClientCommand {
             let (_, operator_public_key) =
                 generate_keys_from_secret(self.client.source_network, operator_secret);
 
+            self.client.sync().await;
             let mock_chain_service = get_mock_chain_service(outpoint, operator_public_key);
             self.client.set_chain_service(mock_chain_service);
             self.client.sync_l2().await;
+            self.client.flush().await;
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
