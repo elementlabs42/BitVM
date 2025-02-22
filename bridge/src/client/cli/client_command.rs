@@ -418,7 +418,9 @@ impl ClientCommand {
                     outpoint,
                     amount: tx.output[outpoint.vout as usize].value,
                 };
-                self.client.broadcast_peg_out(graph_id, input).await
+                let result = self.client.broadcast_peg_out(graph_id, input).await;
+                self.client.flush().await;
+                result
             }
             Some(("peg_out_confirm", _)) => self.client.broadcast_peg_out_confirm(graph_id).await,
             Some(("kick_off_1", _)) => self.client.broadcast_kick_off_1(graph_id).await,
@@ -451,7 +453,7 @@ impl ClientCommand {
         };
 
         match result {
-            Ok(txid) => println!("Broadcasted transaction with txid {txid}"),
+            Ok(txid) => println!("Broadcasted txid {}", txid.to_string().green()),
             Err(e) => println!("Failed to broadcast transaction: {}", e),
         }
 
