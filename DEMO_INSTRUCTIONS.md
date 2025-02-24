@@ -12,12 +12,12 @@ The following is the list of command line arguments that are passed to the CLI t
 
 ## Rejected Disprove Scenario (a.k.a. 'happy peg-out' execution path).
 #### [DEPOSITOR] Initiate peg-in
-`<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2097447 sats`. It is the UTXO #1 in [Demo Prep](#demo-prep).
+`<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2097447 sats`. It is the UTXO #1 in [Demo Prep](#demo-prep:-funding-utxos).
 ```
 -n -u <TXID>:<VOUT> -d <EVM_ADDRESS>
 ```
 #### [OPERATOR] Create peg-out graph
-`<TXID>:<VOUT>` = UTXO funding the peg-out confirm tx. Must be spendable by the operator private key. Suggested test amount: `3562670 sats`. It is the UTXO #2 in [Demo Prep](#demo-prep).
+`<TXID>:<VOUT>` = UTXO funding the peg-out confirm tx. Must be spendable by the operator private key. Suggested test amount: `3562670 sats`. It is the UTXO #2 in [Demo Prep](#demo-prep:-funding-utxos).
 ```
 -t -u <TXID>:<VOUT> -i <PEG_IN_GRAPH_ID>
 ```
@@ -67,7 +67,7 @@ Record the peg-in confirm txid.
 -x -u <TXID>:<VOUT>
 ```
 #### [OPERATOR] Broadcast peg-out
-`<TXID>:<VOUT>` = UTXO funding the payout to the withdrawer. Must be spendable by the operator private key. Suggested test amount: `2097274 sats`. It is the UTXO #3 in [Demo Prep](#demo-prep).
+`<TXID>:<VOUT>` = UTXO funding the payout to the withdrawer. Must be spendable by the operator private key. Suggested test amount: `2097274 sats`. It is the UTXO #3 in [Demo Prep](#demo-prep:-funding-utxos).
 ```
 -b tx -g <GRAPH_ID> -u <TXID>:<VOUT> peg_out
 ```
