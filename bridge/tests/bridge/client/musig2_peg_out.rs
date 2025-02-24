@@ -420,7 +420,13 @@ async fn broadcast_transactions_from_peg_out_graph(
             .expect("Failed to broadcast assert commit 1 & 2");
         wait_for_confirmation_with_message(
             client.source_network,
-            Some("peg-out assert commit 1 & 2 tx"),
+            Some("peg-out assert commit 1 tx"),
+        )
+        .await;
+        // wait longer for node to process large transactions on multiple blocks
+        wait_for_confirmation_with_message(
+            client.source_network,
+            Some("peg-out assert commit 2 tx"),
         )
         .await;
 
