@@ -50,7 +50,7 @@ impl ClientCommand {
             .read_config()
             .expect("Failed to read config file");
 
-        let n_of_n_public_keys = common_args.verifiers.unwrap();
+        let n_of_n_public_keys = common_args.verifiers.expect("Error: Verifier public keys must be specified either in command line or environment variable.");
 
         let mut verifying_key = None;
         if let Some(vk) = config.keys.verifying_key.clone() {
