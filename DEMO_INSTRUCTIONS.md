@@ -207,7 +207,7 @@ Record the peg-in confirm txid.
 # Environment Setup
 Clone and build this repository. The CLI executable is called `bridge`.
 
-### [DEPOSITOR] and [OEPRATOR] and [VERIFIER_0]
+### [DEPOSITOR] and [OPERATOR] and [VERIFIER_0]
 All the above users can execute commands using a single setup (from the same directory).
 
 #### `bridge.toml`
