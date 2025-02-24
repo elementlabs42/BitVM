@@ -59,12 +59,12 @@ The following is the list of command line arguments that are passed to the CLI t
 
 ### Rejected Disprove Scenario (a.k.a. 'happy peg-out' execution path).
 #### [DEPOSITOR] Initiate peg-in
-`<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2100000 sats`.
+`<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2097447 sats`.
 ```
 -n -u <TXID>:<VOUT> -d <EVM_ADDRESS>
 ```
 #### [OPERATOR] Create peg-out graph
-`<TXID>:<VOUT>` = UTXO funding the peg-out confirm tx. Must be spendable by the operator private key. Suggested test amount: `2098000 sats`.
+`<TXID>:<VOUT>` = UTXO funding the peg-out confirm tx. Must be spendable by the operator private key. Suggested test amount: `3562670 sats`.
 ```
 -t -u <TXID>:<VOUT> -i <PEG_IN_GRAPH_ID>
 ```
@@ -114,7 +114,7 @@ Record the peg-in confirm txid.
 -x -u <TXID>:<VOUT>
 ```
 #### [OPERATOR] Broadcast peg-out
-`<TXID>:<VOUT>` = UTXO funding the payout to the withdrawer. Must be spendable by the operator private key. Suggested test amount: `2099000 sats`.
+`<TXID>:<VOUT>` = UTXO funding the payout to the withdrawer. Must be spendable by the operator private key. Suggested test amount: `2097274 sats`.
 ```
 -b tx -g <GRAPH_ID> -u <TXID>:<VOUT> peg_out
 ```
