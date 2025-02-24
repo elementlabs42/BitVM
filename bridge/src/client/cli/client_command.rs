@@ -299,7 +299,7 @@ impl ClientCommand {
     pub fn get_mock_l2_pegout_event_command() -> Command {
         Command::new("mock-l2-pegout-event")
             .short_flag('x')
-            .about("Use mock L2 chain service with specified peg-in-confirm txid")
+            .about("FOR TEST PURPOSES ONLY! Use mock L2 chain service with specified peg-in-confirm txid")
             .after_help("")
             .arg(
                 arg!(-u --utxo <UTXO> "Specify the peg-in confirm utxo. Format: <TXID>:<VOUT>")

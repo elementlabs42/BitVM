@@ -24,8 +24,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .value_parser(clap::value_parser!(PublicKey))
                 .env("VERIFIERS"),
         )
-        .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet, regtest). Defaults to testnet.").required(false).default_value("testnet").env("ENVIRONMENT"))
-        .arg(arg!(-p --prefix <PREFIX> "Prefix for local file cache path").required(false).env("PREFIX"))
+        .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet, regtest). Defaults to testnet").required(false).default_value("testnet").env("ENVIRONMENT"))
+        .arg(arg!(-m --"client-name" <CLIENT_NAME> "Represents the name of the client and is used to define the path to client-specific data files").required(false).env("CLIENT_NAME"))
         .subcommand(KeysCommand::get_command())
         .subcommand(ClientCommand::get_operator_address_command())
         .subcommand(ClientCommand::get_operator_utxos_command())
