@@ -192,7 +192,7 @@ impl BitVMClient {
         // The local file path, on the other hand, must use the platform specific path separator.
         // Additionally, it includes the provided file path prefix to create a user namespace.
         let local_file_path = Path::new(BRIDGE_DATA_DIRECTORY_NAME)
-            .join(file_path_prefix.unwrap_or(DEFAULT_PATH_PREFIX))
+            .join(file_path_prefix.unwrap_or(DEFAULT_PATH_PREFIX)) // TODO: Refactor to require a prefix and remove the const, as the client already has a default and will always pass it. Also rename to 'user_profile' to match the client implementation.
             .join(source_network.to_string())
             .join(destination_network.to_string())
             .join(n_of_n_public_key.to_string());

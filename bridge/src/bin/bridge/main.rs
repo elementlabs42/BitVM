@@ -17,15 +17,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             arg!(--"key-dir" <DIRECTORY> "The directory containing the private keys").required(false).env("KEY_DIR"),
         )
         .arg(
-            arg!(-f --verifiers [VERIFIER_PUBKEYS] "Pubkeys of the verifiers")
+            arg!(-f --verifiers [VERIFIER_PUBKEYS] "Comma-separated list of verifier public keys")
                 .required(false)
                 .num_args(0..1000)
                 .value_delimiter(',')
                 .value_parser(clap::value_parser!(PublicKey))
                 .env("VERIFIERS"),
         )
-        .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet, regtest). Defaults to testnet").required(false).default_value("testnet").env("ENVIRONMENT"))
-        .arg(arg!(-m --"client-name" <CLIENT_NAME> "Represents the name of the client and is used to define the path to client-specific data files").required(false).env("CLIENT_NAME"))
+        .arg(arg!(-e --environment <ENVIRONMENT> "Specify the Bitcoin network environment (mainnet, testnet, regtest)").required(false).default_value("testnet").env("ENVIRONMENT"))
+        .arg(arg!(-p --"user-profile" <USER_PROFILE> "Name of the protocol participant (e.g. 'operator_one', 'verifier_0'). Used as a namespace separator in the local file path for storing private and public client data").required(false).default_value("default_user").env("USER_PROFILE"))
         .subcommand(KeysCommand::get_command())
         .subcommand(ClientCommand::get_operator_address_command())
         .subcommand(ClientCommand::get_operator_utxos_command())
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .get_many::<PublicKey>("verifiers")
             .map(|x| x.cloned().collect::<Vec<PublicKey>>()),
         environment: matches.get_one::<String>("environment").cloned(),
-        path_prefix: matches.get_one::<String>("prefix").cloned(),
+        path_prefix: matches.get_one::<String>("user-profile").cloned(),
     };
 
     if let Some(sub_matches) = matches.subcommand_matches("keys") {
