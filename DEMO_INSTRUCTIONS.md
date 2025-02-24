@@ -7,10 +7,10 @@ The bridge peg-in and peg-out execution consumes three funding UTXOs. For conven
 - Peg-out graph - 'peg-out confirm' tx input: **3562670 SAT** - will be spent by [OPERATOR] (use `-o` to get their address)
 - Withdrawer peg-out - 'peg-out' tx input: **2097274 SAT** - will be spent by [OPERATOR] (use `-o` to get their address)
 
-## Demo Steps
+# Demo Steps
 The following is the list of command line arguments that are passed to the CLI tool in sequence by the respective actors. The arguments can be used either with `cargo run --bin bridge --` or when running the CLI binary directly.
 
-### Rejected Disprove Scenario (a.k.a. 'happy peg-out' execution path).
+## Rejected Disprove Scenario (a.k.a. 'happy peg-out' execution path).
 #### [DEPOSITOR] Initiate peg-in
 `<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2097447 sats`.
 ```
@@ -108,7 +108,103 @@ Record the peg-in confirm txid.
 ```
 -b tx -g <GRAPH_ID> take_2
 ```
-## Environment Setup
+
+## Successful Disprove Scenario (a.k.a. 'unhappy peg-out' execution path).
+#### [DEPOSITOR] Initiate peg-in
+`<TXID>:<VOUT>` = Bridge deposit UTXO that includes the expected peg-in amount. It must be spendable by the depositor private key. Suggested test amount: `2097447 sats`.
+```
+-n -u <TXID>:<VOUT> -d <EVM_ADDRESS>
+```
+#### [OPERATOR] Create peg-out graph
+`<TXID>:<VOUT>` = UTXO funding the peg-out confirm tx. Must be spendable by the operator private key. Suggested test amount: `3562670 sats`.
+```
+-t -u <TXID>:<VOUT> -i <PEG_IN_GRAPH_ID>
+```
+#### [VERIFIER_0] Push verifier_0 nonces for peg-in graph
+```
+-c -i <GRAPH_ID>
+```
+#### [VERIFIER_1] Push verifier_1 nonces for peg-in graph
+```
+-c -i <GRAPH_ID>
+```
+#### [VERIFIER_0] Push verifier_0 signatures for peg-in graph
+```
+-g -i <GRAPH_ID>
+```
+#### [VERIFIER_0] Push verifier_1 signatures for peg-in graph
+```
+-g -i <GRAPH_ID>
+```
+#### [OPERATOR] or [VERIFIER_0] or [VERIFIER_1] Broadcast peg-in confirm
+```
+-b pegin -g <PEG_IN_GRAPH_ID> confirm
+```
+Record the peg-in confirm txid.
+#### [VERIFIER_0] Push verifier_0 nonces for peg-out graph
+```
+-c -i <GRAPH_ID>
+```
+#### [VERIFIER_1] Push verifier_1 nonces for peg-out graph
+```
+-c -i <GRAPH_ID>
+```
+#### [VERIFIER_0] Push verifier_0 signatures for peg-out graph
+```
+-g -i <GRAPH_ID>
+```
+#### [VERIFIER_1] Push verifier_1 signatures for peg-out graph
+```
+-g -i <GRAPH_ID>
+```
+#### [OPERATOR] Mock L2 peg-out event (requires peg-in confirm txid mined earlier)
+> [!IMPORTANT]
+> Start the CLI in interactive mode here.
+
+`<TXID>:<VOUT>` = The peg-in confirm txid recorded above and output index 0.
+```
+-x -u <TXID>:<VOUT>
+```
+#### [OPERATOR] Broadcast peg-out
+`<TXID>:<VOUT>` = UTXO funding the payout to the withdrawer. Must be spendable by the operator private key. Suggested test amount: `2097274 sats`.
+```
+-b tx -g <GRAPH_ID> -u <TXID>:<VOUT> peg_out
+```
+#### [OPERATOR] Broadcast peg-out confirm
+```
+-b tx -g <GRAPH_ID> peg_out_confirm
+```
+#### [OPERATOR] Broadcast kick-off 1
+```
+-b tx -g <GRAPH_ID> kick_off_1
+```
+#### [OPERATOR] Broadcast kick-off 2
+```
+-b tx -g <GRAPH_ID> kick_off_2
+```
+#### [OPERATOR] Broadcast assert-initial
+```
+-b tx -g <GRAPH_ID> assert_initial
+```
+#### [OPERATOR] Broadcast assert-commit 1 with invalid proof
+```
+-b tx -g <GRAPH_ID> assert_commit_1_invalid
+```
+#### [OPERATOR] Broadcast assert-commit 2 with invalid proof
+```
+-b tx -g <GRAPH_ID> assert_commit_2_invalid
+```
+#### [OPERATOR] Broadcast assert-final
+```
+-b tx -g <GRAPH_ID> assert_final
+```
+#### [VERIFIER_1] Broadcast disprove
+`<BTC_ADDRESS>` = Receiver of the disprove reward.
+```
+-b tx -g <GRAPH_ID> -a <BTC_ADDRESS> disprove
+```
+
+# Environment Setup
 Clone and build this repository. The CLI executable is called `bridge`.
 
 ### [DEPOSITOR] and [OEPRATOR] and [VERIFIER_0]
