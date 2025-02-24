@@ -1,4 +1,4 @@
-use ark_bn254::Bn254;
+use ark_bn254::{g1::G1Affine, Bn254};
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
@@ -32,6 +32,15 @@ pub fn get_proof() -> RawProof {
         public: vec![c],
         vk,
     }
+}
+
+// DO NOT USE IN PRODUCTION! This is a test function.
+pub fn invalidate_proof(valid_proof: &RawProof) -> RawProof {
+    let mut invalid_proof = valid_proof.clone();
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    invalid_proof.proof.a = G1Affine::rand(&mut rng);
+
+    invalid_proof
 }
 
 // TODO: Consider importing `gen_correct_proof` fn from bitvm/src/chunker/disprove_execution.rs

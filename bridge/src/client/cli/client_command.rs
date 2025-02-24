@@ -7,7 +7,7 @@ use crate::commitments::CommitmentMessageId;
 use crate::common::ZkProofVerifyingKey;
 use crate::constants::DestinationNetwork;
 use crate::contexts::base::generate_keys_from_secret;
-use crate::proof::get_proof;
+use crate::proof::{get_proof, invalidate_proof};
 use crate::transactions::base::Input;
 use ark_serialize::CanonicalDeserialize;
 
@@ -385,10 +385,16 @@ impl ClientCommand {
                     .subcommand(Command::new("start_time").about("Broadcast start time"))
                     .subcommand(Command::new("assert_initial").about("Broadcast assert initial"))
                     .subcommand(
-                        Command::new("assert_commit_1").about("Broadcast assert commitment 1"),
+                        Command::new("assert_commit_1").about("Broadcast assert commit 1"),
                     )
                     .subcommand(
-                        Command::new("assert_commit_2").about("Broadcast assert commitment 2"),
+                        Command::new("assert_commit_2").about("Broadcast assert commit 2"),
+                    )
+                    .subcommand(
+                      Command::new("assert_commit_1_invalid").about("FOR TEST PURPOSES ONLY! Broadcast assert commit 1 with invalid proof"),
+                    )
+                    .subcommand(
+                      Command::new("assert_commit_2_invalid").about("FOR TEST PURPOSES ONLY! Broadcast assert commit 2 with invalid proof"),
                     )
                     .subcommand(Command::new("assert_final").about("Broadcast assert final"))
                     .subcommand(Command::new("take_1").about("Broadcast take 1"))
@@ -435,6 +441,16 @@ impl ClientCommand {
             Some(("assert_commit_2", _)) => {
                 self.client
                     .broadcast_assert_commit_2(graph_id, &get_proof())
+                    .await
+            }
+            Some(("assert_commit_1_invalid", _)) => {
+                self.client
+                    .broadcast_assert_commit_1(graph_id, &invalidate_proof(&get_proof()))
+                    .await
+            }
+            Some(("assert_commit_2_invalid", _)) => {
+                self.client
+                    .broadcast_assert_commit_2(graph_id, &invalidate_proof(&get_proof()))
                     .await
             }
             Some(("assert_final", _)) => self.client.broadcast_assert_final(graph_id).await,
