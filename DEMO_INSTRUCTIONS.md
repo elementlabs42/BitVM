@@ -1,6 +1,6 @@
 Before running the demo for the first time, see [Environment Setup](#environment-setup) section below.
 
-## Funding UTXOs
+# Demo Prep: Funding UTXOs
 The bridge peg-in and peg-out execution consumes three funding UTXOs. For convenience, prepare them before running the demo. This process remains the same across all scenarios. You can use the recommended amounts as below:
 
 - Peg-in graph - 'peg-in depost' tx input: **2097447 SAT** - will be spent by [DEPOSITOR] (use `-d` to get their address)
@@ -207,7 +207,7 @@ Record the peg-in confirm txid.
 # Environment Setup
 Clone and build this repository. The CLI executable is called `bridge`.
 
-### [DEPOSITOR] and [OPERATOR] and [VERIFIER_0]
+## [DEPOSITOR] and [OPERATOR] and [VERIFIER_0]
 All the above users can execute commands using a single setup (from the same directory).
 
 #### `bridge.toml`
@@ -235,7 +235,7 @@ export BRIDGE_AWS_BUCKET=""
 export VERIFIERS="026cc14f56ad7e8fdb323378287895c6c0bcdbb37714c74fba175a0c5f0cd0d56f,02452556ed6dbac394cbb7441fbaf06c446d1321467fa5a138895c6c9e246793dd"
 ```
 
-### [VERIFIER_1]
+## [VERIFIER_1]
 Install the CLI tool in a different directory and make sure it doesn't share the `.env` file with the setup above. You can either clone this repository at another location or just copy the binary along with the .env.
 
 #### `bridge.toml`
