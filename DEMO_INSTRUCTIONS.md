@@ -1,11 +1,11 @@
 Before running the demo for the first time, see [Environment Setup](#environment-setup) section below.
 
 ## Funding UTXOs
-The bridge peg-in and peg-out execution consumes three funding UTXOs. For convenience, prepare them before executing the demo. This step is the same in all scenarios. You can use the recommended amounts as below:
+The bridge peg-in and peg-out execution consumes three funding UTXOs. For convenience, prepare them before running the demo. This process remains the same across all scenarios. You can use the recommended amounts as below:
 
-- Peg-in graph - 'peg-in depost' tx input:    **2097447 SAT** - will be spent by [DEPOSITOR] (use `-d` to get their address)
+- Peg-in graph - 'peg-in depost' tx input: **2097447 SAT** - will be spent by [DEPOSITOR] (use `-d` to get their address)
 - Peg-out graph - 'peg-out confirm' tx input: **3562670 SAT** - will be spent by [OPERATOR] (use `-o` to get their address)
-- Withdrawer peg-out - 'peg-out' tx input:    **2097274 SAT** - will be spent by [OPERATOR] (use `-o` to get their address)
+- Withdrawer peg-out - 'peg-out' tx input: **2097274 SAT** - will be spent by [OPERATOR] (use `-o` to get their address)
 
 ## Demo Steps
 The following is the list of command line arguments that are passed to the CLI tool in sequence by the respective actors. The arguments can be used either with `cargo run --bin bridge --` or when running the CLI binary directly.
