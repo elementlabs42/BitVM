@@ -1,4 +1,4 @@
-Before running the demo for the first time, see [Environment Setup](##environment-Setup) section below.
+Before running the demo for the first time, see [Environment Setup](##environment-setup) section below.
 
 ## Funding UTXOs
 The bridge peg-in and peg-out execution consumes three funding UTXOs. For convenience, prepare them before executing the demo. This step is the same in all scenarios. You can use the recommended amounts as below:
