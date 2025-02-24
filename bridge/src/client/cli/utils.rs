@@ -20,7 +20,7 @@ pub fn get_mock_chain_service(outpoint: OutPoint, operator_public_key: PublicKey
                 Hash::from_str("0e6719ac074b0e3cac76d057643506faa1c266b3").unwrap(),
             ),
             operator_public_key: operator_public_key,
-            tx_hash: [0u8; 4].into(),
+            tx_hash: [0u8; 32].into(),
         }]),
         peg_out_burnt_events: None,
         peg_out_minted_events: None,
