@@ -2,6 +2,7 @@ use bitcoin::{
     absolute::Height, consensus::encode::serialize_hex, Address, Amount, Network, OutPoint,
     PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
+use colored::Colorize;
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 use futures::future::join_all;
 use human_bytes::human_bytes;
@@ -1391,11 +1392,12 @@ impl BitVMClient {
     }
 
     async fn broadcast_tx(&self, tx: &Transaction) -> Result<Txid, Error> {
-        let transaction_id = tx.compute_txid();
         let status_message = broadcast_and_verify(&self.esplora, tx).await?;
-        // TODO: expose this or have it print out here?
-        println!("{} ({:?})", status_message, transaction_id);
-        Ok(tx.compute_txid())
+
+        let txid = tx.compute_txid();
+        println!("{} Txid: {}", status_message, txid.to_string().green());
+
+        Ok(txid)
     }
 
     fn merge_secret_nonces(

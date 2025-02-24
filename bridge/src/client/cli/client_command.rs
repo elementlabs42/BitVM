@@ -207,10 +207,10 @@ impl ClientCommand {
         println!("Created peg-in graph with ID: {peg_in_id}");
         println!("Broadcasting deposit...");
 
-        match self.client.broadcast_peg_in_deposit(&peg_in_id).await {
-            Ok(txid) => println!("Broadcasted peg-in deposit with txid {txid}"),
-            Err(e) => println!("Failed to broadcast peg-in deposit: {}", e),
+        if let Err(e) = self.client.broadcast_peg_in_deposit(&peg_in_id).await {
+            eprintln!("Failed to broadcast peg-in deposit: {e}");
         }
+
         Ok(())
     }
 
@@ -452,9 +452,8 @@ impl ClientCommand {
             _ => unreachable!(),
         };
 
-        match result {
-            Ok(txid) => println!("Broadcasted txid {}", txid.to_string().green()),
-            Err(e) => println!("Failed to broadcast transaction: {}", e),
+        if let Err(e) = result {
+            println!("Failed to broadcast transaction: {e}");
         }
 
         Ok(())

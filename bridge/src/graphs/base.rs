@@ -97,13 +97,14 @@ pub async fn broadcast_and_verify(
     let txid = transaction.compute_txid();
 
     if let Ok(Some(_)) = client.get_tx(&txid).await {
-        return Ok("Tx already submitted.");
+        return Ok("Tx already broadcasted.");
     }
 
     let tx_result = client.broadcast(transaction).await;
 
     match (tx_result, is_confirmed(client, txid).await) {
-        (Ok(_), _) | (Err(_), Ok(true)) => Ok("Tx mined successfully."),
+        (Ok(_), Ok(false)) | (Ok(_), Err(_)) => Ok("Tx broadcasted successfully."),
+        (Ok(_), Ok(true)) | (Err(_), Ok(true)) => Ok("Tx mined successfully."),
         (Err(e), _) => Err(Error::Esplora(e)),
     }
 }
