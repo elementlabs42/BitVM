@@ -511,27 +511,27 @@ async fn create_peg_out_graph() -> (
         config.commitment_secrets,
     );
 
-    println!("Verifier 0 push peg-out nonces");
+    println!("Verifier 0 push peg-in nonces");
     depositor_operator_verifier_0_client
         .process_peg_in_as_verifier(&peg_in_graph_id) // verifier 0 push nonces
         .await;
     depositor_operator_verifier_0_client.flush().await;
 
-    println!("Verifier 1 push peg-out nonces");
+    println!("Verifier 1 push peg-in nonces");
     verifier_1_client.sync().await;
     verifier_1_client
         .process_peg_in_as_verifier(&peg_in_graph_id)
         .await;
     verifier_1_client.flush().await;
 
-    println!("Verifier 0 pre-sign peg-out");
+    println!("Verifier 0 pre-sign peg-in");
     depositor_operator_verifier_0_client.sync().await;
     depositor_operator_verifier_0_client
         .process_peg_in_as_verifier(&peg_in_graph_id)
         .await;
     depositor_operator_verifier_0_client.flush().await;
 
-    println!("Verifier 1 pre-sign peg-out");
+    println!("Verifier 1 pre-sign peg-in");
     verifier_1_client.sync().await;
     verifier_1_client
         .process_peg_in_as_verifier(&peg_in_graph_id)
@@ -543,6 +543,25 @@ async fn create_peg_out_graph() -> (
     depositor_operator_verifier_0_client
         .process_peg_in_as_verifier(&peg_in_graph_id)
         .await;
+
+    println!("Verifier 0 push peg-out nonces");
+    depositor_operator_verifier_0_client.push_verifier_nonces(&peg_out_graph_id);
+    depositor_operator_verifier_0_client.flush().await;
+
+    println!("Verifier 1 push peg-out nonces");
+    verifier_1_client.sync().await;
+    verifier_1_client.push_verifier_nonces(&peg_out_graph_id);
+    verifier_1_client.flush().await;
+
+    println!("Verifier 0 pre-sign peg-out");
+    depositor_operator_verifier_0_client.sync().await;
+    depositor_operator_verifier_0_client.push_verifier_signature(&peg_out_graph_id);
+    depositor_operator_verifier_0_client.flush().await;
+
+    println!("Verifier 1 pre-sign peg-out");
+    verifier_1_client.sync().await;
+    verifier_1_client.push_verifier_signature(&peg_out_graph_id);
+    verifier_1_client.flush().await;
 
     (
         depositor_operator_verifier_0_client,

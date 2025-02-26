@@ -62,6 +62,7 @@ pub fn sign_assert_tx_with_groth16_proof(
     commitment_secrets: &HashMap<CommitmentMessageId, WinternitzSecret>,
     proof: &RawProof,
 ) -> (Vec<RawWitness>, Vec<RawWitness>) {
+    println!("Signing assert tx with groth16 proof ...");
     let (commit1_publickeys, commit2_publickeys) =
         groth16_commitment_secrets_to_public_keys(commitment_secrets);
 

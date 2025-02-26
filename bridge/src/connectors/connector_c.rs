@@ -200,6 +200,7 @@ impl ConnectorC {
         commit_2_witness: Vec<RawWitness>,
         vk: &ZkProofVerifyingKey,
     ) -> Result<(usize, RawWitness), Error> {
+        println!("Generating disprove witness ...");
         let pks = self
             .commitment_public_keys
             .clone()
