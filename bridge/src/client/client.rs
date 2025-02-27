@@ -1,16 +1,20 @@
 use bitcoin::{
-    absolute::Height, consensus::encode::serialize_hex, Address, Amount, Network, OutPoint,
-    PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
+    absolute::Height,
+    consensus::encode::serialize_hex,
+    hashes::{hash160, Hash},
+    Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
 use colored::Colorize;
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 use futures::future::join_all;
 use human_bytes::human_bytes;
+use lru::LruCache;
 use musig2::SecNonce;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     path::{Path, PathBuf},
 };
 
@@ -123,6 +127,7 @@ pub struct BitVMClient {
     latest_processed_file_name: Option<String>,
     remote_file_path: String,
     local_file_path: PathBuf,
+    validation_cache: LruCache<String, String>,
 
     private_data: BitVMClientPrivateData,
 
@@ -225,6 +230,7 @@ impl BitVMClient {
             latest_processed_file_name: None,
             remote_file_path,
             local_file_path,
+            validation_cache: LruCache::new(NonZeroUsize::new(1000).unwrap()),
 
             private_data,
 
@@ -281,12 +287,8 @@ impl BitVMClient {
             let mut latest_file_names = latest_file_names_result.unwrap();
             if !latest_file_names.is_empty() {
                 // fetch latest valid file
-                let (latest_file, latest_file_name) = Self::fetch_latest_valid_file(
-                    &self.data_store,
-                    &mut latest_file_names,
-                    Some(&self.remote_file_path),
-                )
-                .await;
+                let (latest_file, latest_file_name) =
+                    self.fetch_latest_valid_file(&mut latest_file_names).await;
                 if latest_file.is_some() && latest_file_name.is_some() {
                     save_local_public_file(
                         &self.local_file_path,
@@ -420,23 +422,24 @@ impl BitVMClient {
         } else {
             // TODO: can be optimized to fetch all data at once?
             for file_name in file_names.iter() {
-                let result = self
-                    .data_store
-                    .fetch_compressed_data_by_key(file_name, Some(&self.remote_file_path))
-                    .await; // TODO: use `fetch_by_key()` function
-                if result.is_ok() && result.as_ref().unwrap().0.is_some() {
-                    let data = try_deserialize_slice(&result.unwrap().0.unwrap());
-                    if data.is_ok() && Self::validate_data(data.as_ref().unwrap()) {
-                        // merge the file if the data is valid
-                        println!("Merging {} data...", { file_name });
-                        self.merge_data(data.unwrap());
-                        if latest_valid_file_name.is_none() {
-                            latest_valid_file_name = Some(file_name.clone());
-                        }
-                    } else {
-                        // skip the file if the data is invalid
-                        println!("Invalid file {}, Skipping...", file_name);
+                let (latest_data, _, _, data_hash) = self.fetch_by_key(&file_name).await;
+
+                if latest_data.is_some()
+                    && self.validate_data_with_cache(
+                        latest_data.as_ref().unwrap(),
+                        &file_name,
+                        &data_hash,
+                    )
+                {
+                    // merge the file if the data is valid
+                    println!("Merging {} data...", { file_name });
+                    self.merge_data(latest_data.unwrap());
+                    if latest_valid_file_name.is_none() {
+                        latest_valid_file_name = Some(file_name.clone());
                     }
+                } else {
+                    // skip the file if the data is invalid
+                    println!("Invalid file {}, Skipping...", file_name);
                 }
             }
         }
@@ -445,9 +448,8 @@ impl BitVMClient {
     }
 
     async fn fetch_latest_valid_file(
-        data_store: &DataStore,
+        &mut self,
         file_names: &mut Vec<String>,
-        file_path: Option<&str>,
     ) -> (Option<BitVMClientPublicData>, Option<String>) {
         let mut latest_valid_file: Option<BitVMClientPublicData> = None;
         let mut latest_valid_file_name: Option<String> = None;
@@ -456,9 +458,15 @@ impl BitVMClient {
             let file_name_result = file_names.pop();
             if file_name_result.is_some() {
                 let file_name = file_name_result.unwrap();
-                let (latest_data, latest_data_len, encoded_size) =
-                    Self::fetch_by_key(data_store, &file_name, file_path).await;
-                if latest_data.is_some() && Self::validate_data(latest_data.as_ref().unwrap()) {
+                let (latest_data, latest_data_len, encoded_size, data_hash) =
+                    self.fetch_by_key(&file_name).await;
+                if latest_data.is_some()
+                    && self.validate_data_with_cache(
+                        latest_data.as_ref().unwrap(),
+                        &file_name,
+                        &data_hash,
+                    )
+                {
                     // data is valid
                     println!(
                         "Fetched valid file: {} (size: {}, compressed: {})",
@@ -480,25 +488,26 @@ impl BitVMClient {
     }
 
     async fn fetch_by_key(
-        data_store: &DataStore,
+        &mut self,
         key: &String,
-        file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, usize, usize) {
-        let result = data_store
-            .fetch_compressed_data_by_key(key, file_path)
+    ) -> (Option<BitVMClientPublicData>, usize, usize, String) {
+        let result = self
+            .data_store
+            .fetch_compressed_data_by_key(key, Some(&self.remote_file_path))
             .await;
         if result.is_ok() {
             if let (Some(content), encoded_size) = result.unwrap() {
                 let data = try_deserialize_slice(&content);
                 if let Ok(data) = data {
-                    return (Some(data), content.len(), encoded_size);
+                    let hash = hash160::Hash::hash(&content);
+                    return (Some(data), content.len(), encoded_size, hex::encode(hash));
                 } else {
                     eprintln!("{}", data.err().unwrap());
                 }
             }
         }
 
-        (None, 0, 0)
+        (None, 0, 0, String::from(""))
     }
 
     async fn save_to_data_store(&mut self) {
@@ -537,6 +546,26 @@ impl BitVMClient {
                 self.latest_processed_file_name = Some(file_name);
             }
             Err(err) => println!("Failed to push: {}", err),
+        }
+    }
+
+    pub fn validate_data_with_cache(
+        &mut self,
+        data: &BitVMClientPublicData,
+        file_name: &String,
+        data_hash: &String,
+    ) -> bool {
+        let cached_hash = self.validation_cache.get(file_name);
+        match cached_hash {
+            Some(cache) => cache == data_hash,
+            None => match Self::validate_data(data) {
+                true => {
+                    self.validation_cache
+                        .push(file_name.clone(), data_hash.clone());
+                    true
+                }
+                false => false,
+            },
         }
     }
 
