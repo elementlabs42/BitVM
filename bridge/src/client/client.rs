@@ -248,6 +248,9 @@ impl BitVMClient {
         self.chain_service = chain_service;
     }
 
+    // TODO: This fn is only used in tests. Consider refactoring, so it can be removed.
+    pub fn set_data_store(&mut self, data_store: DataStore) { self.data_store = data_store; }
+
     fn save_private_data(&self) {
         save_local_private_file(&self.local_file_path, &serialize(&self.private_data));
     }

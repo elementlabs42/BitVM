@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::base::DataStoreDriver;
+use super::file::SharedFileStore;
 use super::{
     aws_s3::AwsS3,
     ftp::{ftp::Ftp, ftps::Ftps},
@@ -21,10 +22,20 @@ pub struct DataStore {
     ftp: Option<Ftp>,
     ftps: Option<Ftps>,
     sftp: Option<Sftp>,
+    shared_file: Option<SharedFileStore>,
 }
 
 impl DataStore {
     pub async fn new() -> Self {
+        let mut data_store = Self::shared_file_store();
+        data_store.aws_s3 = AwsS3::new();
+        data_store.ftp = Ftp::new().await;
+        data_store.ftps = Ftps::new().await;
+        data_store.sftp = Sftp::new().await;
+        data_store
+    }
+
+    pub fn shared_file_store() -> Self {
         dotenv::dotenv().ok();
         let client_data_suffix = match dotenv::var("BRIDGE_DATA_STORE_CLIENT_DATA_SUFFIX") {
             Ok(suffix) => suffix,
@@ -33,10 +44,11 @@ impl DataStore {
         Self {
             client_data_suffix: client_data_suffix.clone(),
             client_data_regex: Regex::new(&format!(r"(\d{{13}}){}", client_data_suffix)).unwrap(),
-            aws_s3: AwsS3::new(),
-            ftp: Ftp::new().await,
-            ftps: Ftps::new().await,
-            sftp: Sftp::new().await,
+            aws_s3: None,
+            ftp: None,
+            ftps: None,
+            sftp: None,
+            shared_file: SharedFileStore::new(),
         }
     }
 
@@ -194,6 +206,8 @@ impl DataStore {
             Ok(self.ftps.as_ref().unwrap())
         } else if self.sftp.is_some() {
             Ok(self.sftp.as_ref().unwrap())
+        } else if self.shared_file.is_some() {
+            Ok(self.shared_file.as_ref().unwrap())
         } else {
             Err(CLIENT_MISSING_CREDENTIALS_ERROR)
         }

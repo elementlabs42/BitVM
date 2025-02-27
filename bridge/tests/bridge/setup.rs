@@ -5,7 +5,8 @@ use bitcoin::{Network, PublicKey};
 use super::helper::{get_intermediate_variables_cached, get_valid_proof, invalidate_proof};
 use bridge::{
     client::{
-        chain::chain_adaptor::get_chain_adaptor, client::BitVMClient, esplora::get_esplora_url,
+        chain::chain_adaptor::get_chain_adaptor, client::BitVMClient,
+        data_store::data_store::DataStore, esplora::get_esplora_url,
     },
     commitments::CommitmentMessageId,
     connectors::{
@@ -213,7 +214,7 @@ pub async fn setup_test() -> SetupConfig {
     let valid_proof = get_valid_proof();
     let invalid_proof = invalidate_proof(&valid_proof);
 
-    let client_0 = BitVMClient::new(
+    let mut client_0 = BitVMClient::new(
         Some(get_esplora_url(source_network)),
         source_network,
         destination_network,
@@ -227,8 +228,9 @@ pub async fn setup_test() -> SetupConfig {
         Some(valid_proof.vk.clone()),
     )
     .await;
+    client_0.set_data_store(DataStore::shared_file_store());
 
-    let client_1 = BitVMClient::new(
+    let mut client_1 = BitVMClient::new(
         Some(get_esplora_url(source_network)),
         source_network,
         destination_network,
@@ -242,6 +244,7 @@ pub async fn setup_test() -> SetupConfig {
         Some(valid_proof.vk.clone()),
     )
     .await;
+    client_1.set_data_store(DataStore::shared_file_store());
 
     let connector_a = ConnectorA::new(
         source_network,
