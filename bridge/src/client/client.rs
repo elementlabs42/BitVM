@@ -552,18 +552,15 @@ impl BitVMClient {
         file_name: &String,
         data_hash: &String,
     ) -> bool {
-        match PUBLIC_DATA_VALIDATION_CACHE.write().unwrap().get(file_name) {
-            Some(cache) => cache == data_hash,
-            None => match Self::validate_data(data) {
-                true => {
-                    PUBLIC_DATA_VALIDATION_CACHE
-                        .write()
-                        .unwrap()
-                        .push(file_name.clone(), data_hash.clone());
-                    true
-                }
-                false => false,
-            },
+        match PUBLIC_DATA_VALIDATION_CACHE
+            .write()
+            .unwrap()
+            .try_get_or_insert(file_name.clone(), || match Self::validate_data(data) {
+                true => Ok(data_hash.clone()),
+                false => Err(()),
+            }) {
+            Ok(cached_hash) => cached_hash == data_hash,
+            Err(_) => false,
         }
     }
 
