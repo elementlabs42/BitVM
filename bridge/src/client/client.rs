@@ -8,13 +8,11 @@ use colored::Colorize;
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
 use futures::future::join_all;
 use human_bytes::human_bytes;
-use lru::LruCache;
 use musig2::SecNonce;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    num::NonZeroUsize,
     path::{Path, PathBuf},
 };
 
@@ -72,6 +70,7 @@ use super::{
         get_private_data_file_path, get_private_data_from_file, save_local_private_file,
         save_local_public_file, BRIDGE_DATA_DIRECTORY_NAME,
     },
+    memory_cache::PUBLIC_DATA_VALIDATION_CACHE,
     sdk::{
         query::{ClientCliQuery, GraphCliQuery},
         query_contexts::depositor_signatures::DepositorSignatures,
@@ -127,7 +126,6 @@ pub struct BitVMClient {
     latest_processed_file_name: Option<String>,
     remote_file_path: String,
     local_file_path: PathBuf,
-    validation_cache: LruCache<String, String>,
 
     private_data: BitVMClientPrivateData,
 
@@ -230,7 +228,6 @@ impl BitVMClient {
             latest_processed_file_name: None,
             remote_file_path,
             local_file_path,
-            validation_cache: LruCache::new(NonZeroUsize::new(1000).unwrap()),
 
             private_data,
 
@@ -555,12 +552,13 @@ impl BitVMClient {
         file_name: &String,
         data_hash: &String,
     ) -> bool {
-        let cached_hash = self.validation_cache.get(file_name);
-        match cached_hash {
+        match PUBLIC_DATA_VALIDATION_CACHE.write().unwrap().get(file_name) {
             Some(cache) => cache == data_hash,
             None => match Self::validate_data(data) {
                 true => {
-                    self.validation_cache
+                    PUBLIC_DATA_VALIDATION_CACHE
+                        .write()
+                        .unwrap()
                         .push(file_name.clone(), data_hash.clone());
                     true
                 }

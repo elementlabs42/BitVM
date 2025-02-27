@@ -9,10 +9,12 @@ use lru::LruCache;
 
 use crate::connectors::base::{LockScriptCache, TaprootSpendInfoCache};
 
-const DEFAULT_CACHE_SIZE: usize = 200;
+const DEFAULT_CACHE_SIZE: usize = 1000;
 pub(crate) static TAPROOT_SPEND_INFO_CACHE: LazyLock<RwLock<Cache<String, TaprootSpendInfoCache>>> =
     LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
 pub(crate) static TAPROOT_LOCK_SCRIPTS_CACHE: LazyLock<RwLock<Cache<String, LockScriptCache>>> =
+    LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
+pub(crate) static PUBLIC_DATA_VALIDATION_CACHE: LazyLock<RwLock<Cache<String, String>>> =
     LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
 
 pub struct Cache<K: Eq + Hash, V>(LruCache<K, V>);
