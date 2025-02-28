@@ -7,13 +7,15 @@ use std::{
 
 use lru::LruCache;
 
-use crate::connectors::base::{LockScriptCache, TaprootSpendInfoCache};
+use crate::connectors::base::{LockScriptCacheEntry, TaprootSpendInfoCacheEntry};
 
 const DEFAULT_CACHE_SIZE: usize = 1000;
-pub(crate) static TAPROOT_SPEND_INFO_CACHE: LazyLock<RwLock<Cache<String, TaprootSpendInfoCache>>> =
-    LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
-pub(crate) static TAPROOT_LOCK_SCRIPTS_CACHE: LazyLock<RwLock<Cache<String, LockScriptCache>>> =
-    LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
+pub(crate) static TAPROOT_SPEND_INFO_CACHE: LazyLock<
+    RwLock<Cache<String, TaprootSpendInfoCacheEntry>>,
+> = LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
+pub(crate) static TAPROOT_LOCK_SCRIPTS_CACHE: LazyLock<
+    RwLock<Cache<String, LockScriptCacheEntry>>,
+> = LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
 pub(crate) static PUBLIC_DATA_VALIDATION_CACHE: LazyLock<RwLock<Cache<String, String>>> =
     LazyLock::new(|| RwLock::new(Cache::new(DEFAULT_CACHE_SIZE)));
 
