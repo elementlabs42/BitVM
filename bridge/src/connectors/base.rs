@@ -50,13 +50,13 @@ pub trait P2wshConnector {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct TaprootSpendInfoCache {
+pub struct TaprootSpendInfoCacheEntry {
     pub merkle_root: Option<TapNodeHash>,
     pub output_key: TweakedPublicKey,
     pub scripts_length: usize,
 }
 
-impl TaprootSpendInfoCache {
+impl TaprootSpendInfoCacheEntry {
     pub fn new(spend_info: &TaprootSpendInfo, scripts_length: usize) -> Self {
         Self {
             merkle_root: spend_info.merkle_root(),
@@ -67,7 +67,7 @@ impl TaprootSpendInfoCache {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct LockScriptCache {
+pub struct LockScriptCacheEntry {
     pub control_block: ControlBlock,
     pub encoded_script: Vec<u8>, // compressed bitcoin::Script
 }

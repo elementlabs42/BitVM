@@ -111,7 +111,7 @@ impl ConnectorC {
     }
 
     pub fn taproot_merkle_root(&self) -> Option<TapNodeHash> {
-        self.taproot_spend_info_cache()
+        self.taproot_spend_info_cached()
             .map(|cache| cache.merkle_root)
             .unwrap_or_else(|| {
                 generate_taproot_spend_info(
@@ -123,7 +123,7 @@ impl ConnectorC {
     }
 
     pub fn taproot_output_key(&self) -> TweakedPublicKey {
-        self.taproot_spend_info_cache()
+        self.taproot_spend_info_cached()
             .map(|cache| cache.output_key)
             .unwrap_or_else(|| {
                 generate_taproot_spend_info(
@@ -135,17 +135,17 @@ impl ConnectorC {
     }
 
     pub fn taproot_scripts_len(&self) -> usize {
-        self.taproot_spend_info_cache()
+        self.taproot_spend_info_cached()
             .map(|cache| cache.scripts_length)
             .unwrap_or_else(|| self.lock_scripts_bytes().len())
     }
 
     pub fn taproot_script_and_control_block(&self, leaf_index: usize) -> (ScriptBuf, ControlBlock) {
-        self.lock_script_cache(leaf_index)
-            .and_then(|cache| {
-                decompress(&cache.encoded_script)
+        self.lock_script_cached(leaf_index)
+            .and_then(|entry| {
+                decompress(&entry.encoded_script)
                     .ok()
-                    .map(|data| (data, cache.control_block))
+                    .map(|data| (data, entry.control_block))
             })
             .and_then(|(encoded, control_block)| {
                 bitcode::decode::<Vec<u8>>(&encoded)
@@ -161,7 +161,7 @@ impl ConnectorC {
             })
     }
 
-    fn taproot_spend_info_cache(&self) -> Option<TaprootSpendInfoCache> {
+    fn taproot_spend_info_cached(&self) -> Option<TaprootSpendInfoCacheEntry> {
         match spend_info_cache_id(&self.commitment_public_keys) {
             Ok(cache_id) => Some(
                 TAPROOT_SPEND_INFO_CACHE
@@ -173,7 +173,7 @@ impl ConnectorC {
                             self.operator_taproot_public_key,
                             lock_scripts_bytes,
                         );
-                        TaprootSpendInfoCache::new(&spend_info, lock_scripts_bytes.len())
+                        TaprootSpendInfoCacheEntry::new(&spend_info, lock_scripts_bytes.len())
                     })
                     .clone(),
             ),
@@ -181,7 +181,7 @@ impl ConnectorC {
         }
     }
 
-    fn lock_script_cache(&self, leaf_index: usize) -> Option<LockScriptCache> {
+    fn lock_script_cached(&self, leaf_index: usize) -> Option<LockScriptCacheEntry> {
         match lock_script_cache_id(&self.commitment_public_keys, leaf_index) {
             Ok(cache_id) => Some(
                 TAPROOT_LOCK_SCRIPTS_CACHE
@@ -196,7 +196,7 @@ impl ConnectorC {
                         let encoded_data = bitcode::encode(script.as_bytes());
                         let compressed_data = compress(&encoded_data, DEFAULT_COMPRESSION_LEVEL)
                             .expect("Unable to compress script for caching");
-                        LockScriptCache {
+                        LockScriptCacheEntry {
                             control_block,
                             encoded_script: compressed_data,
                         }
