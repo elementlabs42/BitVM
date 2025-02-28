@@ -116,8 +116,7 @@ impl ConnectorC {
         let sigs = utils_signatures_from_raw_witnesses(&commit_witness);
         let pubs = utils_typed_pubkey_from_raw(sorted_pks);
         let locs: Vec<bitcoin_script::builder::StructuredScript> = self
-            .lock_scripts_bytes
-            .clone()
+            .lock_scripts_bytes()
             .into_iter()
             .map(|f| {
                 bitcoin_script::builder::StructuredScript::new("")
