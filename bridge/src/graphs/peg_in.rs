@@ -569,33 +569,36 @@ impl PegInGraph {
         )
     }
 
-    pub fn validate(&self) -> bool {
-        let mut ret_val = true;
+    pub fn validate(&self) -> Result<(), Error> {
         let peg_in_graph = self.new_for_validation();
-        if !validate_transaction(
+        match validate_transaction(
             self.peg_in_deposit_transaction.tx(),
             peg_in_graph.peg_in_deposit_transaction.tx(),
         ) {
-            ret_val = false;
+            Ok(_) => (),
+            Err(e) => return Err(e),
         }
-        if !validate_transaction(
+        match validate_transaction(
             self.peg_in_refund_transaction.tx(),
             peg_in_graph.peg_in_refund_transaction.tx(),
         ) {
-            ret_val = false;
+            Ok(_) => (),
+            Err(e) => return Err(e),
         }
-        if !validate_transaction(
+        match validate_transaction(
             self.peg_in_confirm_transaction.tx(),
             peg_in_graph.peg_in_confirm_transaction.tx(),
         ) {
-            ret_val = false;
+            Ok(_) => (),
+            Err(e) => return Err(e),
         }
 
-        if !verify_public_nonces_for_tx(&self.peg_in_confirm_transaction) {
-            ret_val = false;
+        match verify_public_nonces_for_tx(&self.peg_in_confirm_transaction) {
+            Ok(_) => (),
+            Err(e) => return Err(e),
         }
 
-        ret_val
+        Ok(())
     }
 
     pub fn merge(&mut self, source_peg_in_graph: &PegInGraph) {

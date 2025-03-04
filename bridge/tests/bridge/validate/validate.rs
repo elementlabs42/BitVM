@@ -7,23 +7,24 @@ use bridge::{
     scripts::generate_burn_script,
     transactions::{base::Input, pre_signed::PreSignedTransaction},
 };
+use esplora_client::AsyncClient;
 
 use crate::bridge::setup::{setup_test, INITIAL_AMOUNT};
 
 #[tokio::test]
 async fn test_validate_success() {
-    let (peg_in_graph, peg_out_graph, _) = setup_and_create_graphs().await;
+    let (peg_in_graph, peg_out_graph, _, esplora) = setup_and_create_graphs().await;
 
     let is_peg_in_data_valid = peg_in_graph.validate();
-    let is_peg_out_data_valid = peg_out_graph.validate();
+    let is_peg_out_data_valid = peg_out_graph.validate(&esplora).await;
 
-    assert!(is_peg_in_data_valid);
-    assert!(is_peg_out_data_valid);
+    assert!(is_peg_in_data_valid.is_ok());
+    assert!(is_peg_out_data_valid.is_ok());
 }
 
 #[tokio::test]
 async fn test_validate_invalid_previous_output() {
-    let (mut peg_in_graph, _, peg_in_outpoint) = setup_and_create_graphs().await;
+    let (mut peg_in_graph, _, peg_in_outpoint, _) = setup_and_create_graphs().await;
 
     let changed_outpoint = OutPoint {
         txid: peg_in_outpoint.txid,
@@ -35,58 +36,58 @@ async fn test_validate_invalid_previous_output() {
 
     let is_peg_in_data_valid = peg_in_graph.validate();
 
-    assert!(!is_peg_in_data_valid);
+    assert!(is_peg_in_data_valid.is_err());
 }
 
 #[tokio::test]
 async fn test_validate_invalid_script_sig() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs().await;
+    let (mut peg_in_graph, _, _, _) = setup_and_create_graphs().await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].script_sig = generate_burn_script();
 
     let is_peg_in_data_valid = peg_in_graph.validate();
 
-    assert!(!is_peg_in_data_valid);
+    assert!(is_peg_in_data_valid.is_err());
 }
 
 #[tokio::test]
 async fn test_validate_invalid_sequence() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs().await;
+    let (mut peg_in_graph, _, _, _) = setup_and_create_graphs().await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].sequence = bitcoin::Sequence(100);
 
     let is_peg_in_data_valid = peg_in_graph.validate();
 
-    assert!(!is_peg_in_data_valid);
+    assert!(is_peg_in_data_valid.is_err());
 }
 
 #[tokio::test]
 async fn test_validate_invalid_value() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs().await;
+    let (mut peg_in_graph, _, _, _) = setup_and_create_graphs().await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].value = Amount::from_sat(1);
 
     let is_peg_in_data_valid = peg_in_graph.validate();
 
-    assert!(!is_peg_in_data_valid);
+    assert!(is_peg_in_data_valid.is_err());
 }
 
 #[tokio::test]
 async fn test_validate_invalid_script_pubkey() {
-    let (mut peg_in_graph, _, _) = setup_and_create_graphs().await;
+    let (mut peg_in_graph, _, _, _) = setup_and_create_graphs().await;
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].script_pubkey = generate_burn_script();
 
     let is_peg_in_data_valid = peg_in_graph.validate();
 
-    assert!(!is_peg_in_data_valid);
+    assert!(is_peg_in_data_valid.is_err());
 }
 
-async fn setup_and_create_graphs() -> (PegInGraph, PegOutGraph, OutPoint) {
+async fn setup_and_create_graphs() -> (PegInGraph, PegOutGraph, OutPoint, AsyncClient) {
     let config = setup_test().await;
 
     let amount = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE);
@@ -120,5 +121,10 @@ async fn setup_and_create_graphs() -> (PegInGraph, PegOutGraph, OutPoint) {
         &config.commitment_secrets,
     );
 
-    (peg_in_graph, peg_out_graph, peg_in_outpoint)
+    (
+        peg_in_graph,
+        peg_out_graph,
+        peg_in_outpoint,
+        config.client_0.esplora,
+    )
 }
