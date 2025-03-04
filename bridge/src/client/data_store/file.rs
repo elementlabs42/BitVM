@@ -8,11 +8,7 @@ use async_trait::async_trait;
 use dotenv;
 
 // To use this data store, create a .env file in the base directory with the following values:
-// export BRIDGE_AWS_ACCESS_KEY_ID="..."
-// export BRIDGE_AWS_SECRET_ACCESS_KEY="..."
-// export BRIDGE_AWS_REGION="..."
-// export BRIDGE_AWS_BUCKET="..."
-
+// export BRIDGE_FILE_ROOT_PATH="..."
 pub struct SharedFileStore {
     base_path: std::path::PathBuf,
 }
