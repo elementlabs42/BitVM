@@ -9,11 +9,11 @@ use dotenv;
 
 // To use this data store, create a .env file in the base directory with the following values:
 // export BRIDGE_FILE_ROOT_PATH="..."
-pub struct SharedFileStore {
+pub struct LocalFile {
     base_path: std::path::PathBuf,
 }
 
-impl SharedFileStore {
+impl LocalFile {
     pub fn new() -> Option<Self> {
         dotenv::dotenv().ok();
         let root_path = dotenv::var("BRIDGE_FILE_ROOT_PATH");
@@ -67,7 +67,7 @@ impl SharedFileStore {
 }
 
 #[async_trait]
-impl DataStoreDriver for SharedFileStore {
+impl DataStoreDriver for LocalFile {
     async fn list_objects(&self, file_path: Option<&str>) -> Result<Vec<String>, String> {
         let path = match file_path {
             Some(file_path) => self.base_path.join(file_path),

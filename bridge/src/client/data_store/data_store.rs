@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::base::DataStoreDriver;
-use super::file::SharedFileStore;
+use super::local_file::LocalFile;
 use super::{
     aws_s3::AwsS3,
     ftp::{ftp::Ftp, ftps::Ftps},
@@ -22,7 +22,7 @@ pub struct DataStore {
     ftp: Option<Ftp>,
     ftps: Option<Ftps>,
     sftp: Option<Sftp>,
-    shared_file: Option<SharedFileStore>,
+    local_file: Option<LocalFile>,
 }
 
 impl DataStore {
@@ -39,7 +39,7 @@ impl DataStore {
             ftp: Ftp::new().await,
             ftps: Ftps::new().await,
             sftp: Sftp::new().await,
-            shared_file: SharedFileStore::new(),
+            local_file: LocalFile::new(),
         }
     }
 
@@ -189,8 +189,8 @@ impl DataStore {
     }
 
     fn get_driver(&self) -> Result<&dyn DataStoreDriver, &str> {
-        if self.shared_file.is_some() {
-            Ok(self.shared_file.as_ref().unwrap())
+        if self.local_file.is_some() {
+            Ok(self.local_file.as_ref().unwrap())
         } else if self.aws_s3.is_some() {
             Ok(self.aws_s3.as_ref().unwrap())
         } else if self.ftp.is_some() {
