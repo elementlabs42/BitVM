@@ -1,7 +1,11 @@
 use super::pre_signed_musig2::{verify_public_nonce, PreSignedMusig2Transaction};
-use crate::graphs::base::MIN_RELAY_FEE_RATE;
+use crate::{
+    error::{Error, ValidationError},
+    graphs::base::MIN_RELAY_FEE_RATE,
+};
 use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use core::cmp;
+use esplora_client::AsyncClient;
 use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use std::collections::HashMap;
@@ -126,7 +130,7 @@ fn merge_hash_maps<T: Clone>(
 pub fn validate_transaction(
     transaction: &Transaction,
     comparison_transaction: &Transaction,
-) -> bool {
+) -> Result<(), Error> {
     for i in 0..comparison_transaction.input.len() {
         if transaction.input[i].previous_output != comparison_transaction.input[i].previous_output
             || transaction.input[i].script_sig != comparison_transaction.input[i].script_sig
@@ -137,7 +141,9 @@ pub fn validate_transaction(
                 transaction.compute_txid(),
                 i
             );
-            return false;
+            return Err(Error::Validation(ValidationError::TxValidationFailed(
+                transaction.compute_txid(),
+            )));
         }
     }
 
@@ -150,35 +156,74 @@ pub fn validate_transaction(
                 transaction.compute_txid(),
                 i
             );
-            return false;
+            return Err(Error::Validation(ValidationError::TxValidationFailed(
+                transaction.compute_txid(),
+            )));
         }
     }
 
-    true
+    Ok(())
+}
+
+pub async fn validate_witness(client: &AsyncClient, tx: &Transaction) -> Result<(), Error> {
+    let txid = tx.compute_txid();
+    let tx_status = client.get_tx_status(&txid).await;
+
+    match tx_status {
+        Ok(status) => {
+            if status.confirmed {
+                let result = client.get_tx(&txid).await;
+                match result {
+                    Ok(result_tx) => match result_tx {
+                        Some(actual_tx) => {
+                            for i in 0..tx.input.len() {
+                                if tx.input[i].witness != actual_tx.input[i].witness {
+                                    return Err(Error::Validation(
+                                        ValidationError::WitnessMismatch(txid, i),
+                                    ));
+                                }
+                            }
+                            return Ok(());
+                        }
+                        None => {
+                            return Err(Error::Other(format!(
+                                "Failed to find tx with id: {}",
+                                txid
+                            )))
+                        }
+                    },
+                    Err(e) => return Err(Error::Esplora(e)),
+                }
+            }
+
+            return Ok(());
+        }
+        Err(e) => return Err(Error::Esplora(e)),
+    }
 }
 
 fn verify_public_nonces(
     all_nonces: &HashMap<usize, HashMap<PublicKey, PubNonce>>,
     all_sigs: &HashMap<usize, HashMap<PublicKey, Signature>>,
     txid: Txid,
-) -> bool {
-    let mut ret_val = true;
-
+) -> Result<(), Error> {
     for (i, nonces) in all_nonces {
         for (pubkey, nonce) in nonces {
             if !verify_public_nonce(&all_sigs[i][pubkey], nonce, &XOnlyPublicKey::from(*pubkey)) {
                 eprintln!(
                     "Failed to verify public nonce for pubkey {pubkey} on tx:input {txid}:{i}."
                 );
-                ret_val = false;
+                return Err(Error::Validation(ValidationError::NoncesValidationFailed(
+                    *pubkey, txid, *i,
+                )));
             }
         }
     }
 
-    ret_val
+    Ok(())
 }
 
-pub fn verify_public_nonces_for_tx(tx: &impl PreSignedMusig2Transaction) -> bool {
+pub fn verify_public_nonces_for_tx(tx: &impl PreSignedMusig2Transaction) -> Result<(), Error> {
     verify_public_nonces(
         tx.musig2_nonces(),
         tx.musig2_nonce_signatures(),
@@ -253,7 +298,8 @@ mod tests {
         let (all_nonces, all_sigs) = get_test_nonces();
 
         assert!(
-            verify_public_nonces(&all_nonces, &all_sigs, DUMMY_TXID.parse::<Txid>().unwrap()),
+            verify_public_nonces(&all_nonces, &all_sigs, DUMMY_TXID.parse::<Txid>().unwrap())
+                .is_ok(),
             "verify_public_nonces() did not return true on success"
         );
     }
@@ -272,7 +318,8 @@ mod tests {
             .insert(pubkey, Signature::from_slice(&bad_sig).unwrap());
 
         assert!(
-            !verify_public_nonces(&all_nonces, &all_sigs, DUMMY_TXID.parse::<Txid>().unwrap()),
+            !verify_public_nonces(&all_nonces, &all_sigs, DUMMY_TXID.parse::<Txid>().unwrap())
+                .is_err(),
             "verify_public_nonces() did not return false on invalid signature"
         );
     }
