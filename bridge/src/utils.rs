@@ -141,12 +141,11 @@ pub fn cleanup_cache_files(prefix: &str, cache_location: &Path, max_cache_files:
             .unwrap_or_else(|_| std::time::SystemTime::now())
     });
 
-    if paths.len() >= max_cache_files as usize {
-        if let Some(oldest) = paths.first() {
+    paths.reverse();
+    while paths.len() >= max_cache_files as usize {
+        if let Some(oldest) = paths.pop() {
+            println!("Old cache file deleted: {:?}", oldest);
             std::fs::remove_file(oldest)
-                .inspect(|_| {
-                    println!("Old cache file deleted: {:?}", oldest);
-                })
                 .inspect_err(|e| eprintln!("Failed to delete the old cache file: {}", e))
                 .ok();
         }
