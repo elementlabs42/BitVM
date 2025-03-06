@@ -9,6 +9,7 @@ use dotenv;
 
 // To use this data store, create a .env file in the base directory with the following values:
 // export BRIDGE_FILE_ROOT_PATH="..."
+// This data store driver will only be used in testing, DO NOT use in production
 pub struct LocalFile {
     base_path: std::path::PathBuf,
 }
@@ -19,6 +20,9 @@ impl LocalFile {
         let root_path = dotenv::var("BRIDGE_FILE_ROOT_PATH");
 
         if root_path.is_err() {
+            return None;
+        } else if !cfg!(debug_assertions) {
+            println!("Disabling local file data store, please remove BRIDGE_FILE_ROOT_PATH from .env in relesase mode");
             return None;
         }
 
