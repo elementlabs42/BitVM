@@ -200,10 +200,12 @@ impl ConnectorC {
         let file_path = get_lock_scripts_cache_path(&cache_id);
         let lock_scripts_bytes = read_disk_cache(&file_path)
             .inspect_err(|e| {
-                eprintln!(
-                    "Failed to read lock scripts cache from expected location: {}",
-                    e
-                );
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!(
+                        "Failed to read lock scripts cache from expected location: {}",
+                        e
+                    );
+                }
             })
             .ok()
             .unwrap_or_else(|| generate_assert_leaves(&self.commitment_public_keys));
