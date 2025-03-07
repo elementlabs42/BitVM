@@ -7,6 +7,8 @@ use super::base::DataStoreDriver;
 use async_trait::async_trait;
 use dotenv;
 
+pub const TEST_DATA_DIRECTORY_NAME: &str = "test_cache";
+const DATA_STORE_DIRECTORY_NAME: &str = "shared_file_store";
 // To use this data store, create a .env file in the base directory with the following values:
 // export BRIDGE_USE_LOCAL_FILE_DATA_STORE=true
 // This data store driver will only be used in testing, DO NOT use in production
@@ -27,11 +29,12 @@ impl LocalFile {
         {
             return None;
         } else if !cfg!(debug_assertions) {
-            println!("Disabling local file data store in relesase mode, please remove BRIDGE_USE_LOCAL_FILE_DATA_STORE or set it to false in .env");
+            println!("Disabling local file data store in release mode, please remove BRIDGE_USE_LOCAL_FILE_DATA_STORE or set it to false in .env");
             return None;
         }
 
-        let base_path = std::path::Path::new("test_cache").join("shared_file_store");
+        let base_path =
+            std::path::Path::new(TEST_DATA_DIRECTORY_NAME).join(DATA_STORE_DIRECTORY_NAME);
         if !base_path.exists() {
             if let Err(e) = std::fs::create_dir_all(base_path.clone()) {
                 eprintln!("Failed to create shared file store base path: {e}");
