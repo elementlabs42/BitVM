@@ -515,7 +515,7 @@ impl BitVMClient {
 
     pub async fn validate_data_with_cache_by_key(
         &mut self,
-        file_name: &String,
+        file_name: &str,
     ) -> (Option<BitVMClientPublicData>, usize, usize) {
         let result = self
             .data_store
@@ -529,9 +529,11 @@ impl BitVMClient {
                     if match PUBLIC_DATA_VALIDATION_CACHE
                         .write()
                         .unwrap()
-                        .try_get_or_insert(file_name.clone(), || match Self::validate_data(&data) {
-                            true => Ok(hash.clone()),
-                            false => Err(()),
+                        .try_get_or_insert(file_name.to_string(), || {
+                            match Self::validate_data(&data) {
+                                true => Ok(hash.clone()),
+                                false => Err(()),
+                            }
                         }) {
                         Ok(cached_hash) => cached_hash == &hash,
                         Err(_) => false,
