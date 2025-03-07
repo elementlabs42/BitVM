@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use dotenv;
 
 // To use this data store, create a .env file in the base directory with the following values:
-// export BRIDGE_FILE_ROOT_PATH="..."
+// export BRIDGE_USE_LOCAL_FILE_DATA_STORE=true
 // This data store driver will only be used in testing, DO NOT use in production
 pub struct LocalFile {
     base_path: std::path::PathBuf,
@@ -17,16 +17,21 @@ pub struct LocalFile {
 impl LocalFile {
     pub fn new() -> Option<Self> {
         dotenv::dotenv().ok();
-        let root_path = dotenv::var("BRIDGE_FILE_ROOT_PATH");
+        let env_var = dotenv::var("BRIDGE_USE_LOCAL_FILE_DATA_STORE");
 
-        if root_path.is_err() {
+        if env_var.is_err()
+            || env_var.is_ok_and(|v| {
+                let flag = v.parse::<bool>();
+                flag.is_err() || !flag.is_ok_and(|f| f)
+            })
+        {
             return None;
         } else if !cfg!(debug_assertions) {
-            println!("Disabling local file data store, please remove BRIDGE_FILE_ROOT_PATH from .env in relesase mode");
+            println!("Disabling local file data store in relesase mode, please remove BRIDGE_USE_LOCAL_FILE_DATA_STORE or set it to false in .env");
             return None;
         }
 
-        let base_path = std::path::Path::new(&root_path.unwrap()).join("shared_file_store");
+        let base_path = std::path::Path::new("test_cache").join("shared_file_store");
         if !base_path.exists() {
             if let Err(e) = std::fs::create_dir_all(base_path.clone()) {
                 eprintln!("Failed to create shared file store base path: {e}");
