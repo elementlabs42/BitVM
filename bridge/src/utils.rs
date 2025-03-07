@@ -146,8 +146,8 @@ pub fn cleanup_cache_files(prefix: &str, cache_location: &Path, max_cache_files:
         let oldest = paths.pop().unwrap();
         std::fs::remove_file(&oldest)
             .inspect_err(|e| eprintln!("Failed to delete the old cache file: {}", e))
+            .inspect(|_| println!("Old cache file deleted: {:?}", oldest))
             .ok();
-        println!("Old cache file deleted: {:?}", oldest);
     }
 }
 
