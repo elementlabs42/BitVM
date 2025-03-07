@@ -430,8 +430,7 @@ impl BitVMClient {
                 if result.is_ok() && result.as_ref().unwrap().0.is_some() {
                     let data = try_deserialize_slice(&(result.unwrap()).0.unwrap());
                     if data.is_ok()
-                        && (Self::validate_data(&self.esplora, data.as_ref().unwrap()).await)
-                            .is_ok()
+                        && Self::validate_data(&self.esplora, data.as_ref().unwrap()).await
                     {
                         // merge the file if the data is valid
                         println!("Merging {} data...", { file_name });
@@ -466,7 +465,7 @@ impl BitVMClient {
                 let (latest_data, latest_data_len, encoded_size) =
                     Self::fetch_by_key(data_store, &file_name, file_path).await;
                 if latest_data.is_some()
-                    && (Self::validate_data(client, latest_data.as_ref().unwrap()).await).is_ok()
+                    && Self::validate_data(client, latest_data.as_ref().unwrap()).await
                 {
                     // data is valid
                     println!(
@@ -549,10 +548,7 @@ impl BitVMClient {
         }
     }
 
-    pub async fn validate_data(
-        client: &AsyncClient,
-        data: &BitVMClientPublicData,
-    ) -> Result<(), Error> {
+    pub async fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
         for peg_in_graph in data.peg_in_graphs.iter() {
             if let Err(err) = peg_in_graph.validate() {
                 eprintln!(
@@ -561,7 +557,7 @@ impl BitVMClient {
                     err,
                 );
 
-                return Err(err);
+                return false;
             }
         }
         for peg_out_graph in data.peg_out_graphs.iter() {
@@ -572,12 +568,12 @@ impl BitVMClient {
                     err,
                 );
 
-                return Err(err);
+                return false;
             }
         }
 
         // println!("All graph data is valid");
-        Ok(())
+        true
     }
 
     /// Merges `data` into `self.data`.

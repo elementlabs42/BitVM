@@ -3,6 +3,7 @@ use std::str::FromStr;
 use bitcoin::{Amount, OutPoint, Txid};
 
 use bridge::{
+    error::{Error, ValidationError},
     graphs::{base::PEG_OUT_FEE, peg_in::PegInGraph, peg_out::PegOutGraph},
     scripts::generate_burn_script,
     transactions::{base::Input, pre_signed::PreSignedTransaction},
@@ -34,9 +35,16 @@ async fn test_validate_invalid_previous_output() {
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].previous_output = changed_outpoint;
 
-    let is_peg_in_data_valid = peg_in_graph.validate();
+    let result = peg_in_graph.validate();
 
-    assert!(is_peg_in_data_valid.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
+    ));
 }
 
 #[tokio::test]
@@ -46,9 +54,16 @@ async fn test_validate_invalid_script_sig() {
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].script_sig = generate_burn_script();
 
-    let is_peg_in_data_valid = peg_in_graph.validate();
+    let result = peg_in_graph.validate();
 
-    assert!(is_peg_in_data_valid.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
+    ));
 }
 
 #[tokio::test]
@@ -58,9 +73,16 @@ async fn test_validate_invalid_sequence() {
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].sequence = bitcoin::Sequence(100);
 
-    let is_peg_in_data_valid = peg_in_graph.validate();
+    let result = peg_in_graph.validate();
 
-    assert!(is_peg_in_data_valid.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
+    ));
 }
 
 #[tokio::test]
@@ -70,9 +92,16 @@ async fn test_validate_invalid_value() {
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].value = Amount::from_sat(1);
 
-    let is_peg_in_data_valid = peg_in_graph.validate();
+    let result = peg_in_graph.validate();
 
-    assert!(is_peg_in_data_valid.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
+    ));
 }
 
 #[tokio::test]
@@ -82,9 +111,16 @@ async fn test_validate_invalid_script_pubkey() {
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].script_pubkey = generate_burn_script();
 
-    let is_peg_in_data_valid = peg_in_graph.validate();
+    let result = peg_in_graph.validate();
 
-    assert!(is_peg_in_data_valid.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
+    ));
 }
 
 async fn setup_and_create_graphs() -> (PegInGraph, PegOutGraph, OutPoint, AsyncClient) {

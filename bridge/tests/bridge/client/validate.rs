@@ -4,7 +4,6 @@ use bitcoin::{Amount, OutPoint, Txid};
 
 use bridge::{
     client::client::{BitVMClient, BitVMClientPublicData},
-    error::{Error, ValidationError},
     graphs::{base::PEG_OUT_FEE, peg_in::PegInGraph, peg_out::PegOutGraph},
     scripts::generate_burn_script,
     transactions::{base::Input, pre_signed::PreSignedTransaction},
@@ -19,7 +18,7 @@ async fn test_validate_success() {
 
     let result = BitVMClient::validate_data(&esplora, &data).await;
 
-    assert!(result.is_ok());
+    assert!(result);
 }
 
 #[tokio::test]
@@ -35,14 +34,8 @@ async fn test_validate_invalid_previous_output() {
     deposit_tx.input[0].previous_output = changed_outpoint;
 
     let result = BitVMClient::validate_data(&esplora, &data).await;
-    assert!(matches!(
-        result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(
-            _,
-            _,
-            _
-        )))
-    ));
+
+    assert!(!result);
 }
 
 #[tokio::test]
@@ -54,14 +47,7 @@ async fn test_validate_invalid_script_sig() {
 
     let result = BitVMClient::validate_data(&esplora, &data).await;
 
-    assert!(matches!(
-        result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(
-            _,
-            _,
-            _
-        )))
-    ));
+    assert!(!result);
 }
 
 #[tokio::test]
@@ -73,14 +59,7 @@ async fn test_validate_invalid_sequence() {
 
     let result = BitVMClient::validate_data(&esplora, &data).await;
 
-    assert!(matches!(
-        result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(
-            _,
-            _,
-            _
-        )))
-    ));
+    assert!(!result);
 }
 
 #[tokio::test]
@@ -92,14 +71,7 @@ async fn test_validate_invalid_value() {
 
     let result = BitVMClient::validate_data(&esplora, &data).await;
 
-    assert!(matches!(
-        result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(
-            _,
-            _,
-            _
-        )))
-    ));
+    assert!(!result);
 }
 
 #[tokio::test]
@@ -111,14 +83,7 @@ async fn test_validate_invalid_script_pubkey() {
 
     let result = BitVMClient::validate_data(&esplora, &data).await;
 
-    assert!(matches!(
-        result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(
-            _,
-            _,
-            _
-        )))
-    ));
+    assert!(!result);
 }
 
 async fn setup_and_create_graphs() -> (AsyncClient, BitVMClientPublicData, OutPoint) {
