@@ -37,7 +37,11 @@ async fn test_validate_invalid_previous_output() {
     let result = BitVMClient::validate_data(&esplora, &data).await;
     assert!(matches!(
         result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(_)))
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
     ));
 }
 
@@ -52,7 +56,11 @@ async fn test_validate_invalid_script_sig() {
 
     assert!(matches!(
         result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(_)))
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
     ));
 }
 
@@ -67,7 +75,11 @@ async fn test_validate_invalid_sequence() {
 
     assert!(matches!(
         result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(_)))
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
     ));
 }
 
@@ -82,7 +94,11 @@ async fn test_validate_invalid_value() {
 
     assert!(matches!(
         result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(_)))
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
     ));
 }
 
@@ -97,7 +113,11 @@ async fn test_validate_invalid_script_pubkey() {
 
     assert!(matches!(
         result,
-        Err(Error::Validation(ValidationError::TxValidationFailed(_)))
+        Err(Error::Validation(ValidationError::TxValidationFailed(
+            _,
+            _,
+            _
+        )))
     ));
 }
 

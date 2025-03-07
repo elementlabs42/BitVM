@@ -554,31 +554,25 @@ impl BitVMClient {
         data: &BitVMClientPublicData,
     ) -> Result<(), Error> {
         for peg_in_graph in data.peg_in_graphs.iter() {
-            match peg_in_graph.validate() {
-                Ok(_) => (),
-                Err(err) => {
-                    println!(
-                        "Encountered invalid peg-in graph (graph ID: {}), with error: {}",
-                        peg_in_graph.id(),
-                        err,
-                    );
+            if let Err(err) = peg_in_graph.validate() {
+                eprintln!(
+                    "Encountered invalid peg-in graph (graph ID: {}), with error: {}",
+                    peg_in_graph.id(),
+                    err,
+                );
 
-                    return Err(err);
-                }
+                return Err(err);
             }
         }
         for peg_out_graph in data.peg_out_graphs.iter() {
-            match peg_out_graph.validate(client).await {
-                Ok(_) => (),
-                Err(err) => {
-                    println!(
-                        "Encountered invalid peg-out graph (graph ID: {}), with error: {}",
-                        peg_out_graph.id(),
-                        err,
-                    );
+            if let Err(err) = peg_out_graph.validate(client).await {
+                eprintln!(
+                    "Encountered invalid peg-out graph (graph ID: {}), with error: {}",
+                    peg_out_graph.id(),
+                    err,
+                );
 
-                    return Err(err);
-                }
+                return Err(err);
             }
         }
 

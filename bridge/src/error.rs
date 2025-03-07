@@ -56,9 +56,9 @@ pub enum L2Error {
 
 #[derive(Debug)]
 pub enum ValidationError {
-    WitnessMismatch(Txid, usize), // txid: the transaction id, usize: tx input index
-    TxValidationFailed(Txid),     // txid: the transaction id
-    NoncesValidationFailed(PublicKey, Txid, usize), // pubkey: the public key, txid: the transaction id, usize: tx input index
+    WitnessMismatch(String, Txid, usize), // String: tx name, txid: the transaction id, usize: tx input index
+    TxValidationFailed(String, Txid, usize), // String: tx name, txid: the transaction id, usize: tx input index
+    NoncesValidationFailed(String, PublicKey, Txid, usize), // String: tx name, pubkey: the public key, txid: the transaction id, usize: tx input index
 }
 
 #[derive(Debug)]

@@ -571,32 +571,23 @@ impl PegInGraph {
 
     pub fn validate(&self) -> Result<(), Error> {
         let peg_in_graph = self.new_for_validation();
-        match validate_transaction(
+        validate_transaction(
             self.peg_in_deposit_transaction.tx(),
             peg_in_graph.peg_in_deposit_transaction.tx(),
-        ) {
-            Ok(_) => (),
-            Err(e) => return Err(e),
-        }
-        match validate_transaction(
+            self.peg_in_deposit_transaction.name(),
+        )?;
+        validate_transaction(
             self.peg_in_refund_transaction.tx(),
             peg_in_graph.peg_in_refund_transaction.tx(),
-        ) {
-            Ok(_) => (),
-            Err(e) => return Err(e),
-        }
-        match validate_transaction(
+            self.peg_in_refund_transaction.name(),
+        )?;
+        validate_transaction(
             self.peg_in_confirm_transaction.tx(),
             peg_in_graph.peg_in_confirm_transaction.tx(),
-        ) {
-            Ok(_) => (),
-            Err(e) => return Err(e),
-        }
+            self.peg_in_confirm_transaction.name(),
+        )?;
 
-        match verify_public_nonces_for_tx(&self.peg_in_confirm_transaction) {
-            Ok(_) => (),
-            Err(e) => return Err(e),
-        }
+        verify_public_nonces_for_tx(&self.peg_in_confirm_transaction)?;
 
         Ok(())
     }

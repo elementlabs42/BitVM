@@ -130,19 +130,17 @@ fn merge_hash_maps<T: Clone>(
 pub fn validate_transaction(
     transaction: &Transaction,
     comparison_transaction: &Transaction,
+    tx_name: &str,
 ) -> Result<(), Error> {
     for i in 0..comparison_transaction.input.len() {
         if transaction.input[i].previous_output != comparison_transaction.input[i].previous_output
             || transaction.input[i].script_sig != comparison_transaction.input[i].script_sig
             || transaction.input[i].sequence != comparison_transaction.input[i].sequence
         {
-            println!(
-                "Input mismatch on transaction: {} input index: {}",
-                transaction.compute_txid(),
-                i
-            );
             return Err(Error::Validation(ValidationError::TxValidationFailed(
+                tx_name.to_string(),
                 transaction.compute_txid(),
+                i,
             )));
         }
     }
@@ -151,13 +149,10 @@ pub fn validate_transaction(
         if transaction.output[i].value != comparison_transaction.output[i].value
             || transaction.output[i].script_pubkey != comparison_transaction.output[i].script_pubkey
         {
-            println!(
-                "Output mismatch on transaction: {} output index: {}",
-                transaction.compute_txid(),
-                i
-            );
             return Err(Error::Validation(ValidationError::TxValidationFailed(
+                tx_name.to_string(),
                 transaction.compute_txid(),
+                i,
             )));
         }
     }
@@ -165,40 +160,36 @@ pub fn validate_transaction(
     Ok(())
 }
 
-pub async fn validate_witness(client: &AsyncClient, tx: &Transaction) -> Result<(), Error> {
+pub async fn validate_witness(
+    client: &AsyncClient,
+    tx: &Transaction,
+    tx_name: &str,
+) -> Result<(), Error> {
     let txid = tx.compute_txid();
-    let tx_status = client.get_tx_status(&txid).await;
+    let tx_status = client.get_tx_status(&txid).await.map_err(Error::Esplora)?;
 
-    match tx_status {
-        Ok(status) => {
-            if status.confirmed {
-                let result = client.get_tx(&txid).await;
-                match result {
-                    Ok(result_tx) => match result_tx {
-                        Some(actual_tx) => {
-                            for i in 0..tx.input.len() {
-                                if tx.input[i].witness != actual_tx.input[i].witness {
-                                    return Err(Error::Validation(
-                                        ValidationError::WitnessMismatch(txid, i),
-                                    ));
-                                }
-                            }
-                            return Ok(());
-                        }
-                        None => {
-                            return Err(Error::Other(format!(
-                                "Failed to find tx with id: {}",
-                                txid
-                            )))
-                        }
-                    },
-                    Err(e) => return Err(Error::Esplora(e)),
+    if tx_status.confirmed {
+        let result_tx = client.get_tx(&txid).await.map_err(Error::Esplora)?;
+        match result_tx {
+            Some(onchain_tx) => {
+                for i in 0..tx.input.len() {
+                    if tx.input[i].witness != onchain_tx.input[i].witness {
+                        return Err(Error::Validation(ValidationError::WitnessMismatch(
+                            tx_name.to_string(),
+                            txid,
+                            i,
+                        )));
+                    }
                 }
+                Ok(())
             }
-
-            return Ok(());
+            None => Err(Error::Other(format!(
+                "Esplora failed to retrieve a confirmed tx with id: {}",
+                txid
+            ))),
         }
-        Err(e) => return Err(Error::Esplora(e)),
+    } else {
+        Ok(())
     }
 }
 
@@ -206,6 +197,7 @@ fn verify_public_nonces(
     all_nonces: &HashMap<usize, HashMap<PublicKey, PubNonce>>,
     all_sigs: &HashMap<usize, HashMap<PublicKey, Signature>>,
     txid: Txid,
+    tx_name: &str,
 ) -> Result<(), Error> {
     for (i, nonces) in all_nonces {
         for (pubkey, nonce) in nonces {
@@ -214,7 +206,10 @@ fn verify_public_nonces(
                     "Failed to verify public nonce for pubkey {pubkey} on tx:input {txid}:{i}."
                 );
                 return Err(Error::Validation(ValidationError::NoncesValidationFailed(
-                    *pubkey, txid, *i,
+                    tx_name.to_string(),
+                    *pubkey,
+                    txid,
+                    *i,
                 )));
             }
         }
@@ -223,11 +218,14 @@ fn verify_public_nonces(
     Ok(())
 }
 
-pub fn verify_public_nonces_for_tx(tx: &impl PreSignedMusig2Transaction) -> Result<(), Error> {
+pub fn verify_public_nonces_for_tx(
+    tx: &(impl BaseTransaction + PreSignedMusig2Transaction),
+) -> Result<(), Error> {
     verify_public_nonces(
         tx.musig2_nonces(),
         tx.musig2_nonce_signatures(),
         tx.tx().compute_txid(),
+        tx.name(),
     )
 }
 
@@ -298,8 +296,13 @@ mod tests {
         let (all_nonces, all_sigs) = get_test_nonces();
 
         assert!(
-            verify_public_nonces(&all_nonces, &all_sigs, DUMMY_TXID.parse::<Txid>().unwrap())
-                .is_ok(),
+            verify_public_nonces(
+                &all_nonces,
+                &all_sigs,
+                DUMMY_TXID.parse::<Txid>().unwrap(),
+                "test_tx"
+            )
+            .is_ok(),
             "verify_public_nonces() did not return true on success"
         );
     }
@@ -318,8 +321,13 @@ mod tests {
             .insert(pubkey, Signature::from_slice(&bad_sig).unwrap());
 
         assert!(
-            !verify_public_nonces(&all_nonces, &all_sigs, DUMMY_TXID.parse::<Txid>().unwrap())
-                .is_err(),
+            !verify_public_nonces(
+                &all_nonces,
+                &all_sigs,
+                DUMMY_TXID.parse::<Txid>().unwrap(),
+                "test_tx"
+            )
+            .is_err(),
             "verify_public_nonces() did not return false on invalid signature"
         );
     }
