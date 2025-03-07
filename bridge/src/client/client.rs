@@ -421,15 +421,9 @@ impl BitVMClient {
         } else {
             // TODO: can be optimized to fetch all data at once?
             for file_name in file_names.iter() {
-                let (latest_data, _, _, data_hash) = self.fetch_by_key(&file_name).await;
+                let (latest_data, _, _) = self.validate_data_with_cache_by_key(&file_name).await;
 
-                if latest_data.is_some()
-                    && self.validate_data_with_cache(
-                        latest_data.as_ref().unwrap(),
-                        &file_name,
-                        &data_hash,
-                    )
-                {
+                if latest_data.is_some() {
                     // merge the file if the data is valid
                     println!("Merging {} data...", { file_name });
                     self.merge_data(latest_data.unwrap());
@@ -457,15 +451,9 @@ impl BitVMClient {
             let file_name_result = file_names.pop();
             if file_name_result.is_some() {
                 let file_name = file_name_result.unwrap();
-                let (latest_data, latest_data_len, encoded_size, data_hash) =
-                    self.fetch_by_key(&file_name).await;
-                if latest_data.is_some()
-                    && self.validate_data_with_cache(
-                        latest_data.as_ref().unwrap(),
-                        &file_name,
-                        &data_hash,
-                    )
-                {
+                let (latest_data, latest_data_len, encoded_size) =
+                    self.validate_data_with_cache_by_key(&file_name).await;
+                if latest_data.is_some() {
                     // data is valid
                     println!(
                         "Fetched valid file: {} (size: {}, compressed: {})",
@@ -484,29 +472,6 @@ impl BitVMClient {
         }
 
         (latest_valid_file, latest_valid_file_name)
-    }
-
-    async fn fetch_by_key(
-        &mut self,
-        key: &String,
-    ) -> (Option<BitVMClientPublicData>, usize, usize, String) {
-        let result = self
-            .data_store
-            .fetch_compressed_data_by_key(key, Some(&self.remote_file_path))
-            .await;
-        if result.is_ok() {
-            if let (Some(content), encoded_size) = result.unwrap() {
-                let data = try_deserialize_slice(&content);
-                if let Ok(data) = data {
-                    let hash = hash160::Hash::hash(&content);
-                    return (Some(data), content.len(), encoded_size, hex::encode(hash));
-                } else {
-                    eprintln!("{}", data.err().unwrap());
-                }
-            }
-        }
-
-        (None, 0, 0, String::from(""))
     }
 
     async fn save_to_data_store(&mut self) {
@@ -548,22 +513,38 @@ impl BitVMClient {
         }
     }
 
-    pub fn validate_data_with_cache(
+    pub async fn validate_data_with_cache_by_key(
         &mut self,
-        data: &BitVMClientPublicData,
         file_name: &String,
-        data_hash: &String,
-    ) -> bool {
-        match PUBLIC_DATA_VALIDATION_CACHE
-            .write()
-            .unwrap()
-            .try_get_or_insert(file_name.clone(), || match Self::validate_data(data) {
-                true => Ok(data_hash.clone()),
-                false => Err(()),
-            }) {
-            Ok(cached_hash) => cached_hash == data_hash,
-            Err(_) => false,
+    ) -> (Option<BitVMClientPublicData>, usize, usize) {
+        let result = self
+            .data_store
+            .fetch_compressed_data_by_key(file_name, Some(&self.remote_file_path))
+            .await;
+        if result.is_ok() {
+            if let (Some(content), encoded_size) = result.unwrap() {
+                let data = try_deserialize_slice(&content);
+                if let Ok(data) = data {
+                    let hash = hex::encode(hash160::Hash::hash(&content));
+                    if match PUBLIC_DATA_VALIDATION_CACHE
+                        .write()
+                        .unwrap()
+                        .try_get_or_insert(file_name.clone(), || match Self::validate_data(&data) {
+                            true => Ok(hash.clone()),
+                            false => Err(()),
+                        }) {
+                        Ok(cached_hash) => cached_hash == &hash,
+                        Err(_) => false,
+                    } {
+                        return (Some(data), content.len(), encoded_size);
+                    }
+                } else {
+                    eprintln!("{}", data.err().unwrap());
+                }
+            }
         }
+
+        (None, 0, 0)
     }
 
     pub fn validate_data(data: &BitVMClientPublicData) -> bool {
