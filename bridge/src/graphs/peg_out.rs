@@ -1898,6 +1898,30 @@ impl PegOutGraph {
     ) -> Result<Transaction, Error> {
         verify_if_not_mined(client, self.disprove_transaction.tx().compute_txid()).await?;
 
+        let assert_commit_1_txid = self.assert_commit_1_transaction.tx().compute_txid();
+        let assert_commit_2_txid = self.assert_commit_2_transaction.tx().compute_txid();
+        let onchain_assert_commit_1_tx = client
+            .get_tx(&assert_commit_1_txid)
+            .await
+            .map_err(Error::Esplora)?;
+        let onchain_assert_commit_2_tx = client
+            .get_tx(&assert_commit_2_txid)
+            .await
+            .map_err(Error::Esplora)?;
+
+        if let None = onchain_assert_commit_1_tx {
+            return Err(Error::Other(format!(
+                "Esplora failed to retrieve a confirmed tx with id: {}",
+                assert_commit_1_txid
+            )));
+        }
+        if let None = onchain_assert_commit_2_tx {
+            return Err(Error::Other(format!(
+                "Esplora failed to retrieve a confirmed tx with id: {}",
+                assert_commit_2_txid
+            )));
+        }
+
         let assert_final_txid = self.assert_final_transaction.tx().compute_txid();
         let assert_final_status = client.get_tx_status(&assert_final_txid).await;
 
@@ -1906,9 +1930,9 @@ impl PegOutGraph {
                 true => {
                     // get commit from assert_commit txs
                     let assert_commit_1_witness =
-                        get_commit_from_assert_commit_tx(self.assert_commit_1_transaction.tx());
+                        get_commit_from_assert_commit_tx(&onchain_assert_commit_1_tx.unwrap());
                     let assert_commit_2_witness =
-                        get_commit_from_assert_commit_tx(self.assert_commit_2_transaction.tx());
+                        get_commit_from_assert_commit_tx(&onchain_assert_commit_2_tx.unwrap());
 
                     let (input_script_index, disprove_witness) =
                         self.connector_c.generate_disprove_witness(
@@ -2307,6 +2331,24 @@ impl PegOutGraph {
             client,
             self.assert_commit_2_transaction.tx(),
             self.assert_commit_2_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.start_time_transaction.tx(),
+            self.start_time_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.kick_off_2_transaction.tx(),
+            self.kick_off_2_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.peg_out_confirm_transaction.tx(),
+            self.peg_out_confirm_transaction.name(),
         )
         .await?;
 
