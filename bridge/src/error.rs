@@ -1,7 +1,7 @@
 use super::commitments::CommitmentMessageId;
 use super::graphs::base::GraphId;
 use super::transactions::{base::BaseTransaction, pre_signed::PreSignedTransaction};
-use bitcoin::Txid;
+use bitcoin::{PublicKey, Txid};
 use std::fmt::{self, Display};
 use strum::Display;
 
@@ -55,6 +55,13 @@ pub enum L2Error {
 }
 
 #[derive(Debug)]
+pub enum ValidationError {
+    WitnessMismatch(String, Txid, usize), // String: tx name, txid: the transaction id, usize: tx input index
+    TxValidationFailed(String, Txid, usize), // String: tx name, txid: the transaction id, usize: tx input index
+    NoncesValidationFailed(String, PublicKey, Txid, usize), // String: tx name, pubkey: the public key, txid: the transaction id, usize: tx input index
+}
+
+#[derive(Debug)]
 pub enum ChunkerError {
     ValidProof,
 }
@@ -67,7 +74,8 @@ pub enum Error {
     Transaction(TransactionError),
     L2(L2Error),
     Chunker(ChunkerError),
-    Other(&'static str),
+    Validation(ValidationError),
+    Other(String),
 }
 
 impl fmt::Display for Error {

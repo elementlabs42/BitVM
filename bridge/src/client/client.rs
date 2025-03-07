@@ -285,6 +285,7 @@ impl BitVMClient {
                 // fetch latest valid file
                 let (latest_file, latest_file_name) = Self::fetch_latest_valid_file(
                     &self.data_store,
+                    &self.esplora,
                     &mut latest_file_names,
                     Some(&self.remote_file_path),
                 )
@@ -428,7 +429,9 @@ impl BitVMClient {
                     .await; // TODO: use `fetch_by_key()` function
                 if result.is_ok() && result.as_ref().unwrap().0.is_some() {
                     let data = try_deserialize_slice(&(result.unwrap()).0.unwrap());
-                    if data.is_ok() && Self::validate_data(data.as_ref().unwrap()) {
+                    if data.is_ok()
+                        && Self::validate_data(&self.esplora, data.as_ref().unwrap()).await
+                    {
                         // merge the file if the data is valid
                         println!("Merging {} data...", { file_name });
                         self.merge_data(data.unwrap());
@@ -448,6 +451,7 @@ impl BitVMClient {
 
     async fn fetch_latest_valid_file(
         data_store: &DataStore,
+        client: &AsyncClient,
         file_names: &mut Vec<String>,
         file_path: Option<&str>,
     ) -> (Option<BitVMClientPublicData>, Option<String>) {
@@ -460,7 +464,9 @@ impl BitVMClient {
                 let file_name = file_name_result.unwrap();
                 let (latest_data, latest_data_len, encoded_size) =
                     Self::fetch_by_key(data_store, &file_name, file_path).await;
-                if latest_data.is_some() && Self::validate_data(latest_data.as_ref().unwrap()) {
+                if latest_data.is_some()
+                    && Self::validate_data(client, latest_data.as_ref().unwrap()).await
+                {
                     // data is valid
                     println!(
                         "Fetched valid file: {} (size: {}, compressed: {})",
@@ -542,22 +548,26 @@ impl BitVMClient {
         }
     }
 
-    pub fn validate_data(data: &BitVMClientPublicData) -> bool {
+    pub async fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
         for peg_in_graph in data.peg_in_graphs.iter() {
-            if !peg_in_graph.validate() {
-                println!(
-                    "Encountered invalid peg-in graph (graph ID: {})",
-                    peg_in_graph.id()
+            if let Err(err) = peg_in_graph.validate() {
+                eprintln!(
+                    "Encountered invalid peg-in graph (graph ID: {}), with error: {}",
+                    peg_in_graph.id(),
+                    err,
                 );
+
                 return false;
             }
         }
         for peg_out_graph in data.peg_out_graphs.iter() {
-            if !peg_out_graph.validate() {
-                println!(
-                    "Encountered invalid peg-out graph (graph ID: {})",
-                    peg_out_graph.id()
+            if let Err(err) = peg_out_graph.validate(client).await {
+                eprintln!(
+                    "Encountered invalid peg-out graph (graph ID: {}), with error: {}",
+                    peg_out_graph.id(),
+                    err,
                 );
+
                 return false;
             }
         }

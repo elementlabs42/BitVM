@@ -38,6 +38,7 @@ use crate::{
                 AssertCommit2ConnectorsE, AssertCommitConnectorsF,
             },
         },
+        base::validate_witness,
         peg_in_confirm::PEG_IN_CONFIRM_TX_NAME,
         pre_signed_musig2::PreSignedMusig2Transaction,
     },
@@ -1933,6 +1934,30 @@ impl PegOutGraph {
     ) -> Result<Transaction, Error> {
         verify_if_not_mined(client, self.disprove_transaction.tx().compute_txid()).await?;
 
+        let assert_commit_1_txid = self.assert_commit_1_transaction.tx().compute_txid();
+        let assert_commit_2_txid = self.assert_commit_2_transaction.tx().compute_txid();
+        let onchain_assert_commit_1_tx = client
+            .get_tx(&assert_commit_1_txid)
+            .await
+            .map_err(Error::Esplora)?;
+        let onchain_assert_commit_2_tx = client
+            .get_tx(&assert_commit_2_txid)
+            .await
+            .map_err(Error::Esplora)?;
+
+        if let None = onchain_assert_commit_1_tx {
+            return Err(Error::Other(format!(
+                "Esplora failed to retrieve a confirmed tx with id: {}",
+                assert_commit_1_txid
+            )));
+        }
+        if let None = onchain_assert_commit_2_tx {
+            return Err(Error::Other(format!(
+                "Esplora failed to retrieve a confirmed tx with id: {}",
+                assert_commit_2_txid
+            )));
+        }
+
         let assert_final_txid = self.assert_final_transaction.tx().compute_txid();
         let assert_final_status = client.get_tx_status(&assert_final_txid).await;
 
@@ -1941,9 +1966,9 @@ impl PegOutGraph {
                 true => {
                     // get commit from assert_commit txs
                     let assert_commit_1_witness =
-                        get_commit_from_assert_commit_tx(self.assert_commit_1_transaction.tx());
+                        get_commit_from_assert_commit_tx(&onchain_assert_commit_1_tx.unwrap());
                     let assert_commit_2_witness =
-                        get_commit_from_assert_commit_tx(self.assert_commit_2_transaction.tx());
+                        get_commit_from_assert_commit_tx(&onchain_assert_commit_2_tx.unwrap());
 
                     let (input_script_index, disprove_witness) =
                         self.connector_c.generate_disprove_witness(
@@ -2253,129 +2278,127 @@ impl PegOutGraph {
         )
     }
 
-    pub fn validate(&self) -> bool {
-        let mut ret_val = true;
+    pub async fn validate(&self, client: &AsyncClient) -> Result<(), Error> {
         let peg_out_graph = self.new_for_validation();
-        if !validate_transaction(
+
+        validate_transaction(
             self.assert_initial_transaction.tx(),
             peg_out_graph.assert_initial_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.assert_initial_transaction.name(),
+        )?;
+        validate_transaction(
             self.assert_commit_1_transaction.tx(),
             peg_out_graph.assert_commit_1_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.assert_commit_1_transaction.name(),
+        )?;
+        validate_transaction(
             self.assert_commit_2_transaction.tx(),
             peg_out_graph.assert_commit_2_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.assert_commit_2_transaction.name(),
+        )?;
+        validate_transaction(
             self.assert_final_transaction.tx(),
             peg_out_graph.assert_final_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.assert_final_transaction.name(),
+        )?;
+        validate_transaction(
             self.challenge_transaction.tx(),
             peg_out_graph.challenge_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.challenge_transaction.name(),
+        )?;
+        validate_transaction(
             self.disprove_chain_transaction.tx(),
             peg_out_graph.disprove_chain_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.disprove_chain_transaction.name(),
+        )?;
+        validate_transaction(
             self.disprove_transaction.tx(),
             peg_out_graph.disprove_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.disprove_transaction.name(),
+        )?;
+        validate_transaction(
             self.peg_out_confirm_transaction.tx(),
             peg_out_graph.peg_out_confirm_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.peg_out_confirm_transaction.name(),
+        )?;
+        validate_transaction(
             self.kick_off_1_transaction.tx(),
             peg_out_graph.kick_off_1_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.kick_off_1_transaction.name(),
+        )?;
+        validate_transaction(
             self.kick_off_2_transaction.tx(),
             peg_out_graph.kick_off_2_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.kick_off_2_transaction.name(),
+        )?;
+        validate_transaction(
             self.kick_off_timeout_transaction.tx(),
             peg_out_graph.kick_off_timeout_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.kick_off_timeout_transaction.name(),
+        )?;
+        validate_transaction(
             self.start_time_transaction.tx(),
             peg_out_graph.start_time_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.start_time_transaction.name(),
+        )?;
+        validate_transaction(
             self.start_time_timeout_transaction.tx(),
             peg_out_graph.start_time_timeout_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.start_time_timeout_transaction.name(),
+        )?;
+        validate_transaction(
             self.take_1_transaction.tx(),
             peg_out_graph.take_1_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
-        if !validate_transaction(
+            self.take_1_transaction.name(),
+        )?;
+        validate_transaction(
             self.take_2_transaction.tx(),
             peg_out_graph.take_2_transaction.tx(),
-        ) {
-            ret_val = false;
-        }
+            self.take_2_transaction.name(),
+        )?;
 
-        if !verify_public_nonces_for_tx(&self.assert_initial_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.assert_final_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.disprove_chain_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.disprove_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.kick_off_timeout_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.start_time_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.start_time_timeout_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.take_1_transaction) {
-            ret_val = false;
-        }
-        if !verify_public_nonces_for_tx(&self.take_2_transaction) {
-            ret_val = false;
-        }
+        validate_witness(
+            client,
+            self.assert_commit_1_transaction.tx(),
+            self.assert_commit_1_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.assert_commit_2_transaction.tx(),
+            self.assert_commit_2_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.start_time_transaction.tx(),
+            self.start_time_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.kick_off_2_transaction.tx(),
+            self.kick_off_2_transaction.name(),
+        )
+        .await?;
+        validate_witness(
+            client,
+            self.peg_out_confirm_transaction.tx(),
+            self.peg_out_confirm_transaction.name(),
+        )
+        .await?;
 
-        ret_val
+        verify_public_nonces_for_tx(&self.assert_initial_transaction)?;
+        verify_public_nonces_for_tx(&self.assert_final_transaction)?;
+        verify_public_nonces_for_tx(&self.disprove_chain_transaction)?;
+        verify_public_nonces_for_tx(&self.disprove_transaction)?;
+        verify_public_nonces_for_tx(&self.kick_off_timeout_transaction)?;
+        verify_public_nonces_for_tx(&self.start_time_transaction)?;
+        verify_public_nonces_for_tx(&self.start_time_timeout_transaction)?;
+        verify_public_nonces_for_tx(&self.take_1_transaction)?;
+        verify_public_nonces_for_tx(&self.take_2_transaction)?;
+
+        Ok(())
     }
 
     pub fn merge(&mut self, source_peg_out_graph: &PegOutGraph) {
