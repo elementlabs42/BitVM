@@ -207,12 +207,11 @@ impl ConnectorC {
                     );
                 }
             })
-            .ok()
-            .unwrap_or_else(|| generate_assert_leaves(&self.commitment_public_keys));
+            .unwrap_or_else(|_| generate_assert_leaves(&self.commitment_public_keys));
         if !file_path.exists() {
             write_disk_cache(&file_path, &lock_scripts_bytes)
-                .map_err(|e| format!("Failed to write lock scripts cache to disk: {}", e))
-                .unwrap();
+                .inspect_err(|e| eprintln!("Failed to write lock scripts cache to disk: {}", e))
+                .ok();
         }
         cleanup_cache_files(
             LOCK_SCRIPTS_FILE_PREFIX,

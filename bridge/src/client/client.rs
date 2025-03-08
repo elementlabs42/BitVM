@@ -801,9 +801,9 @@ impl BitVMClient {
                             .unwrap();
                         let utxo = utxos
                             .into_iter()
-                            .find(|x| x.value.to_sat() != expected_peg_out_confirm_amount)
+                            .find(|x| x.value.to_sat() >= expected_peg_out_confirm_amount)
                             .unwrap_or_else(|| {
-                                panic!("No utxo found with {expected_peg_out_confirm_amount} sats for address {address}")
+                                panic!("No utxo found with at least {expected_peg_out_confirm_amount} sats for address {address}")
                             });
                         Input {
                             amount: utxo.value,
@@ -1226,6 +1226,29 @@ impl BitVMClient {
             )
             .await?;
         self.broadcast_tx(&tx).await
+    }
+
+    // use this when possible
+    // broadcast assert commits together to save groth16 verifying time
+    pub async fn broadcast_assert_commits(
+        &mut self,
+        peg_out_graph_id: &String,
+        proof: &RawProof,
+    ) -> Result<(Txid, Txid), Error> {
+        let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
+        let (commit1_tx, commit2_tx) = graph
+            .assert_commits(
+                &self.esplora,
+                &self.private_data.commitment_secrets
+                    [&self.operator_context.as_ref().unwrap().operator_public_key]
+                    [peg_out_graph_id],
+                proof,
+            )
+            .await?;
+        Ok((
+            self.broadcast_tx(&commit1_tx).await?,
+            self.broadcast_tx(&commit2_tx).await?,
+        ))
     }
 
     pub async fn broadcast_assert_final(
