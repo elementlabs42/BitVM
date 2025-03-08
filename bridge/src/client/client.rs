@@ -441,7 +441,7 @@ impl BitVMClient {
     }
 
     async fn fetch_latest_valid_file(
-        &mut self,
+        &self,
         file_names: &mut Vec<String>,
     ) -> (Option<BitVMClientPublicData>, Option<String>) {
         let mut latest_valid_file: Option<BitVMClientPublicData> = None;
@@ -514,7 +514,7 @@ impl BitVMClient {
     }
 
     pub async fn validate_data_with_cache_by_key(
-        &mut self,
+        &self,
         file_name: &str,
     ) -> (Option<BitVMClientPublicData>, usize, usize) {
         let result = self
