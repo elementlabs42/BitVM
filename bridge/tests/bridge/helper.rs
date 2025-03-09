@@ -264,7 +264,7 @@ pub fn random_hex<'a>(size: usize) -> Cow<'a, str> {
     Cow::Owned(buffer.to_hex_string(Lower))
 }
 
-const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "intermediates.bin";
+const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "test_cache/intermediates.bin";
 
 pub fn get_intermediate_variables_cached() -> BTreeMap<String, usize> {
     let intermediate_variables_cache_path =

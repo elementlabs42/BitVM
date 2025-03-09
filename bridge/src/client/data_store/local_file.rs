@@ -7,7 +7,7 @@ use super::base::DataStoreDriver;
 use async_trait::async_trait;
 use dotenv;
 
-pub const TEST_DATA_DIRECTORY_NAME: &str = "test_cache";
+pub const TEST_DATA_DIRECTORY_NAME: &str = "test_data";
 const DATA_STORE_DIRECTORY_NAME: &str = "shared_file_store";
 // To use this data store, create a .env file in the base directory with the following values:
 // export BRIDGE_USE_LOCAL_FILE_DATA_STORE=true
