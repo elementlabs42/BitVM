@@ -36,7 +36,7 @@ impl LocalFile {
         let base_path =
             std::path::Path::new(TEST_DATA_DIRECTORY_NAME).join(DATA_STORE_DIRECTORY_NAME);
         if !base_path.exists() {
-            if let Err(e) = std::fs::create_dir_all(base_path.clone()) {
+            if let Err(e) = std::fs::create_dir_all(&base_path) {
                 eprintln!("Failed to create shared file store base path: {e}");
                 return None;
             }
@@ -83,10 +83,10 @@ impl DataStoreDriver for LocalFile {
     async fn list_objects(&self, file_path: Option<&str>) -> Result<Vec<String>, String> {
         let path = match file_path {
             Some(file_path) => self.base_path.join(file_path),
-            None => self.base_path.clone(),
+            None => self.base_path,
         };
         if !path.exists() {
-            std::fs::create_dir_all(path.clone()).map_err(err_to_string)?;
+            std::fs::create_dir_all(&path).map_err(err_to_string)?;
         }
         let paths = std::fs::read_dir(path).unwrap();
 

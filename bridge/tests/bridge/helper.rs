@@ -264,11 +264,13 @@ pub fn random_hex<'a>(size: usize) -> Cow<'a, str> {
     Cow::Owned(buffer.to_hex_string(Lower))
 }
 
-const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "test_cache/intermediates.bin";
+const INTERMEDIATE_VARIABLES_FILE_NAME: &str = "intermediates.bin";
+const TEST_CACHE_DIRECTORY_NAME: &str = "test_cache";
 
 pub fn get_intermediate_variables_cached() -> BTreeMap<String, usize> {
-    let intermediate_variables_cache_path =
-        Path::new(TEST_DATA_DIRECTORY_NAME).join(INTERMEDIATE_VARIABLES_FILE_NAME);
+    let intermediate_variables_cache_path = Path::new(TEST_DATA_DIRECTORY_NAME)
+        .join(TEST_CACHE_DIRECTORY_NAME)
+        .join(INTERMEDIATE_VARIABLES_FILE_NAME);
     let intermediate_variables = if intermediate_variables_cache_path.exists() {
         read_disk_cache(&intermediate_variables_cache_path)
             .inspect_err(|e| {
