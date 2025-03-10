@@ -502,19 +502,17 @@ impl BitVMClient {
                 let data = try_deserialize_slice(&content);
                 if let Ok(data) = data {
                     let hash = hex::encode(hash160::Hash::hash(&content));
-                    if match PUBLIC_DATA_VALIDATION_CACHE
-                        .write()
-                        .unwrap()
-                        .try_get_or_insert(file_name.to_string(), || {
-                            match Self::validate_data(&data) {
-                                true => Ok(hash.clone()),
-                                false => Err(()),
-                            }
-                        }) {
-                        Ok(cached_hash) => cached_hash == &hash,
-                        Err(_) => false,
-                    } {
-                        return (Some(data), content.len(), encoded_size);
+                    if Self::validate_data(&self.esplora, &data).await {
+                        if match PUBLIC_DATA_VALIDATION_CACHE
+                            .write()
+                            .unwrap()
+                            .try_get_or_insert(file_name.to_string(), || Ok::<_, ()>(hash.clone()))
+                        {
+                            Ok(cached_hash) => cached_hash == &hash,
+                            Err(_) => false,
+                        } {
+                            return (Some(data), content.len(), encoded_size);
+                        }
                     }
                 } else {
                     eprintln!("{}", data.err().unwrap());
@@ -525,27 +523,31 @@ impl BitVMClient {
         (None, 0, 0)
     }
 
-    pub fn validate_data(data: &BitVMClientPublicData) -> bool {
+    pub async fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
         println!(
             "Validating {} PEG-IN graphs and {} PEG-OUT graphs...",
             data.peg_in_graphs.len(),
             data.peg_out_graphs.len()
         );
         for peg_in_graph in data.peg_in_graphs.iter() {
-            if !peg_in_graph.validate() {
-                println!(
-                    "Encountered invalid peg-in graph (graph ID: {})",
-                    peg_in_graph.id()
+            if let Err(err) = peg_in_graph.validate() {
+                eprintln!(
+                    "Encountered invalid peg-in graph (graph ID: {}), with error: {}",
+                    peg_in_graph.id(),
+                    err,
                 );
+
                 return false;
             }
         }
         for peg_out_graph in data.peg_out_graphs.iter() {
-            if !peg_out_graph.validate() {
-                println!(
-                    "Encountered invalid peg-out graph (graph ID: {})",
-                    peg_out_graph.id()
+            if let Err(err) = peg_out_graph.validate(client).await {
+                eprintln!(
+                    "Encountered invalid peg-out graph (graph ID: {}), with error: {}",
+                    peg_out_graph.id(),
+                    err,
                 );
+
                 return false;
             }
         }
