@@ -1,6 +1,8 @@
 use bitcoin::{
-    absolute::Height, consensus::encode::serialize_hex, Address, Amount, Network, OutPoint,
-    PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
+    absolute::Height,
+    consensus::encode::serialize_hex,
+    hashes::{hash160, Hash},
+    Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
 use colored::Colorize;
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
@@ -70,6 +72,7 @@ use super::{
         get_private_data_file_path, get_private_data_from_file, save_local_private_file,
         save_local_public_file, BRIDGE_DATA_DIRECTORY_NAME,
     },
+    memory_cache::PUBLIC_DATA_VALIDATION_CACHE,
     sdk::{
         query::{ClientCliQuery, GraphCliQuery},
         query_contexts::depositor_signatures::DepositorSignatures,
@@ -148,41 +151,17 @@ impl BitVMClient {
         file_path_prefix: Option<&str>,
         zkproof_verifying_key: Option<ZkProofVerifyingKey>,
     ) -> Self {
-        let mut depositor_context = None;
-        if depositor_secret.is_some() {
-            depositor_context = Some(DepositorContext::new(
-                source_network,
-                depositor_secret.unwrap(),
-                n_of_n_public_keys,
-            ));
-        }
+        let depositor_context = depositor_secret
+            .map(|secret| DepositorContext::new(source_network, secret, n_of_n_public_keys));
 
-        let mut operator_context = None;
-        if operator_secret.is_some() {
-            operator_context = Some(OperatorContext::new(
-                source_network,
-                operator_secret.unwrap(),
-                n_of_n_public_keys,
-            ));
-        }
+        let operator_context = operator_secret
+            .map(|secret| OperatorContext::new(source_network, secret, n_of_n_public_keys));
 
-        let mut verifier_context = None;
-        if verifier_secret.is_some() {
-            verifier_context = Some(VerifierContext::new(
-                source_network,
-                verifier_secret.unwrap(),
-                n_of_n_public_keys,
-            ));
-        }
+        let verifier_context = verifier_secret
+            .map(|secret| VerifierContext::new(source_network, secret, n_of_n_public_keys));
 
-        let mut withdrawer_context = None;
-        if withdrawer_secret.is_some() {
-            withdrawer_context = Some(WithdrawerContext::new(
-                source_network,
-                withdrawer_secret.unwrap(),
-                n_of_n_public_keys,
-            ));
-        }
+        let withdrawer_context = withdrawer_secret
+            .map(|secret| WithdrawerContext::new(source_network, secret, n_of_n_public_keys));
 
         let (n_of_n_public_key, _) = generate_n_of_n_public_key(n_of_n_public_keys);
 
@@ -283,13 +262,8 @@ impl BitVMClient {
             let mut latest_file_names = latest_file_names_result.unwrap();
             if !latest_file_names.is_empty() {
                 // fetch latest valid file
-                let (latest_file, latest_file_name) = Self::fetch_latest_valid_file(
-                    &self.data_store,
-                    &self.esplora,
-                    &mut latest_file_names,
-                    Some(&self.remote_file_path),
-                )
-                .await;
+                let (latest_file, latest_file_name) =
+                    self.fetch_latest_valid_file(&mut latest_file_names).await;
                 if latest_file.is_some() && latest_file_name.is_some() {
                     save_local_public_file(
                         &self.local_file_path,
@@ -423,25 +397,18 @@ impl BitVMClient {
         } else {
             // TODO: can be optimized to fetch all data at once?
             for file_name in file_names.iter() {
-                let result = self
-                    .data_store
-                    .fetch_compressed_data_by_key(file_name, Some(&self.remote_file_path))
-                    .await; // TODO: use `fetch_by_key()` function
-                if result.is_ok() && result.as_ref().unwrap().0.is_some() {
-                    let data = try_deserialize_slice(&(result.unwrap()).0.unwrap());
-                    if data.is_ok()
-                        && Self::validate_data(&self.esplora, data.as_ref().unwrap()).await
-                    {
-                        // merge the file if the data is valid
-                        println!("Merging {} data...", { file_name });
-                        self.merge_data(data.unwrap());
-                        if latest_valid_file_name.is_none() {
-                            latest_valid_file_name = Some(file_name.clone());
-                        }
-                    } else {
-                        // skip the file if the data is invalid
-                        println!("Invalid file {}, Skipping...", file_name);
+                let (latest_data, _, _) = self.validate_data_with_cache_by_key(&file_name).await;
+
+                if latest_data.is_some() {
+                    // merge the file if the data is valid
+                    println!("Merging {} data...", { file_name });
+                    self.merge_data(latest_data.unwrap());
+                    if latest_valid_file_name.is_none() {
+                        latest_valid_file_name = Some(file_name.clone());
                     }
+                } else {
+                    // skip the file if the data is invalid
+                    println!("Invalid file {}, Skipping...", file_name);
                 }
             }
         }
@@ -450,10 +417,8 @@ impl BitVMClient {
     }
 
     async fn fetch_latest_valid_file(
-        data_store: &DataStore,
-        client: &AsyncClient,
+        &self,
         file_names: &mut Vec<String>,
-        file_path: Option<&str>,
     ) -> (Option<BitVMClientPublicData>, Option<String>) {
         let mut latest_valid_file: Option<BitVMClientPublicData> = None;
         let mut latest_valid_file_name: Option<String> = None;
@@ -463,10 +428,8 @@ impl BitVMClient {
             if file_name_result.is_some() {
                 let file_name = file_name_result.unwrap();
                 let (latest_data, latest_data_len, encoded_size) =
-                    Self::fetch_by_key(data_store, &file_name, file_path).await;
-                if latest_data.is_some()
-                    && Self::validate_data(client, latest_data.as_ref().unwrap()).await
-                {
+                    self.validate_data_with_cache_by_key(&file_name).await;
+                if latest_data.is_some() {
                     // data is valid
                     println!(
                         "Fetched valid file: {} (size: {}, compressed: {})",
@@ -485,28 +448,6 @@ impl BitVMClient {
         }
 
         (latest_valid_file, latest_valid_file_name)
-    }
-
-    async fn fetch_by_key(
-        data_store: &DataStore,
-        key: &String,
-        file_path: Option<&str>,
-    ) -> (Option<BitVMClientPublicData>, usize, usize) {
-        let result = data_store
-            .fetch_compressed_data_by_key(key, file_path)
-            .await;
-        if result.is_ok() {
-            if let (Some(content), encoded_size) = result.unwrap() {
-                let data = try_deserialize_slice(&content);
-                if let Ok(data) = data {
-                    return (Some(data), content.len(), encoded_size);
-                } else {
-                    eprintln!("{}", data.err().unwrap());
-                }
-            }
-        }
-
-        (None, 0, 0)
     }
 
     async fn save_to_data_store(&mut self) {
@@ -548,7 +489,48 @@ impl BitVMClient {
         }
     }
 
-    pub async fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
+    pub async fn validate_data_with_cache_by_key(
+        &self,
+        file_name: &str,
+    ) -> (Option<BitVMClientPublicData>, usize, usize) {
+        let result = self
+            .data_store
+            .fetch_compressed_data_by_key(file_name, Some(&self.remote_file_path))
+            .await;
+        if result.is_ok() {
+            if let (Some(content), encoded_size) = result.unwrap() {
+                let data = try_deserialize_slice(&content);
+                if let Ok(data) = data {
+                    let hash = hex::encode(hash160::Hash::hash(&content));
+                    if match PUBLIC_DATA_VALIDATION_CACHE
+                        .write()
+                        .unwrap()
+                        .try_get_or_insert(file_name.to_string(), || {
+                            match Self::validate_data(&self.esplora, &data) {
+                                true => Ok(hash.clone()),
+                                false => Err(()),
+                            }
+                        }) {
+                        Ok(cached_hash) => cached_hash == &hash,
+                        Err(_) => false,
+                    } {
+                        return (Some(data), content.len(), encoded_size);
+                    }
+                } else {
+                    eprintln!("{}", data.err().unwrap());
+                }
+            }
+        }
+
+        (None, 0, 0)
+    }
+
+    pub fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
+        println!(
+            "Validating {} PEG-IN graphs and {} PEG-OUT graphs...",
+            data.peg_in_graphs.len(),
+            data.peg_out_graphs.len()
+        );
         for peg_in_graph in data.peg_in_graphs.iter() {
             if let Err(err) = peg_in_graph.validate() {
                 eprintln!(
@@ -799,9 +781,9 @@ impl BitVMClient {
                             .unwrap();
                         let utxo = utxos
                             .into_iter()
-                            .find(|x| x.value.to_sat() != expected_peg_out_confirm_amount)
+                            .find(|x| x.value.to_sat() >= expected_peg_out_confirm_amount)
                             .unwrap_or_else(|| {
-                                panic!("No utxo found with {expected_peg_out_confirm_amount} sats for address {address}")
+                                panic!("No utxo found with at least {expected_peg_out_confirm_amount} sats for address {address}")
                             });
                         Input {
                             amount: utxo.value,
@@ -1224,6 +1206,29 @@ impl BitVMClient {
             )
             .await?;
         self.broadcast_tx(&tx).await
+    }
+
+    // use this when possible
+    // broadcast assert commits together to save groth16 verifying time
+    pub async fn broadcast_assert_commits(
+        &mut self,
+        peg_out_graph_id: &String,
+        proof: &RawProof,
+    ) -> Result<(Txid, Txid), Error> {
+        let graph = Self::find_peg_out_or_fail(&mut self.data, peg_out_graph_id)?;
+        let (commit1_tx, commit2_tx) = graph
+            .assert_commits(
+                &self.esplora,
+                &self.private_data.commitment_secrets
+                    [&self.operator_context.as_ref().unwrap().operator_public_key]
+                    [peg_out_graph_id],
+                proof,
+            )
+            .await?;
+        Ok((
+            self.broadcast_tx(&commit1_tx).await?,
+            self.broadcast_tx(&commit2_tx).await?,
+        ))
     }
 
     pub async fn broadcast_assert_final(
