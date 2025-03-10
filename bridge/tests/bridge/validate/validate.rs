@@ -34,6 +34,7 @@ async fn test_validate_invalid_previous_output() {
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].previous_output = changed_outpoint;
+    let deposit_txid = deposit_tx.compute_txid();
 
     let result = peg_in_graph.validate();
 
@@ -45,6 +46,14 @@ async fn test_validate_invalid_previous_output() {
             _
         )))
     ));
+
+    if let Err(Error::Validation(ValidationError::TxValidationFailed(tx_name, txid, input_index))) =
+        result
+    {
+        assert_eq!(tx_name, "PegInDeposit");
+        assert_eq!(txid, deposit_txid);
+        assert_eq!(input_index, 0);
+    }
 }
 
 #[tokio::test]
@@ -53,6 +62,7 @@ async fn test_validate_invalid_script_sig() {
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].script_sig = generate_burn_script();
+    let deposit_txid = deposit_tx.compute_txid();
 
     let result = peg_in_graph.validate();
 
@@ -64,6 +74,14 @@ async fn test_validate_invalid_script_sig() {
             _
         )))
     ));
+
+    if let Err(Error::Validation(ValidationError::TxValidationFailed(tx_name, txid, input_index))) =
+        result
+    {
+        assert_eq!(tx_name, "PegInDeposit");
+        assert_eq!(txid, deposit_txid);
+        assert_eq!(input_index, 0);
+    }
 }
 
 #[tokio::test]
@@ -72,6 +90,7 @@ async fn test_validate_invalid_sequence() {
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].sequence = bitcoin::Sequence(100);
+    let deposit_txid = deposit_tx.compute_txid();
 
     let result = peg_in_graph.validate();
 
@@ -83,6 +102,14 @@ async fn test_validate_invalid_sequence() {
             _
         )))
     ));
+
+    if let Err(Error::Validation(ValidationError::TxValidationFailed(tx_name, txid, input_index))) =
+        result
+    {
+        assert_eq!(tx_name, "PegInDeposit");
+        assert_eq!(txid, deposit_txid);
+        assert_eq!(input_index, 0);
+    }
 }
 
 #[tokio::test]
@@ -91,6 +118,7 @@ async fn test_validate_invalid_value() {
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].value = Amount::from_sat(1);
+    let deposit_txid = deposit_tx.compute_txid();
 
     let result = peg_in_graph.validate();
 
@@ -102,6 +130,14 @@ async fn test_validate_invalid_value() {
             _
         )))
     ));
+
+    if let Err(Error::Validation(ValidationError::TxValidationFailed(tx_name, txid, input_index))) =
+        result
+    {
+        assert_eq!(tx_name, "PegInDeposit");
+        assert_eq!(txid, deposit_txid);
+        assert_eq!(input_index, 0);
+    }
 }
 
 #[tokio::test]
@@ -110,6 +146,7 @@ async fn test_validate_invalid_script_pubkey() {
 
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.output[0].script_pubkey = generate_burn_script();
+    let deposit_txid = deposit_tx.compute_txid();
 
     let result = peg_in_graph.validate();
 
@@ -121,6 +158,14 @@ async fn test_validate_invalid_script_pubkey() {
             _
         )))
     ));
+
+    if let Err(Error::Validation(ValidationError::TxValidationFailed(tx_name, txid, input_index))) =
+        result
+    {
+        assert_eq!(tx_name, "PegInDeposit");
+        assert_eq!(txid, deposit_txid);
+        assert_eq!(input_index, 0);
+    }
 }
 
 async fn setup_and_create_graphs() -> (PegInGraph, PegOutGraph, OutPoint, AsyncClient) {

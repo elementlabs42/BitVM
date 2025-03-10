@@ -130,7 +130,7 @@ fn merge_hash_maps<T: Clone>(
 pub fn validate_transaction(
     transaction: &Transaction,
     comparison_transaction: &Transaction,
-    tx_name: &str,
+    tx_name: &'static str,
 ) -> Result<(), Error> {
     for i in 0..comparison_transaction.input.len() {
         if transaction.input[i].previous_output != comparison_transaction.input[i].previous_output
@@ -138,7 +138,7 @@ pub fn validate_transaction(
             || transaction.input[i].sequence != comparison_transaction.input[i].sequence
         {
             return Err(Error::Validation(ValidationError::TxValidationFailed(
-                tx_name.to_string(),
+                tx_name,
                 transaction.compute_txid(),
                 i,
             )));
@@ -150,7 +150,7 @@ pub fn validate_transaction(
             || transaction.output[i].script_pubkey != comparison_transaction.output[i].script_pubkey
         {
             return Err(Error::Validation(ValidationError::TxValidationFailed(
-                tx_name.to_string(),
+                tx_name,
                 transaction.compute_txid(),
                 i,
             )));
@@ -163,7 +163,7 @@ pub fn validate_transaction(
 pub async fn validate_witness(
     client: &AsyncClient,
     tx: &Transaction,
-    tx_name: &str,
+    tx_name: &'static str,
 ) -> Result<(), Error> {
     let txid = tx.compute_txid();
     let tx_status = client.get_tx_status(&txid).await.map_err(Error::Esplora)?;
@@ -175,9 +175,7 @@ pub async fn validate_witness(
                 for i in 0..tx.input.len() {
                     if tx.input[i].witness != onchain_tx.input[i].witness {
                         return Err(Error::Validation(ValidationError::WitnessMismatch(
-                            tx_name.to_string(),
-                            txid,
-                            i,
+                            tx_name, txid, i,
                         )));
                     }
                 }
@@ -197,7 +195,7 @@ fn verify_public_nonces(
     all_nonces: &HashMap<usize, HashMap<PublicKey, PubNonce>>,
     all_sigs: &HashMap<usize, HashMap<PublicKey, Signature>>,
     txid: Txid,
-    tx_name: &str,
+    tx_name: &'static str,
 ) -> Result<(), Error> {
     for (i, nonces) in all_nonces {
         for (pubkey, nonce) in nonces {
@@ -206,10 +204,7 @@ fn verify_public_nonces(
                     "Failed to verify public nonce for pubkey {pubkey} on tx:input {txid}:{i}."
                 );
                 return Err(Error::Validation(ValidationError::NoncesValidationFailed(
-                    tx_name.to_string(),
-                    *pubkey,
-                    txid,
-                    *i,
+                    tx_name, *pubkey, txid, *i,
                 )));
             }
         }

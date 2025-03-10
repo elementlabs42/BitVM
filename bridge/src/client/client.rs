@@ -502,19 +502,17 @@ impl BitVMClient {
                 let data = try_deserialize_slice(&content);
                 if let Ok(data) = data {
                     let hash = hex::encode(hash160::Hash::hash(&content));
-                    if match PUBLIC_DATA_VALIDATION_CACHE
-                        .write()
-                        .unwrap()
-                        .try_get_or_insert(file_name.to_string(), || {
-                            match Self::validate_data(&self.esplora, &data) {
-                                true => Ok(hash.clone()),
-                                false => Err(()),
-                            }
-                        }) {
-                        Ok(cached_hash) => cached_hash == &hash,
-                        Err(_) => false,
-                    } {
-                        return (Some(data), content.len(), encoded_size);
+                    if Self::validate_data(&self.esplora, &data).await {
+                        if match PUBLIC_DATA_VALIDATION_CACHE
+                            .write()
+                            .unwrap()
+                            .try_get_or_insert(file_name.to_string(), || Ok::<_, ()>(hash.clone()))
+                        {
+                            Ok(cached_hash) => cached_hash == &hash,
+                            Err(_) => false,
+                        } {
+                            return (Some(data), content.len(), encoded_size);
+                        }
                     }
                 } else {
                     eprintln!("{}", data.err().unwrap());
@@ -525,7 +523,7 @@ impl BitVMClient {
         (None, 0, 0)
     }
 
-    pub fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
+    pub async fn validate_data(client: &AsyncClient, data: &BitVMClientPublicData) -> bool {
         println!(
             "Validating {} PEG-IN graphs and {} PEG-OUT graphs...",
             data.peg_in_graphs.len(),

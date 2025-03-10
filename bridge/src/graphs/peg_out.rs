@@ -1844,27 +1844,28 @@ impl PegOutGraph {
 
         let assert_commit_1_txid = self.assert_commit_1_transaction.tx().compute_txid();
         let assert_commit_2_txid = self.assert_commit_2_transaction.tx().compute_txid();
-        let onchain_assert_commit_1_tx = client
+        let Some(onchain_assert_commit_1_tx) = client
             .get_tx(&assert_commit_1_txid)
             .await
-            .map_err(Error::Esplora)?;
-        let onchain_assert_commit_2_tx = client
-            .get_tx(&assert_commit_2_txid)
-            .await
-            .map_err(Error::Esplora)?;
-
-        if let None = onchain_assert_commit_1_tx {
+            .map_err(Error::Esplora)?
+        else {
             return Err(Error::Other(format!(
-                "Esplora failed to retrieve a confirmed tx with id: {}",
+                "Esplora failed to retrieve a tx {} with id: {}",
+                self.assert_commit_1_transaction.name(),
                 assert_commit_1_txid
             )));
-        }
-        if let None = onchain_assert_commit_2_tx {
+        };
+        let Some(onchain_assert_commit_2_tx) = client
+            .get_tx(&assert_commit_2_txid)
+            .await
+            .map_err(Error::Esplora)?
+        else {
             return Err(Error::Other(format!(
-                "Esplora failed to retrieve a confirmed tx with id: {}",
+                "Esplora failed to retrieve a tx {} with id: {}",
+                self.assert_commit_2_transaction.name(),
                 assert_commit_2_txid
             )));
-        }
+        };
 
         let assert_final_txid = self.assert_final_transaction.tx().compute_txid();
         let assert_final_status = client.get_tx_status(&assert_final_txid).await;
@@ -1874,9 +1875,9 @@ impl PegOutGraph {
                 true => {
                     // get commit from assert_commit txs
                     let assert_commit_1_witness =
-                        get_commit_from_assert_commit_tx(&onchain_assert_commit_1_tx.unwrap());
+                        get_commit_from_assert_commit_tx(&onchain_assert_commit_1_tx);
                     let assert_commit_2_witness =
-                        get_commit_from_assert_commit_tx(&onchain_assert_commit_2_tx.unwrap());
+                        get_commit_from_assert_commit_tx(&onchain_assert_commit_2_tx);
 
                     let (input_script_index, disprove_witness) =
                         self.connector_c.generate_disprove_witness(
