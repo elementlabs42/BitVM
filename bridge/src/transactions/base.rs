@@ -392,7 +392,7 @@ mod tests {
             Err(Error::Validation(ValidationError::WitnessMismatch(_, _, _)))
         ));
 
-        if let Err(Error::Validation(ValidationError::TxValidationFailed(
+        if let Err(Error::Validation(ValidationError::WitnessMismatch(
             tx_name,
             txid,
             input_index,
@@ -403,6 +403,7 @@ mod tests {
             assert_eq!(input_index, 0);
         }
     }
+
     #[test]
     fn test_verify_witness_match() {
         let mut tx = get_test_tx();
