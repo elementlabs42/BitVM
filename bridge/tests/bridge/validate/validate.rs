@@ -31,13 +31,12 @@ async fn test_validate_invalid_previous_output() {
         txid: peg_in_outpoint.txid,
         vout: peg_in_outpoint.vout + 1,
     };
-
     let deposit_tx = peg_in_graph.peg_in_deposit_transaction.tx_mut();
     deposit_tx.input[0].previous_output = changed_outpoint;
-    let deposit_txid = deposit_tx.compute_txid();
 
     let result = peg_in_graph.validate();
 
+    let refund_txid = peg_in_graph.peg_in_deposit_transaction.tx().compute_txid();
     assert!(matches!(
         result,
         Err(Error::Validation(ValidationError::TxValidationFailed(
@@ -50,8 +49,8 @@ async fn test_validate_invalid_previous_output() {
     if let Err(Error::Validation(ValidationError::TxValidationFailed(tx_name, txid, input_index))) =
         result
     {
-        assert_eq!(tx_name, "PegInDeposit");
-        assert_eq!(txid, deposit_txid);
+        assert_eq!(tx_name, "PegInRefund");
+        assert_eq!(txid, refund_txid);
         assert_eq!(input_index, 0);
     }
 }

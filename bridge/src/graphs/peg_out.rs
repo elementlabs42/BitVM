@@ -78,7 +78,10 @@ use super::{
             take_2::Take2Transaction,
         },
     },
-    base::{verify_if_not_mined, BaseGraph, GraphId, CROWDFUNDING_AMOUNT, GRAPH_VERSION},
+    base::{
+        get_onchain_txs, get_tx_statuses, verify_if_not_mined, BaseGraph, GraphId,
+        CROWDFUNDING_AMOUNT, GRAPH_VERSION,
+    },
     peg_in::PegInGraph,
 };
 
@@ -2266,36 +2269,42 @@ impl PegOutGraph {
             self.take_2_transaction.name(),
         )?;
 
-        validate_witness(
-            client,
-            self.assert_commit_1_transaction.tx(),
-            self.assert_commit_1_transaction.name(),
-        )
-        .await?;
-        validate_witness(
-            client,
-            self.assert_commit_2_transaction.tx(),
-            self.assert_commit_2_transaction.name(),
-        )
-        .await?;
-        validate_witness(
-            client,
-            self.start_time_transaction.tx(),
-            self.start_time_transaction.name(),
-        )
-        .await?;
-        validate_witness(
-            client,
-            self.kick_off_2_transaction.tx(),
-            self.kick_off_2_transaction.name(),
-        )
-        .await?;
-        validate_witness(
-            client,
-            self.peg_out_confirm_transaction.tx(),
-            self.peg_out_confirm_transaction.name(),
-        )
-        .await?;
+        let txs_with_commits = vec![
+            (
+                self.assert_commit_1_transaction.tx(),
+                self.assert_commit_1_transaction.name(),
+            ),
+            (
+                self.assert_commit_1_transaction.tx(),
+                self.assert_commit_1_transaction.name(),
+            ),
+            (
+                self.start_time_transaction.tx(),
+                self.start_time_transaction.name(),
+            ),
+            (
+                self.kick_off_2_transaction.tx(),
+                self.kick_off_2_transaction.name(),
+            ),
+            (
+                self.peg_out_confirm_transaction.tx(),
+                self.peg_out_confirm_transaction.name(),
+            ),
+        ];
+
+        let txids: Vec<Txid> = txs_with_commits
+            .iter()
+            .map(|(tx, _)| tx.compute_txid())
+            .collect();
+        let tx_statuses = get_tx_statuses(client, &txids).await;
+        let onchain_txs = get_onchain_txs(client, &txids).await;
+
+        for ((tx, tx_name), (tx_status_res, onchain_tx_res)) in txs_with_commits
+            .iter()
+            .zip(tx_statuses.into_iter().zip(onchain_txs.into_iter()))
+        {
+            validate_witness(tx, &tx_name, tx_status_res, onchain_tx_res)?;
+        }
 
         verify_public_nonces_for_tx(&self.assert_initial_transaction)?;
         verify_public_nonces_for_tx(&self.assert_final_transaction)?;

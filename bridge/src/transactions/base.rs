@@ -5,7 +5,7 @@ use crate::{
 };
 use bitcoin::{Amount, OutPoint, PublicKey, Script, Transaction, Txid, XOnlyPublicKey};
 use core::cmp;
-use esplora_client::AsyncClient;
+use esplora_client::TxStatus;
 use itertools::Itertools;
 use musig2::{secp256k1::schnorr::Signature, PubNonce};
 use std::collections::HashMap;
@@ -160,16 +160,17 @@ pub fn validate_transaction(
     Ok(())
 }
 
-pub async fn validate_witness(
-    client: &AsyncClient,
+pub fn validate_witness(
     tx: &Transaction,
     tx_name: &'static str,
+    tx_status_res: Result<TxStatus, esplora_client::Error>,
+    onchain_tx_res: Result<Option<Transaction>, esplora_client::Error>,
 ) -> Result<(), Error> {
     let txid = tx.compute_txid();
-    let tx_status = client.get_tx_status(&txid).await.map_err(Error::Esplora)?;
+    let tx_status = tx_status_res.map_err(Error::Esplora)?;
 
     if tx_status.confirmed {
-        let result_tx = client.get_tx(&txid).await.map_err(Error::Esplora)?;
+        let result_tx = onchain_tx_res.map_err(Error::Esplora)?;
         match result_tx {
             Some(onchain_tx) => {
                 for i in 0..tx.input.len() {
