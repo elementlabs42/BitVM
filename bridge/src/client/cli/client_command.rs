@@ -82,7 +82,7 @@ impl ClientCommand {
     async fn get_funding_utxo_input(&self, utxo_arg: Option<&String>) -> io::Result<Input> {
         let utxo = utxo_arg.expect("Missing UTXO argument, please see help.");
         let outpoint = OutPoint::from_str(utxo).expect(
-            "Could not parse the provided UTXO, please see help for the correct format: {e}.",
+            "Could not parse the provided UTXO, please see help for the correct format.",
         );
         let tx = self
             .client
