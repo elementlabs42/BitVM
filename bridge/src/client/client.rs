@@ -1,12 +1,10 @@
 use bitcoin::{
-    absolute::Height,
-    consensus::encode::serialize_hex,
-    hashes::{hash160, Hash},
-    Address, Amount, Network, OutPoint, PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
+    absolute::Height, consensus::encode::serialize_hex, Address, Amount, Network, OutPoint,
+    PublicKey, ScriptBuf, Transaction, Txid, XOnlyPublicKey,
 };
 use colored::Colorize;
 use esplora_client::{AsyncClient, Builder, TxStatus, Utxo};
-use futures::{executor::block_on, future::join_all};
+use futures::future::join_all;
 use human_bytes::human_bytes;
 use musig2::SecNonce;
 use serde::{Deserialize, Serialize};
@@ -72,7 +70,6 @@ use super::{
         get_private_data_file_path, get_private_data_from_file, save_local_private_file,
         save_local_public_file, BRIDGE_DATA_DIRECTORY_NAME,
     },
-    memory_cache::PUBLIC_DATA_VALIDATION_CACHE,
     sdk::{
         query::{ClientCliQuery, GraphCliQuery},
         query_contexts::depositor_signatures::DepositorSignatures,
@@ -397,7 +394,7 @@ impl BitVMClient {
         } else {
             // TODO: can be optimized to fetch all data at once?
             for file_name in file_names.iter() {
-                let (latest_data, _, _) = self.validate_data_with_cache_by_key(&file_name).await;
+                let (latest_data, _, _) = self.validate_data_by_key(&file_name).await;
 
                 if latest_data.is_some() {
                     // merge the file if the data is valid
@@ -428,7 +425,7 @@ impl BitVMClient {
             if file_name_result.is_some() {
                 let file_name = file_name_result.unwrap();
                 let (latest_data, latest_data_len, encoded_size) =
-                    self.validate_data_with_cache_by_key(&file_name).await;
+                    self.validate_data_by_key(&file_name).await;
                 if latest_data.is_some() {
                     // data is valid
                     println!(
@@ -489,7 +486,7 @@ impl BitVMClient {
         }
     }
 
-    pub async fn validate_data_with_cache_by_key(
+    pub async fn validate_data_by_key(
         &self,
         file_name: &str,
     ) -> (Option<BitVMClientPublicData>, usize, usize) {
@@ -501,21 +498,7 @@ impl BitVMClient {
             if let (Some(content), encoded_size) = result.unwrap() {
                 let data = try_deserialize_slice(&content);
                 if let Ok(data) = data {
-                    let hash = hex::encode(hash160::Hash::hash(&content));
-                    if match PUBLIC_DATA_VALIDATION_CACHE
-                        .write()
-                        .unwrap()
-                        .try_get_or_insert(file_name.to_string(), || {
-                            block_on(async {
-                                match Self::validate_data(&self.esplora, &data).await {
-                                    true => Ok(hash.clone()),
-                                    false => Err(()),
-                                }
-                            })
-                        }) {
-                        Ok(cached_hash) => cached_hash == &hash,
-                        Err(_) => false,
-                    } {
+                    if Self::validate_data(&self.esplora, &data).await {
                         return (Some(data), content.len(), encoded_size);
                     }
                 } else {
