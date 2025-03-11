@@ -4,7 +4,7 @@ use bitcoin::{Amount, OutPoint, Txid};
 
 use bridge::{
     error::{Error, ValidationError},
-    graphs::{base::PEG_OUT_FEE, peg_in::PegInGraph, peg_out::PegOutGraph},
+    graphs::{base::PEG_IN_FEE, peg_in::PegInGraph, peg_out::PegOutGraph},
     scripts::generate_burn_script,
     transactions::{base::Input, pre_signed::PreSignedTransaction},
 };
@@ -36,7 +36,7 @@ async fn test_validate_invalid_previous_output() {
 
     let result = peg_in_graph.validate();
 
-    let refund_txid = peg_in_graph.peg_in_deposit_transaction.tx().compute_txid();
+    let refund_txid = peg_in_graph.peg_in_refund_transaction.tx().compute_txid();
     assert!(matches!(
         result,
         Err(Error::Validation(ValidationError::TxValidationFailed(
@@ -170,7 +170,7 @@ async fn test_validate_invalid_script_pubkey() {
 async fn setup_and_create_graphs() -> (PegInGraph, PegOutGraph, OutPoint, AsyncClient) {
     let config = setup_test().await;
 
-    let amount = Amount::from_sat(INITIAL_AMOUNT + PEG_OUT_FEE);
+    let amount = Amount::from_sat(INITIAL_AMOUNT + PEG_IN_FEE);
     let peg_in_outpoint = OutPoint {
         txid: Txid::from_str("0e6719ac074b0e3cac76d057643506faa1c266b322aa9cf4c6f635fe63b14327")
             .unwrap(),
