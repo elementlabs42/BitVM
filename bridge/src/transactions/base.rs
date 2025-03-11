@@ -227,23 +227,26 @@ pub fn verify_public_nonces_for_tx(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, str::FromStr};
 
     use bitcoin::{
+        absolute,
         key::{
             constants::{SCHNORR_SIGNATURE_SIZE, SECRET_KEY_SIZE},
             Keypair,
         },
-        PublicKey, Txid,
+        Amount, OutPoint, PublicKey, ScriptBuf, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
     };
+    use esplora_client::TxStatus;
     use musig2::{secp256k1::schnorr::Signature, PubNonce};
 
     use crate::{
         contexts::base::generate_keys_from_secret,
+        error::{Error, ValidationError},
         transactions::{pre_signed_musig2::get_nonce_message, signing_musig2::generate_nonce},
     };
 
-    use super::verify_public_nonces;
+    use super::{validate_witness, verify_public_nonces};
 
     const DUMMY_TXID: &str = "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456";
 
@@ -287,6 +290,29 @@ mod tests {
         (all_nonces, all_sigs)
     }
 
+    fn get_test_tx() -> Transaction {
+        Transaction {
+            version: bitcoin::transaction::Version(2),
+            lock_time: absolute::LockTime::ZERO,
+            input: vec![TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_str(
+                        "0e6719ac074b0e3cac76d057643506faa1c266b322aa9cf4c6f635fe63b14327",
+                    )
+                    .unwrap(),
+                    vout: 0,
+                },
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::MAX,
+                witness: Witness::default(),
+            }],
+            output: vec![TxOut {
+                script_pubkey: ScriptBuf::new(),
+                value: Amount::from_sat(0),
+            }],
+        }
+    }
+
     #[test]
     fn test_verify_public_nonces_all_valid_signatures() {
         let (all_nonces, all_sigs) = get_test_nonces();
@@ -316,15 +342,81 @@ mod tests {
             .unwrap()
             .insert(pubkey, Signature::from_slice(&bad_sig).unwrap());
 
-        assert!(
-            !verify_public_nonces(
-                &all_nonces,
-                &all_sigs,
-                DUMMY_TXID.parse::<Txid>().unwrap(),
-                "test_tx"
-            )
-            .is_err(),
-            "verify_public_nonces() did not return false on invalid signature"
+        let result = verify_public_nonces(
+            &all_nonces,
+            &all_sigs,
+            DUMMY_TXID.parse::<Txid>().unwrap(),
+            "test_tx",
         );
+
+        assert!(matches!(
+            result,
+            Err(Error::Validation(ValidationError::NoncesValidationFailed(
+                _,
+                _,
+                _,
+                _
+            )))
+        ));
+
+        if let Err(Error::Validation(ValidationError::NoncesValidationFailed(
+            tx_name,
+            _pubkey,
+            _txid,
+            _input_index,
+        ))) = result
+        {
+            assert_eq!(tx_name, "test_tx");
+            assert_eq!(_pubkey, pubkey);
+            assert_eq!(_txid, DUMMY_TXID.parse::<Txid>().unwrap());
+            assert_eq!(input_index, input_index);
+        }
+    }
+
+    #[test]
+    fn test_verify_witness_mismatch() {
+        let mut tx = get_test_tx();
+        tx.input[0].witness = vec![vec![0u8; 32]].into();
+
+        let onchain_tx_res = Ok(Some(get_test_tx()));
+        let tx_status_res = Ok(TxStatus {
+            confirmed: true,
+            block_height: None,
+            block_hash: None,
+            block_time: None,
+        });
+        let result = validate_witness(&tx, "test_tx", tx_status_res, onchain_tx_res);
+
+        assert!(matches!(
+            result,
+            Err(Error::Validation(ValidationError::WitnessMismatch(_, _, _)))
+        ));
+
+        if let Err(Error::Validation(ValidationError::TxValidationFailed(
+            tx_name,
+            txid,
+            input_index,
+        ))) = result
+        {
+            assert_eq!(tx_name, "test_tx");
+            assert_eq!(txid, tx.compute_txid());
+            assert_eq!(input_index, 0);
+        }
+    }
+    #[test]
+    fn test_verify_witness_match() {
+        let mut tx = get_test_tx();
+        tx.input[0].witness = vec![vec![0u8; 32]].into();
+
+        let onchain_tx_res = Ok(Some(tx.clone()));
+        let tx_status_res = Ok(TxStatus {
+            confirmed: true,
+            block_height: None,
+            block_hash: None,
+            block_time: None,
+        });
+        let result = validate_witness(&tx, "test_tx", tx_status_res, onchain_tx_res);
+
+        assert!(result.is_ok());
     }
 }
