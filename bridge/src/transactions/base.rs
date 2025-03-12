@@ -30,7 +30,7 @@ pub const MIN_RELAY_FEE_ASSERT_COMMIT1: u64 = relay_fee(739137);
 pub const MIN_RELAY_FEE_ASSERT_COMMIT2: u64 = relay_fee(470440);
 pub const MIN_RELAY_FEE_ASSERT_FINAL: u64 = relay_fee(352);
 pub const MIN_RELAY_FEE_CHALLENGE: u64 = relay_fee(317);
-pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(238775);
+pub const MIN_RELAY_FEE_DISPROVE: u64 = relay_fee(238785);
 pub const MIN_RELAY_FEE_DISPROVE_CHAIN: u64 = relay_fee(389370);
 
 pub struct Input {
@@ -174,7 +174,9 @@ pub fn validate_witness(
         match result_tx {
             Some(onchain_tx) => {
                 for i in 0..tx.input.len() {
-                    if tx.input[i].witness != onchain_tx.input[i].witness {
+                    if !tx.input[i].witness.is_empty()
+                        && tx.input[i].witness != onchain_tx.input[i].witness
+                    {
                         return Err(Error::Validation(ValidationError::WitnessMismatch(
                             tx_name, txid, i,
                         )));
@@ -410,6 +412,24 @@ mod tests {
         tx.input[0].witness = vec![vec![0u8; 32]].into();
 
         let onchain_tx_res = Ok(Some(tx.clone()));
+        let tx_status_res = Ok(TxStatus {
+            confirmed: true,
+            block_height: None,
+            block_hash: None,
+            block_time: None,
+        });
+        let result = validate_witness(&tx, "test_tx", tx_status_res, onchain_tx_res);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_empty_witness_and_not_empty_onchain_witness() {
+        let tx = get_test_tx();
+        let mut onchain_tx = tx.clone();
+        onchain_tx.input[0].witness = vec![vec![0u8; 32]].into();
+
+        let onchain_tx_res = Ok(Some(onchain_tx));
         let tx_status_res = Ok(TxStatus {
             confirmed: true,
             block_height: None,
