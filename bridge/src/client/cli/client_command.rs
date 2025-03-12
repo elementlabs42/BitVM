@@ -116,15 +116,15 @@ impl ClientCommand {
         println!("Minimum required input amounts");
         println!("------------------------------");
         println!(
-            "Peg-in graph - 'peg-in depost' tx input:    {} SAT (spendable by [DEPOSITOR])",
+            "'Peg-in deposit' tx input:  {} SAT (spendable by [DEPOSITOR])",
             INITIAL_AMOUNT + PEG_IN_FEE
         );
         println!(
-            "Peg-out graph - 'peg-out confirm' tx input: {} SAT (spendable by [OPERATOR])",
+            "'Peg-out confirm' tx input: {} SAT (spendable by [OPERATOR])",
             INITIAL_AMOUNT + PEG_OUT_FEE
         );
         println!(
-            "Withdrawer peg-out - 'peg-out' tx input:    {} SAT (spendable by [OPERATOR])",
+            "'Peg-out' tx input:         {} SAT (spendable by [OPERATOR])",
             INITIAL_AMOUNT + MIN_RELAY_FEE_PEG_OUT
         );
 
