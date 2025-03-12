@@ -3,7 +3,7 @@ Before running the demo for the first time, see [Environment Setup](#environment
 # Demo Prep: Funding UTXOs
 The bridge peg-in and peg-out execution consumes three funding UTXOs. For convenience, prepare them before running the demo. This process remains the same across all scenarios.
 
-The the minimum required UTXO amounts may change in the future, so please use the **get-funding-amounts** CLI command to get up-to-date information. The list below is provided for reference only:
+The minimum required UTXO amounts may change in the future, so please use the **get-funding-amounts** CLI command to get up-to-date information. The list below is provided for reference only:
 
 1. Peg-in graph - 'peg-in depost' tx input: **2097447 SAT** - will be spent by [DEPOSITOR] (use `-d` to get their address)
 2. Peg-out graph - 'peg-out confirm' tx input: **3607030 SAT** - will be spent by [OPERATOR] (use `-o` to get their address)
